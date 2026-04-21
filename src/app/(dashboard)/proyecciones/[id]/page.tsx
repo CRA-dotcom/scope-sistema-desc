@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
-import { useParams } from "next/navigation";
-import { ArrowLeft, TrendingUp } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -25,12 +25,32 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ProjectionDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const projectionId = params.id as Id<"projections">;
 
   const matrix = useQuery(api.functions.projections.queries.getMatrix, {
     projectionId,
   });
+  const questionnaire = useQuery(
+    api.functions.questionnaires.queries.getByProjection,
+    { projectionId }
+  );
+  const generateQuestionnaire = useMutation(
+    api.functions.questionnaires.mutations.generate
+  );
+  const [isGeneratingQ, setIsGeneratingQ] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Doc<"monthlyAssignments"> | null>(null);
+
+  const handleGenerateQuestionnaire = async () => {
+    try {
+      setIsGeneratingQ(true);
+      const id = await generateQuestionnaire({ projectionId });
+      router.push(`/cuestionarios/${id}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al generar cuestionario");
+      setIsGeneratingQ(false);
+    }
+  };
 
   if (matrix === undefined) {
     return (
@@ -99,6 +119,47 @@ export default function ProjectionDetailPage() {
           <p className="mt-1 text-lg font-bold text-accent">
             {activeServices.length}
           </p>
+        </div>
+      </div>
+
+      {/* Questionnaire card */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
+              <ClipboardList className="text-accent" size={20} />
+            </div>
+            <div>
+              <p className="font-medium">Cuestionario</p>
+              <p className="text-xs text-muted-foreground">
+                {questionnaire === undefined
+                  ? "Cargando..."
+                  : questionnaire === null
+                    ? "Aún no se ha generado. Se construirá con 3 preguntas genéricas + 1 por cada servicio activo."
+                    : `Creado el ${new Date(questionnaire.createdAt).toLocaleDateString("es-MX")} · ${questionnaire.responses.length} preguntas`}
+              </p>
+            </div>
+          </div>
+          {questionnaire === null && (
+            <button
+              type="button"
+              onClick={handleGenerateQuestionnaire}
+              disabled={isGeneratingQ || activeServices.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+            >
+              <Plus size={16} />
+              {isGeneratingQ ? "Generando..." : "Generar Cuestionario"}
+            </button>
+          )}
+          {questionnaire && (
+            <Link
+              href={`/cuestionarios/${questionnaire._id}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary cursor-pointer"
+            >
+              Ver cuestionario
+              <ArrowRight size={14} />
+            </Link>
+          )}
         </div>
       </div>
 

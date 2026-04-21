@@ -1,9 +1,10 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   TrendingUp,
@@ -11,6 +12,7 @@ import {
   FileSignature,
   Package,
   ChevronRight,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -145,12 +147,30 @@ function Arrow({ status }: { status: StepStatus }) {
 
 export default function DocumentCyclePage() {
   const params = useParams();
+  const router = useRouter();
   const clientId = params.id as Id<"clients">;
 
   const cycle = useQuery(
     api.functions.dashboard.documentCycle.getDocumentCycle,
     { clientId }
   );
+  const generateQuotation = useMutation(
+    api.functions.quotations.mutations.generate
+  );
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+
+  const handleGenerateQuotation = async (
+    projServiceId: Id<"projectionServices">
+  ) => {
+    try {
+      setGeneratingFor(projServiceId);
+      const quotationId = await generateQuotation({ projServiceId });
+      router.push(`/cotizaciones/${quotationId}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al generar cotización");
+      setGeneratingFor(null);
+    }
+  };
 
   if (cycle === undefined) {
     return (
@@ -332,6 +352,27 @@ export default function DocumentCyclePage() {
                     }
                   />
                 </div>
+
+                {/* Actions */}
+                {!svc.quotation && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleGenerateQuotation(
+                          svc.projServiceId as Id<"projectionServices">
+                        )
+                      }
+                      disabled={generatingFor === svc.projServiceId}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    >
+                      <Plus size={14} />
+                      {generatingFor === svc.projServiceId
+                        ? "Generando..."
+                        : `Generar Cotización para ${svc.serviceName}`}
+                    </button>
+                  </div>
+                )}
 
                 {/* Month-by-month deliverables */}
                 {hasDeliverables && (

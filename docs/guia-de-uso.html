@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Projex — Guía de Uso</title>
+<style>
+  :root {
+    --bg: #020617;
+    --bg-card: #0b1220;
+    --bg-hover: #111a2e;
+    --border: #1e293b;
+    --border-strong: #334155;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #60a5fa;
+    --accent-bg: #1e3a8a33;
+    --green: #34d399;
+    --green-bg: #05966922;
+    --amber: #fbbf24;
+    --amber-bg: #d9770633;
+    --red: #f87171;
+    --red-bg: #b91c1c33;
+    --violet: #c084fc;
+    --code-bg: #0f172a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    max-width: 1500px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+  aside {
+    position: sticky; top: 0; height: 100vh;
+    overflow-y: auto;
+    padding: 24px 18px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  aside h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin: 20px 0 6px;
+    padding: 0 10px;
+  }
+  aside a {
+    display: block;
+    padding: 6px 10px;
+    color: var(--text-dim);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  aside a:hover { background: var(--bg-hover); color: var(--text); }
+  .brand {
+    font-weight: 600; font-size: 16px;
+    padding: 0 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  .brand small {
+    display: block; font-weight: 400; color: var(--text-muted);
+    font-size: 11px; margin-top: 4px;
+  }
+  main { padding: 44px 60px 120px; max-width: 1100px; }
+
+  h1 { font-size: 34px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--text-dim); font-size: 17px; margin: 0 0 28px; }
+  h2 {
+    font-size: 24px;
+    margin: 54px 0 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h2:first-of-type { border-top: none; padding-top: 0; }
+  h2 .num {
+    display: inline-block;
+    width: 32px; height: 32px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+    line-height: 32px;
+    margin-right: 10px;
+    vertical-align: 2px;
+  }
+  h3 { font-size: 17px; margin: 28px 0 10px; color: var(--text); }
+  h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 20px 0 6px;
+  }
+  p { margin: 8px 0 12px; }
+  ul, ol { padding-left: 22px; margin: 8px 0 14px; }
+  li { margin: 4px 0; }
+  code {
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px;
+    color: #a5b4fc;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+  }
+  pre code { background: transparent; border: none; padding: 0; color: #cbd5e1; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .hero {
+    background: linear-gradient(135deg, #1e293b33, #0f172a);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 26px;
+    margin-bottom: 32px;
+  }
+  .meta {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    padding: 8px 0 14px;
+    font-size: 12px; color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .meta b { color: var(--text); font-weight: 500; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-ok { background: var(--green-bg); color: var(--green); }
+  .badge-warn { background: var(--amber-bg); color: var(--amber); }
+  .badge-bad { background: var(--red-bg); color: var(--red); }
+  .badge-info { background: var(--accent-bg); color: var(--accent); }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-bg);
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn { border-color: var(--amber); background: var(--amber-bg); }
+  .callout.bad { border-color: var(--red); background: var(--red-bg); }
+  .callout.ok { border-color: var(--green); background: var(--green-bg); }
+  .callout.tip { border-color: var(--violet); background: #6b21a833; }
+  .callout strong { color: var(--text); }
+
+  /* Screenshots */
+  figure {
+    margin: 16px 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-card);
+  }
+  figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  figcaption {
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  /* Wireframes (fake UI mockups) */
+  .wire {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin: 14px 0;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .wire-label {
+    background: var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 6px 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .wire-label .route { font-family: "JetBrains Mono", monospace; color: var(--accent); text-transform: none; }
+  .wire-body { padding: 16px; }
+  .wire-row { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+  .wire-h { font-weight: 600; font-size: 18px; color: var(--text); margin: 0 0 6px; }
+  .wire-sub { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
+  .btn {
+    display: inline-block;
+    padding: 6px 14px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 13px;
+  }
+  .btn-outline {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+  }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-ok { background: var(--green); color: #000; }
+  .btn-warn { background: var(--amber); color: #000; }
+  .sidebar-nav {
+    width: 180px;
+    background: #0f172a;
+    border-right: 1px solid var(--border);
+    padding: 12px 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .sidebar-nav .item { padding: 6px 10px; border-radius: 6px; margin: 1px 0; }
+  .sidebar-nav .item.active { background: var(--accent-bg); color: var(--accent); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .card-mini {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .input-fake {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 10px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .pill-accent { background: var(--accent-bg); color: var(--accent); }
+  .pill-warn { background: var(--amber-bg); color: var(--amber); }
+  .pill-ok { background: var(--green-bg); color: var(--green); }
+  .pill-mute { background: #33415522; color: var(--text-muted); }
+
+  /* Steps */
+  .steps { counter-reset: stepnum; }
+  .step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px 14px 58px;
+    margin: 10px 0;
+    position: relative;
+  }
+  .step::before {
+    counter-increment: stepnum;
+    content: counter(stepnum);
+    position: absolute;
+    left: 14px; top: 14px;
+    width: 30px; height: 30px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 14px;
+  }
+  .step h4 {
+    margin: 0 0 4px;
+    color: var(--accent);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .step p { margin: 4px 0; font-size: 14px; }
+
+  .click-here {
+    display: inline-block;
+    background: var(--amber);
+    color: #000;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 6px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--bg-card);
+    font-weight: 500;
+  }
+
+  .nav-pills {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    margin: 16px 0 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-pills a {
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .nav-pills a:hover { border-color: var(--accent); text-decoration: none; }
+
+  .placeholder-ss {
+    background: repeating-linear-gradient(45deg, #0b1220, #0b1220 10px, #0a1020 10px, #0a1020 20px);
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .placeholder-ss code { font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">
+    Projex<small>Guía de Uso · v0.1</small>
+  </div>
+
+  <h2>Antes de empezar</h2>
+  <a href="#intro">Qué es Projex</a>
+  <a href="#roles">Roles de usuario</a>
+  <a href="#sidebar">El menú lateral</a>
+
+  <h2>Día a día del consultor</h2>
+  <a href="#p1-login">1. Iniciar sesión</a>
+  <a href="#p2-dashboard">2. Dashboard</a>
+  <a href="#p3-cliente">3. Crear un cliente</a>
+  <a href="#p4-proyeccion">4. Crear una proyección</a>
+  <a href="#p5-cuestionario">5. Generar cuestionario ★</a>
+  <a href="#p6-compartir">6. Compartir con cliente</a>
+  <a href="#p7-publico">7. Cliente responde</a>
+  <a href="#p8-cotizacion">8. Cotización</a>
+  <a href="#p9-contrato">9. Contrato</a>
+  <a href="#p10-entregable">10. Entregable mensual</a>
+  <a href="#p11-ciclo">11. Ciclo documental</a>
+
+  <h2>Admin</h2>
+  <a href="#p12-config">12. Configuración</a>
+  <a href="#p13-platform">13. Panel Plataforma</a>
+
+  <h2>Referencia</h2>
+  <a href="#faq">FAQ · problemas comunes</a>
+  <a href="#capturar">Capturar pantallas</a>
+  <a href="#actualizar">Cómo actualizar</a>
+</aside>
+
+<main>
+
+<div class="meta">
+  <span><b>Última actualización:</b> 2026-04-21</span>
+  <span><b>Versión del código:</b> commit <code>4f60b41</code></span>
+  <span><b>Status:</b> <span class="badge badge-info">Dev mode</span></span>
+</div>
+
+<h1>Projex — Guía de Uso</h1>
+<p class="subtitle">Cómo usar el sistema desde el navegador, pantalla por pantalla. Para la parte técnica (código, schema, AI pipeline), consulta <a href="sistema-guia.html">sistema-guia.html</a>.</p>
+
+<div class="nav-pills">
+  <a href="sistema-guia.html">📘 Guía técnica</a>
+  <a href="#p5-cuestionario">🎯 Ir directo al cuestionario</a>
+  <a href="#capturar">📸 Capturar más pantallas</a>
+</div>
+
+<div class="hero">
+  <p style="margin:0;"><b>Lee esto primero.</b> Projex es tu centro de operaciones. Desde aquí administras los clientes de tu firma de consultoría, proyectas cuánto les cobrarás al año, les mandas cuestionarios, generas cotizaciones y contratos, y entregas documentos profesionales mes con mes. Todo el ciclo comercial en un solo lugar.</p>
+</div>
+
+<!-- =============================================================== -->
+<h2 id="intro">Qué es Projex</h2>
+
+<p>Projex es un sistema <b>multi-tenant</b>: cada firma de consultoría tiene su propia "organización" aislada. Los clientes, proyecciones y documentos de una firma no son visibles por otras.</p>
+
+<p>El flujo típico que recorrerás cada cierre de año (o al cerrar un nuevo cliente):</p>
+
+<ol>
+  <li>Das de alta al <b>cliente</b> con su RFC y datos fiscales.</li>
+  <li>Creas una <b>proyección anual</b> decidiendo cuánto te pagará por cada servicio.</li>
+  <li>Generas el <b>cuestionario</b> y compartes el link con el cliente.</li>
+  <li>Generas <b>cotización</b> → cuando el cliente aprueba, generas <b>contrato</b>.</li>
+  <li>Mes a mes, Projex te sugiere qué <b>entregables</b> producir; Claude los pre-llena y tú los apruebas.</li>
+</ol>
+
+<!-- =============================================================== -->
+<h2 id="roles">Roles de usuario</h2>
+
+<table>
+  <tr><th>Rol</th><th>Qué puede hacer</th></tr>
+  <tr><td><span class="pill pill-accent">Super Admin</span></td><td>Gestiona todas las organizaciones, plantillas globales, servicios default. Verás el botón <b>Panel Plataforma</b> en el menú.</td></tr>
+  <tr><td><span class="pill pill-ok">Admin</span></td><td>Administra su propia firma: branding, configuración del motor de cálculo, usuarios.</td></tr>
+  <tr><td><span class="pill pill-mute">Ejecutivo</span></td><td>Opera día a día: da de alta clientes, hace proyecciones, envía cuestionarios, entrega documentos.</td></tr>
+</table>
+
+<!-- =============================================================== -->
+<h2 id="sidebar">El menú lateral</h2>
+
+<p>Siempre visible a la izquierda. Estos son los accesos rápidos a cada sección del sistema:</p>
+
+<table>
+  <tr><th>Icono</th><th>Sección</th><th>Qué encuentras ahí</th></tr>
+  <tr><td>🏠</td><td><b>Dashboard</b></td><td>Panorama general: ventas proyectadas, entregables del mes, clientes activos, alertas</td></tr>
+  <tr><td>👥</td><td><b>Clientes</b></td><td>Listado y alta de tus clientes finales</td></tr>
+  <tr><td>📈</td><td><b>Proyecciones</b></td><td>Matrices anuales por cliente con servicios y montos mensuales</td></tr>
+  <tr><td>💼</td><td><b>Servicios</b></td><td>Catálogo de áreas de servicio (Legal, Contable, TI, etc.)</td></tr>
+  <tr><td>📋</td><td><b>Cuestionarios</b></td><td>Cuestionarios enviados a clientes, status y respuestas</td></tr>
+  <tr><td>📄</td><td><b>Cotizaciones</b></td><td>Propuestas comerciales por cada servicio proyectado</td></tr>
+  <tr><td>✍️</td><td><b>Contratos</b></td><td>Contratos firmados de cotizaciones aprobadas</td></tr>
+  <tr><td>📦</td><td><b>Entregables</b></td><td>Documentos mensuales generados con AI</td></tr>
+  <tr><td>💰</td><td><b>Facturación</b></td><td>Status de pago de las asignaciones mensuales</td></tr>
+  <tr><td>⚙️</td><td><b>Configuración</b></td><td><span class="badge badge-warn">Placeholder hoy</span> Planeado para equipo + plan</td></tr>
+  <tr><td>🛡️</td><td><b>Panel Plataforma</b></td><td>Solo super admin. Gestión global.</td></tr>
+</table>
+
+<p class="callout tip"><strong>Tip:</strong> el menú se puede colapsar con la flecha superior izquierda para ganar más espacio horizontal (útil en la matriz de proyección).</p>
+
+<!-- =============================================================== -->
+<h2 id="p1-login"><span class="num">1</span> Iniciar sesión</h2>
+
+<p>La primera pantalla que ves. Ingresas con tu correo y Clerk maneja el resto (verificación, OAuth, etc.).</p>
+
+<figure>
+  <img src="screenshots/01-sign-in.png" alt="Pantalla de sign-in" />
+  <figcaption>📸 Captura real · <code>/sign-in</code> — Correo electrónico + botón Continuar.</figcaption>
+</figure>
+
+<div class="steps">
+  <div class="step">
+    <h4>Abre <code>http://localhost:3000/sign-in</code></h4>
+    <p>Te recibe el modal de Clerk con el título "Entrar · para continuar a Projex". En dev mode verás la etiqueta <i>Development mode</i> al pie.</p>
+  </div>
+  <div class="step">
+    <h4>Ingresa tu correo electrónico</h4>
+    <p>Click en el campo "Ingrese su dirección de correo electrónico". Clic en <span class="btn">Continuar</span>.</p>
+  </div>
+  <div class="step">
+    <h4>Verificación</h4>
+    <p>Clerk te manda un código por email (o password si lo tienes configurado). Lo ingresas y entras.</p>
+  </div>
+  <div class="step">
+    <h4>Selector de organización (si tienes varias)</h4>
+    <p>Si perteneces a más de una firma, Clerk te pregunta en cuál quieres entrar. Elige una.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>¿Primera vez?</strong> Si no tienes cuenta, click en "¿No tienes cuenta? <b>Regístrese</b>" (abajo del modal). El super admin debe haberte agregado a una organización previamente, o si eres el primer usuario te crearás la tuya propia.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p2-dashboard"><span class="num">2</span> Dashboard — el panorama</h2>
+
+<p>Es lo primero que ves después de entrar. Resume toda tu operación del año en una sola vista.</p>
+
+<h3>Qué ves en el Dashboard</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Dashboard</span><span class="route">/</span></div>
+  <div class="wire-body">
+    <div style="display:flex; gap:16px;">
+      <div class="sidebar-nav">
+        <div style="font-weight:600;color:var(--accent);padding:6px 10px;">Projex</div>
+        <div class="item active">🏠 Dashboard</div>
+        <div class="item">👥 Clientes</div>
+        <div class="item">📈 Proyecciones</div>
+        <div class="item">💼 Servicios</div>
+        <div class="item">📋 Cuestionarios</div>
+        <div class="item">📄 Cotizaciones</div>
+        <div class="item">✍️ Contratos</div>
+        <div class="item">📦 Entregables</div>
+        <div class="item">💰 Facturación</div>
+        <div class="item">⚙️ Configuración</div>
+      </div>
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div class="wire-h">🏠 Dashboard</div>
+          <div style="display:flex;gap:8px;">
+            <div class="input-fake">2026 ▾</div>
+            <div class="btn btn-outline">↓ Exportar CSV</div>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-bottom:14px;">
+          <div class="card-mini"><div style="color:var(--text-muted);font-size:11px;">Clientes Activos</div><div style="font-size:22px;font-weight:700;color:var(--accent);">12</div></div>
+          <div class="card-mini"><div style="color:var(--text-muted);font-size:11px;">Proyecciones Activas</div><div style="font-size:22px;font-weight:700;color:var(--accent);">8</div></div>
+          <div class="card-mini"><div style="color:var(--text-muted);font-size:11px;">Entregables Pendientes</div><div style="font-size:22px;font-weight:700;color:var(--amber);">24</div><div style="color:var(--red);font-size:10px;">3 vencidos</div></div>
+          <div class="card-mini"><div style="color:var(--text-muted);font-size:11px;">Facturación del Mes</div><div style="font-size:22px;font-weight:700;color:var(--accent);">$450,000</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card-mini" style="padding:14px;"><div style="font-size:12px;font-weight:600;margin-bottom:8px;">Ventas vs Pagos de Servicios</div><div style="height:80px;background:linear-gradient(180deg, transparent, var(--accent-bg));border-radius:4px;display:flex;align-items:flex-end;justify-content:space-around;padding:4px;"><span style="width:6%;height:60%;background:var(--accent);"></span><span style="width:6%;height:80%;background:var(--accent);"></span><span style="width:6%;height:45%;background:var(--green);"></span><span style="width:6%;height:70%;background:var(--accent);"></span><span style="width:6%;height:55%;background:var(--green);"></span><span style="width:6%;height:85%;background:var(--accent);"></span></div></div>
+          <div class="card-mini" style="padding:14px;"><div style="font-size:12px;font-weight:600;margin-bottom:8px;">Estado de Entregables</div><div style="display:flex;justify-content:center;padding:10px;"><div style="width:70px;height:70px;border-radius:50%;background:conic-gradient(var(--green) 0 40%, var(--amber) 40% 70%, var(--text-muted) 70% 100%);"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="placeholder-ss">
+  📸 Screenshot real pendiente · corre <code>bash scripts/capture-ui.sh</code> después de iniciar sesión
+</div>
+
+<h3>Qué puedes hacer desde aquí</h3>
+
+<table>
+  <tr><th>Acción</th><th>Dónde está</th><th>Qué hace</th></tr>
+  <tr><td>Cambiar de año</td><td>Selector arriba a la derecha</td><td>Todo el dashboard recalcula para el año seleccionado</td></tr>
+  <tr><td>Exportar CSV</td><td>Botón <span class="btn btn-outline">Exportar CSV</span></td><td>Descarga un resumen financiero + lista de clientes</td></tr>
+  <tr><td>Ver vencidos</td><td>Badge rojo bajo card "Entregables Pendientes"</td><td>Indica cuántos entregables están vencidos del mes</td></tr>
+</table>
+
+<div class="callout tip">
+  <strong>Tip:</strong> el dashboard se actualiza en tiempo real. Si creas una proyección en otra pestaña, los números aquí suben solos sin refrescar.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p3-cliente"><span class="num">3</span> Crear un cliente</h2>
+
+<p>Todo empieza por dar de alta al cliente. Sin cliente no hay proyección; sin proyección no hay nada más.</p>
+
+<h3>Paso 1: ir al listado de clientes</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Clientes</span><span class="route">/clientes</span></div>
+  <div class="wire-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="display:flex;gap:10px;align-items:center;"><span style="font-size:22px;">👥</span><h3 style="margin:0;">Clientes <span class="pill pill-mute">12</span></h3></div>
+      <div class="btn">+ Nuevo Cliente <span class="click-here">Click aquí</span></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <div class="input-fake" style="flex:1;">🔍 Buscar por nombre o RFC...</div>
+      <div class="btn btn-outline">📦 Archivados</div>
+    </div>
+    <div class="card-mini" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="display:flex;gap:10px;align-items:center;"><div style="width:36px;height:36px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;">🏢</div><div><div style="font-weight:500;">Empresa Demo S.A. de C.V.</div><div style="font-size:11px;color:var(--text-muted);">RFC: XAXX010101000 · Servicios · Mensual</div></div></div>
+      <div style="text-align:right;"><div style="color:var(--accent);font-weight:500;">$4,500,000</div><div style="font-size:11px;color:var(--text-muted);">anual</div></div>
+    </div>
+    <div class="card-mini" style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="display:flex;gap:10px;align-items:center;"><div style="width:36px;height:36px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;">🏢</div><div><div style="font-weight:500;">Distribuidora Ficticia</div><div style="font-size:11px;color:var(--text-muted);">RFC: DIF200515ABC · Comercio · Quincenal</div></div></div>
+      <div style="text-align:right;"><div style="color:var(--accent);font-weight:500;">$12,000,000</div><div style="font-size:11px;color:var(--text-muted);">anual</div></div>
+    </div>
+  </div>
+</div>
+
+<h3>Paso 2: llenar el formulario de nuevo cliente</h3>
+
+<div class="steps">
+  <div class="step">
+    <h4>Click en <span class="btn">+ Nuevo Cliente</span></h4>
+    <p>Te lleva a <code>/clientes/nuevo</code>.</p>
+  </div>
+  <div class="step">
+    <h4>Llena los 5 campos</h4>
+    <ul>
+      <li><b>Nombre / Razón Social</b> — ej. "Empresa Demo S.A. de C.V."</li>
+      <li><b>RFC</b> — se valida con expresión regular mexicana (persona física 13 chars, moral 12)</li>
+      <li><b>Industria</b> — dropdown con lista predefinida (Manufactura, Comercio, Servicios, Tecnología, etc.)</li>
+      <li><b>Facturación Anual Proyectada (MXN)</b> — número. Servirá como default para las ventas anuales de la proyección.</li>
+      <li><b>Frecuencia de Facturación</b> — Semanal / Quincenal / Mensual</li>
+    </ul>
+    <p class="callout tip" style="margin-top:8px;"><strong>Nota:</strong> el campo de ejecutivo asignado aún no existe en el formulario (sprint v2).</p>
+  </div>
+  <div class="step">
+    <h4>Click en <span class="btn">Crear Cliente</span></h4>
+    <p>Se crea y te redirige a <code>/clientes/[id]</code> (el detalle del cliente que acabas de crear).</p>
+  </div>
+</div>
+
+<div class="callout bad">
+  <strong>⚠️ Gap conocido:</strong> no hay campo <b>email</b> todavía. Cuando el sistema envíe notificaciones al cliente, hoy usa <code>{rfc}@placeholder.com</code>. Está en el plan del sprint v2.
+</div>
+
+<h3>La pantalla de detalle del cliente</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Detalle cliente</span><span class="route">/clientes/[id]</span></div>
+  <div class="wire-body">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">← Volver a Clientes</div>
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;">
+      <div style="display:flex;gap:12px;align-items:center;"><div style="width:50px;height:50px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:24px;">🏢</div><div><div style="font-size:20px;font-weight:700;">Empresa Demo S.A. de C.V.</div><div style="font-size:12px;color:var(--text-muted);">RFC: XAXX010101000 · Servicios</div></div></div>
+      <div style="display:flex;gap:6px;"><span class="btn" style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent);">🔗 Ver Ciclo Documental</span><span class="btn btn-outline">✏️ Editar</span><span class="btn btn-outline">📦 Archivar</span></div>
+    </div>
+    <div class="grid-4" style="margin-bottom:14px;">
+      <div class="card-mini"><div style="color:var(--text-muted);font-size:11px;">Facturación Anual</div><div style="font-size:18px;font-weight:700;color:var(--accent);">$4,500,000</div></div>
+      <div class="card-mini"><div style="color:var(--text-muted);font-size:11px;">Frecuencia de Facturación</div><div style="font-size:14px;">Mensual</div></div>
+      <div class="card-mini"><div style="color:var(--text-muted);font-size:11px;">Industria</div><div style="font-size:14px;">Servicios</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;"><div style="font-weight:500;">📈 Proyecciones</div><div class="btn">+ Nueva Proyección</div></div>
+    <div class="card-mini">2026 · Activa · <span style="color:var(--accent);">$2,400,000 budget</span></div>
+  </div>
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p4-proyeccion"><span class="num">4</span> Crear una proyección</h2>
+
+<p>La proyección es el corazón. Define cuánto te pagará el cliente al año y cómo se distribuye ese dinero entre las áreas de servicio (Legal, Contable, TI, etc.).</p>
+
+<p>La UI es un <b>wizard de 4 pasos</b>:</p>
+
+<div class="wire">
+  <div class="wire-label"><span>Nueva Proyección</span><span class="route">/proyecciones/nueva</span></div>
+  <div class="wire-body">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;padding:12px;background:var(--bg);border-radius:8px;">
+      <div style="display:flex;gap:12px;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">1</div><span style="font-weight:500;">Datos Básicos</span></div>
+      <div style="width:32px;height:1px;background:var(--border);"></div>
+      <div style="display:flex;gap:12px;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">2</div><span style="color:var(--text-muted);">Ventas Mensuales</span></div>
+      <div style="width:32px;height:1px;background:var(--border);"></div>
+      <div style="display:flex;gap:12px;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">3</div><span style="color:var(--text-muted);">Servicios</span></div>
+      <div style="width:32px;height:1px;background:var(--border);"></div>
+      <div style="display:flex;gap:12px;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">4</div><span style="color:var(--text-muted);">Revisión</span></div>
+    </div>
+  </div>
+</div>
+
+<h3>Paso 1 · Datos Básicos</h3>
+
+<div class="steps">
+  <div class="step">
+    <h4>Cliente</h4>
+    <p>Dropdown con todos tus clientes activos. Si viniste desde la pantalla del cliente con el botón <b>+ Nueva Proyección</b>, ya viene pre-seleccionado.</p>
+  </div>
+  <div class="step">
+    <h4>Año</h4>
+    <p>Por defecto el año actual. Puedes bajar o subir.</p>
+  </div>
+  <div class="step">
+    <h4>Venta Anual Proyectada (MXN)</h4>
+    <p>Cuánto va a facturar el cliente en total este año. Se pre-llena con el <code>annualRevenue</code> del cliente.</p>
+  </div>
+  <div class="step">
+    <h4>Presupuesto Total a Contratar (MXN)</h4>
+    <p>Cuánto te va a pagar el cliente a ti en total por el año. <b>Este es el número clave.</b></p>
+  </div>
+  <div class="step">
+    <h4>Tasa de Comisión (%)</h4>
+    <p>Porcentaje que se calcula como comisión sobre las ventas. Default: 2%.</p>
+  </div>
+</div>
+
+<h3>Paso 2 · Ventas Mensuales</h3>
+
+<p>Aquí decides cómo se distribuyen las ventas anuales del cliente a lo largo de los 12 meses. Esto genera el <b>Factor de Estacionalidad (FE)</b> que el motor usa para distribuir lo que tú cobrarás.</p>
+
+<div class="steps">
+  <div class="step">
+    <h4>Opción A: Distribución uniforme</h4>
+    <p>Click <span class="btn btn-outline">Distribuir uniformemente</span> → pone <code>ventasAnuales / 12</code> en cada mes. Usa esto si el cliente no tiene estacionalidad marcada.</p>
+  </div>
+  <div class="step">
+    <h4>Opción B: Estacionalidad manual</h4>
+    <p>Activa el toggle <b>"Usar estacionalidad"</b> y edita mes por mes. Ej: un restaurante podría tener diciembre alto y enero bajo.</p>
+  </div>
+</div>
+
+<h3>Paso 3 · Servicios</h3>
+
+<p>Lista las 9 áreas (Legal, Contable, TI, Marketing, RH, Admin, Comisiones, Logística, Construcción). Para cada una:</p>
+
+<ul>
+  <li><b>Toggle activo/inactivo</b> — si no cobras ese servicio, déjalo inactivo.</li>
+  <li><b>% del budget</b> — slider entre <code>minPct</code> y <code>maxPct</code> del servicio. El valor inicial es <code>defaultPct</code>. El sistema normaliza los pesos: si los % no suman 100 pero todos están activos, se ajustan proporcionalmente.</li>
+</ul>
+
+<div class="callout tip">
+  <strong>Cómo funciona la distribución:</strong> <br>
+  <code>budgetServicio = remainingBudget × (chosenPct / sumaDePesosActivos)</code><br>
+  Las comisiones se calculan aparte como % de ventas mensuales (proporcionales).
+</div>
+
+<h3>Paso 4 · Revisión</h3>
+
+<p>Te muestra una tabla preview con los montos mensuales por servicio. Si todo se ve bien, click en <span class="btn">Crear Proyección</span>.</p>
+
+<div class="callout ok">
+  <strong>🎉 Al crear la proyección:</strong> el sistema inserta automáticamente <b>12 asignaciones mensuales</b> por cada servicio activo. Esas son las filas que luego tendrás que entregar mes a mes.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p5-cuestionario"><span class="num">5</span> Generar cuestionario <span class="badge badge-info">Foco</span></h2>
+
+<p>El cuestionario es el primer contacto con el cliente. Le preguntas los datos y documentos que necesitas para producir los entregables mensuales.</p>
+
+<div class="callout">
+  <strong>Regla dura:</strong> solo puede existir <b>UN cuestionario por proyección</b>. Si ya existe uno, el botón "Generar Cuestionario" aparece deshabilitado.
+</div>
+
+<h3>Paso 1: desde la pantalla de la proyección</h3>
+
+<p>Abre <code>/proyecciones/[id]</code>. En la sección "Documentos del ciclo" verás un botón:</p>
+
+<div class="wire">
+  <div class="wire-label"><span>Proyección detalle (fragmento)</span><span class="route">/proyecciones/[id]</span></div>
+  <div class="wire-body">
+    <div style="font-size:14px;font-weight:500;margin-bottom:8px;">📋 Cuestionario</div>
+    <div style="padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);display:flex;justify-content:space-between;align-items:center;">
+      <div><div style="font-weight:500;">Aún no se ha generado un cuestionario</div><div style="font-size:12px;color:var(--text-muted);">Genera uno para solicitar información al cliente</div></div>
+      <div class="btn">+ Generar Cuestionario <span class="click-here">Click aquí</span></div>
+    </div>
+  </div>
+</div>
+
+<h3>Paso 2: el sistema construye las preguntas automáticamente</h3>
+
+<p>Al hacer click en <b>Generar Cuestionario</b>, el backend construye las preguntas basado en los servicios activos de la proyección:</p>
+
+<h4>3 preguntas genéricas (siempre presentes)</h4>
+<ol>
+  <li>"Información general del servicio requerido"</li>
+  <li>"Documentos requeridos para este servicio"</li>
+  <li>"Observaciones especiales o requerimientos adicionales"</li>
+</ol>
+
+<h4>1 pregunta por cada servicio activo</h4>
+<p>"Detalle específico para el servicio: <b>{nombre del servicio}</b>"</p>
+
+<div class="callout tip">
+  <strong>Ejemplo:</strong> si la proyección tiene 5 servicios activos (Legal, Contable, TI, Marketing, RH), el cuestionario queda con <b>3 + 5 = 8 preguntas</b>.
+</div>
+
+<h3>Paso 3: la pantalla del cuestionario generado</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Cuestionario detalle</span><span class="route">/cuestionarios/[id]</span></div>
+  <div class="wire-body">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">← Volver a Cuestionarios</div>
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;">
+      <div style="display:flex;gap:12px;align-items:center;"><span style="font-size:24px;">📋</span><div><div style="font-size:20px;font-weight:700;">Cuestionario — Empresa Demo</div><div style="font-size:12px;color:var(--text-muted);">8 preguntas · Creado 05/Abr/2026</div></div></div>
+      <span class="pill pill-mute">Borrador</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <div class="btn btn-outline">✏️ Editar Respuestas</div>
+      <div class="btn" style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent);">✉️ Enviar a Cliente</div>
+    </div>
+    <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:#0a1120;margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Link para el cliente:</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <code style="flex:1;background:var(--bg);padding:6px 10px;border-radius:4px;font-size:11px;color:var(--text-dim);">https://localhost:3000/q/xk3f9a2b...</code>
+        <div class="btn btn-outline">📋 Copiar <span class="click-here">Click aquí</span></div>
+      </div>
+    </div>
+    <div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);">
+      <div style="font-size:12px;font-weight:600;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px;">General</div>
+      <div style="font-size:13px;margin-bottom:4px;">Información general del servicio requerido</div>
+      <div style="font-size:11px;color:var(--text-muted);">Aplica a: Legal, Contable, TI, Marketing, RH</div>
+    </div>
+  </div>
+</div>
+
+<h3>Botones y qué hacen</h3>
+
+<table>
+  <tr><th>Botón</th><th>Aparece cuando</th><th>Qué hace</th></tr>
+  <tr><td><span class="btn btn-outline">✏️ Editar Respuestas</span></td><td>Status ≠ completado</td><td>Puedes llenar las respuestas tú mismo si el cliente te las pasa por otro medio (WhatsApp, email).</td></tr>
+  <tr><td><span class="btn" style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent);">✉️ Enviar a Cliente</span></td><td>Status = borrador</td><td>Cambia el status a <code>sent</code>. <b>NO envía email automáticamente</b>. Tú copias el link de abajo y lo mandas manualmente.</td></tr>
+  <tr><td><span class="btn">✓ Marcar Completado</span></td><td>Status = sent o in_progress</td><td>Marca el cuestionario como terminado. Dispara email de notificación al ejecutivo (hoy placeholder).</td></tr>
+  <tr><td><span class="btn btn-outline">📋 Copiar</span></td><td>Siempre</td><td>Copia al clipboard el link público <code>/q/{token}</code> que le mandas al cliente.</td></tr>
+</table>
+
+<!-- =============================================================== -->
+<h2 id="p6-compartir"><span class="num">6</span> Compartir el cuestionario con el cliente</h2>
+
+<p>Como el sistema <b>no envía emails automáticos todavía</b>, tú eres responsable de hacer llegar el link al cliente. Opciones:</p>
+
+<div class="steps">
+  <div class="step">
+    <h4>Copia el link con el botón 📋 Copiar</h4>
+    <p>El link tiene la forma <code>https://tu-dominio.com/q/xk3f9a2b7c4d...</code>. Ese token es único por cuestionario.</p>
+  </div>
+  <div class="step">
+    <h4>Pégalo donde lo usarás</h4>
+    <ul>
+      <li><b>Email manual</b> (tu Gmail, Outlook): "Hola Juan, te mando el cuestionario para Empresa Demo 2026. Por favor complétalo antes del viernes: [link]"</li>
+      <li><b>WhatsApp</b>: mismo mensaje</li>
+      <li><b>Slack/Teams</b>: si el cliente tiene canal compartido</li>
+    </ul>
+  </div>
+  <div class="step">
+    <h4>Click en <b>Enviar a Cliente</b> en Projex</h4>
+    <p>Esto cambia el status de <code>borrador</code> a <code>enviado</code> para que sepas que ya salió (aunque el email real lo hayas mandado tú por otro lado).</p>
+  </div>
+</div>
+
+<div class="callout warn">
+  <strong>Gap del sprint v2:</strong> en mayo habrá un botón "Enviar por email automático" que dispare Resend con un link firmado HMAC con expiración. Por ahora, <b>es manual</b>.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p7-publico"><span class="num">7</span> Cómo lo ve el cliente (vista pública)</h2>
+
+<p>Cuando el cliente abre <code>/q/[token]</code> en su navegador, <b>no necesita cuenta ni login</b>. El token es la credencial.</p>
+
+<figure>
+  <img src="screenshots/03-q-not-found.png" alt="Cuestionario no encontrado (token inválido)" />
+  <figcaption>📸 Captura real · <code>/q/invalid-token</code> — Lo que ve el cliente si el link está mal o ya expiró.</figcaption>
+</figure>
+
+<h3>Con un token válido, ve esto</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Cuestionario público (cliente)</span><span class="route">/q/xk3f9a2b...</span></div>
+  <div class="wire-body">
+    <div style="border-bottom:1px solid var(--accent);padding-bottom:10px;margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">CONSULTORA CHRISTIAN COVER</div>
+      <div style="font-size:22px;font-weight:700;margin-top:2px;">Cuestionario — Empresa Demo</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Por favor completa las siguientes preguntas para que podamos brindarte un mejor servicio.</div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:10px;">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--accent);">General</div>
+      <div style="padding:12px;">
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px;">Información general del servicio requerido</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Aplica a: Legal, Contable, TI, Marketing, RH</div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:8px;min-height:60px;color:var(--text-muted);font-size:12px;">Escribe tu respuesta...</div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:14px;">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--accent);">Legal</div>
+      <div style="padding:12px;"><div style="font-size:13px;font-weight:500;margin-bottom:6px;">Detalle específico para el servicio: Legal</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:8px;min-height:60px;color:var(--text-muted);font-size:12px;">Escribe tu respuesta...</div></div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <div class="btn btn-outline">💾 Guardar Progreso</div>
+      <div class="btn btn-ok">📤 Enviar Respuestas</div>
+    </div>
+  </div>
+</div>
+
+<h3>Lo que el cliente puede hacer</h3>
+
+<div class="steps">
+  <div class="step">
+    <h4>Responde las preguntas agrupadas por servicio</h4>
+    <p>El cuestionario viene con el <b>branding del consultor</b> (tu logo, tus colores) si lo configuraste en <code>/platform/orgs/[id]/branding</code>.</p>
+  </div>
+  <div class="step">
+    <h4>Guardar Progreso (no envía aún)</h4>
+    <p>Guarda todo lo que ha escrito. El status del cuestionario pasa a <code>in_progress</code>. Puede cerrar la pestaña y volver más tarde con el mismo link.</p>
+  </div>
+  <div class="step">
+    <h4>Enviar Respuestas (envío final)</h4>
+    <p>Marca el cuestionario como <code>completed</code>. Ya no puede editar. Ve una pantalla de "Respuestas enviadas exitosamente".</p>
+  </div>
+</div>
+
+<div class="callout bad">
+  <strong>⚠️ Seguridad:</strong> el token se genera con <code>Math.random()</code>, no tiene expiración y no está firmado. Cualquiera con el link puede responder. Para producción, el sprint v2 lo reemplaza con HMAC + expiresAt.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p8-cotizacion"><span class="num">8</span> Generar cotización</h2>
+
+<p>Las cotizaciones son <b>por cada servicio</b> individual, no anuales agregadas. Si la proyección tiene 5 servicios activos, generarás 5 cotizaciones (una por cada uno).</p>
+
+<h3>Paso 1: desde el ciclo documental del cliente</h3>
+
+<p>En <code>/clientes/[id]/ciclo</code> verás una pipeline visual con todos los servicios activos. Para cada uno tienes un botón "Generar Cotización".</p>
+
+<div class="wire">
+  <div class="wire-label"><span>Ciclo documental</span><span class="route">/clientes/[id]/ciclo</span></div>
+  <div class="wire-body">
+    <div style="font-size:14px;font-weight:500;margin-bottom:8px;">💼 Servicio: Legal</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+      <div style="padding:8px 14px;background:var(--accent-bg);color:var(--accent);border-radius:6px;font-size:12px;font-weight:500;">✓ Cotización</div>
+      <div style="color:var(--text-muted);">→</div>
+      <div style="padding:8px 14px;background:var(--border);color:var(--text-muted);border-radius:6px;font-size:12px;">Contrato</div>
+      <div style="color:var(--text-muted);">→</div>
+      <div style="padding:8px 14px;background:var(--border);color:var(--text-muted);border-radius:6px;font-size:12px;">12 Entregables</div>
+    </div>
+    <div class="btn">+ Generar Cotización para Legal <span class="click-here">Click aquí</span></div>
+  </div>
+</div>
+
+<h3>Paso 2: en el detalle de la cotización</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Cotización detalle</span><span class="route">/cotizaciones/[id]</span></div>
+  <div class="wire-body">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;">
+      <div><div style="font-size:20px;font-weight:700;">Cotización — Legal</div><div style="font-size:12px;color:var(--text-muted);">Empresa Demo · 2026</div></div>
+      <span class="pill pill-mute">Borrador</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="btn btn-outline">✏️ Editar Contenido</div>
+      <div class="btn btn-outline">📄 Generar PDF</div>
+      <div class="btn btn-outline">⬇️ Descargar</div>
+      <div class="btn" style="background:#3b82f633;color:#60a5fa;border:1px solid #60a5fa;">✉️ Enviar</div>
+      <div class="btn btn-ok">✓ Aprobar</div>
+      <div class="btn btn-danger">✕ Rechazar</div>
+    </div>
+    <div style="padding:20px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#000;font-size:12px;"><b>Preview de la cotización (HTML)</b><br>Servicio: Legal<br>Cliente: Empresa Demo S.A. de C.V.<br>Importe anual: $240,000<br>...</div>
+  </div>
+</div>
+
+<h3>El flujo de status</h3>
+
+<table>
+  <tr><th>Status</th><th>Quién lo cambia</th><th>Cómo</th></tr>
+  <tr><td><span class="pill pill-mute">Borrador</span></td><td>Sistema</td><td>Al crear la cotización</td></tr>
+  <tr><td><span class="pill pill-accent">Enviado</span></td><td>Consultor</td><td>Click en <b>Enviar</b> (lo mandaste manualmente por email/WhatsApp)</td></tr>
+  <tr><td><span class="pill pill-ok">Aprobado</span></td><td>Consultor</td><td>Click en <b>Aprobar</b> cuando el cliente dijo "sí"</td></tr>
+  <tr><td><span class="pill" style="background:var(--red-bg);color:var(--red);">Rechazado</span></td><td>Consultor</td><td>Click en <b>Rechazar</b> si el cliente no aceptó</td></tr>
+</table>
+
+<div class="callout warn">
+  <strong>Gap del sprint v2:</strong> hoy las transiciones son manuales (botones que tú pulsas). La versión del 15-may habrá links firmados en el email al cliente con botones <b>Aceptar</b> / <b>Rechazar</b> que harán la transición automáticamente al servidor.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p9-contrato"><span class="num">9</span> Generar contrato</h2>
+
+<p>Solo puedes generar un contrato desde una cotización que esté en status <b>Aprobado</b>. Si no lo está, el botón no aparece.</p>
+
+<div class="steps">
+  <div class="step">
+    <h4>Desde la cotización aprobada</h4>
+    <p>Verás un nuevo botón <span class="btn">+ Generar Contrato</span>. Click.</p>
+  </div>
+  <div class="step">
+    <h4>Se crea el contrato en borrador</h4>
+    <p>El sistema usa el mismo motor de templates (busca plantilla específica del servicio → genérica del org → global). El HTML incluye el bloque de firmas estándar.</p>
+  </div>
+  <div class="step">
+    <h4>Editas, generas PDF, mandas al cliente</h4>
+    <p>Mismo flujo que cotización. El cliente lo firma por fuera (email, escaneo, o en persona).</p>
+  </div>
+  <div class="step">
+    <h4>Click en <span class="btn btn-ok">✍️ Firmar</span></h4>
+    <p>Cuando tienes el documento firmado, tú marcas el status. Esto guarda la fecha de firma.</p>
+  </div>
+</div>
+
+<div class="callout bad">
+  <strong>⚠️ Gap crítico sprint v2:</strong> hoy no hay integración de firma electrónica. El plan es integrar <b>MiFiel API</b> para que el cliente firme desde un widget embebido y el status se actualice vía webhook.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p10-entregable"><span class="num">10</span> Entregable mensual (con AI)</h2>
+
+<p>Esta es la parte más mágica del sistema. Cada mes, por cada servicio activo, hay una <code>monthlyAssignment</code> que representa "toca entregar algo". Tú disparas la generación y <b>Claude hace el trabajo pesado</b>.</p>
+
+<h3>De dónde viene</h3>
+
+<p>Cuando creaste la proyección, el sistema insertó automáticamente 12 asignaciones mensuales por cada servicio activo. Las ves en:</p>
+
+<ul>
+  <li><b>Dashboard</b> — el pie chart muestra cuántas están pendientes / entregadas / vencidas.</li>
+  <li><b>/entregables</b> — listado completo filtrable por mes / cliente / status.</li>
+  <li><b>/clientes/[id]/ciclo</b> — vista por cliente del estado del año.</li>
+</ul>
+
+<h3>Paso 1: disparar la generación</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Una asignación mensual</span><span class="route">/entregables (item)</span></div>
+  <div class="wire-body">
+    <div class="card-mini" style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div style="font-weight:500;">Empresa Demo · Legal · Abril 2026</div><div style="font-size:11px;color:var(--text-muted);">Monto: $20,000 · FE: 1.05 · <span class="pill pill-mute">Pendiente</span></div></div>
+      <div class="btn">🤖 Generar con AI <span class="click-here">Click aquí</span></div>
+    </div>
+  </div>
+</div>
+
+<h3>Paso 2: el pipeline AI trabaja (20-60 segundos)</h3>
+
+<ol>
+  <li>El sistema busca la plantilla (<b>deliverable_short</b> + <b>deliverable_long</b>) para el servicio.</li>
+  <li>Resuelve las variables no-AI desde la proyección/cliente/servicio.</li>
+  <li>Llama a Claude por cada variable marcada como <code>ai</code> en la plantilla.</li>
+  <li>Guarda el entregable con status de auditoría <b>pending</b>.</li>
+  <li>Claude lo audita a sí mismo — si pasa, queda <b>approved</b>; si no, <b>rejected</b> con feedback.</li>
+</ol>
+
+<div class="callout bad">
+  <strong>🔴 Blocker hoy:</strong> la variable de entorno <code>ANTHROPIC_API_KEY</code> no está configurada. Mientras no lo esté, el entregable se llena con <code>"[AI no disponible — configurar API key]"</code> en cada variable. Fix: <code>npx convex env set ANTHROPIC_API_KEY sk-ant-...</code>
+</div>
+
+<h3>Paso 3: revisar el entregable</h3>
+
+<div class="wire">
+  <div class="wire-label"><span>Entregable detalle</span><span class="route">/entregables/[id]</span></div>
+  <div class="wire-body">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;">
+      <div><div style="font-size:20px;font-weight:700;">Legal — Empresa Demo</div><div style="font-size:12px;color:var(--text-muted);">Abril 2026</div></div>
+      <span class="pill pill-ok">✓ Auditoría Aprobada</span>
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:14px;">
+      <div class="btn" style="background:var(--accent-bg);color:var(--accent);">Resumen (Short)</div>
+      <div class="btn btn-outline">Completo (Long)</div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+      <div class="btn" style="background:#8b5cf633;color:#a78bfa;border:1px solid #a78bfa;">🤖 Regenerar con AI</div>
+      <div class="btn btn-outline">Generar PDF</div>
+      <div class="btn btn-outline">Descargar PDF</div>
+      <div class="btn btn-ok">Marcar como Entregado</div>
+    </div>
+    <div style="padding:20px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#000;font-size:12px;min-height:150px;"><b>Resumen Legal · Abril 2026</b><br><br>Durante abril de 2026 se realizaron los siguientes trámites para Empresa Demo S.A. de C.V.: <br>1. Renovación del registro patronal...<br>2. Revisión de contratos con proveedores...</div>
+  </div>
+</div>
+
+<h3>Paso 4: entregar al cliente</h3>
+
+<div class="steps">
+  <div class="step">
+    <h4>Revisa ambas versiones</h4>
+    <p>Tabs <b>Resumen (Short)</b> y <b>Completo (Long)</b>. Son dos versiones del mismo entregable que Claude generó.</p>
+  </div>
+  <div class="step">
+    <h4>Si no te convence, click en <span class="btn" style="background:#8b5cf633;color:#a78bfa;border:1px solid #a78bfa;">🤖 Regenerar con AI</span></h4>
+    <p>Corre el pipeline de nuevo. Útil si la primera generación quedó incompleta o quieres un segundo intento con otros datos del cuestionario.</p>
+  </div>
+  <div class="step">
+    <h4>Genera el PDF con branding</h4>
+    <p>Click en <b>Generar PDF</b>. Puppeteer renderiza con tu logo/colores/fuente.</p>
+  </div>
+  <div class="step">
+    <h4>Click en <span class="btn btn-ok">Marcar como Entregado</span></h4>
+    <p>Solo disponible si audit status = approved. Esto:</p>
+    <ul>
+      <li>Setea <code>deliveredAt</code> al momento actual.</li>
+      <li>Actualiza la <code>monthlyAssignment</code> a <code>status: delivered</code>.</li>
+      <li>Envía email al cliente con el entregable (hoy con email placeholder).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p11-ciclo"><span class="num">11</span> Ciclo documental del cliente</h2>
+
+<p>Una vista integrada por cliente donde ves la pipeline comercial completa por cada servicio activo: proyección → cotización → contrato → entregables. Esto te sirve como chequeo rápido antes de una junta con el cliente y como punto de entrada para generar cotizaciones.</p>
+
+<div class="wire">
+  <div class="wire-label"><span>Ciclo documental</span><span class="route">/clientes/[id]/ciclo</span></div>
+  <div class="wire-body">
+    <div style="font-size:20px;font-weight:700;margin-bottom:6px;">Ciclo Documental</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Pipeline de documentos por servicio para Empresa Demo</div>
+    <div style="display:flex;gap:12px;font-size:11px;margin-bottom:14px;">
+      <span>🟢 Completado</span><span>🔵 En progreso</span><span>⚪ Pendiente</span><span>🔴 Bloqueado</span>
+    </div>
+    <div class="card-mini" style="margin-bottom:6px;">
+      <b>Legal — $2,370,967 / año</b>
+      <div style="display:flex;gap:6px;margin-top:6px;font-size:12px;flex-wrap:wrap;">
+        <span class="pill pill-accent">Proyección Borrador</span>
+        <span class="pill pill-mute">Cotización Sin crear</span>
+        <span class="btn">+ Generar Cotización</span>
+      </div>
+    </div>
+    <div class="card-mini" style="margin-bottom:6px;">
+      <b>Contable — $2,845,161 / año</b>
+      <div style="display:flex;gap:6px;margin-top:6px;font-size:12px;flex-wrap:wrap;">
+        <span class="pill pill-accent">Proyección Borrador</span>
+        <span class="pill pill-ok">Cotización Aprobada</span>
+        <span class="pill pill-ok">Contrato Firmado</span>
+        <span style="color:var(--accent);">4/12 entregables</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p>Por cada servicio ves el status de: <b>Proyección</b>, <b>Cotización</b>, <b>Contrato</b> y <b>Entregables</b>. Cuando cotización está <b>Sin crear</b>, aparece el botón <b>+ Generar Cotización</b>. Cuando contrato está <b>Sin crear</b> y la cotización está aprobada, el botón <b>+ Generar Contrato</b> se habilita (desde el detalle de la cotización).</p>
+
+<!-- =============================================================== -->
+<h2 id="p12-config"><span class="num">12</span> Configuración del ejecutivo</h2>
+
+<div class="callout warn">
+  <strong>Hoy es un placeholder.</strong> La pantalla <code>/configuracion</code> muestra un icono y texto "Gestiona tu equipo, plan y preferencias" pero sin funcionalidad. Planeada para un sprint futuro: gestión de equipo, facturación del plan Projex, preferencias personales.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="p13-platform"><span class="num">13</span> Panel de Plataforma (Super Admin)</h2>
+
+<p>Solo lo ves si tu <code>publicMetadata.role === "super_admin"</code> en Clerk. Es donde administras el sistema completo.</p>
+
+<table>
+  <tr><th>Sección</th><th>Qué haces</th></tr>
+  <tr><td><code>/platform</code></td><td>Lista de organizaciones (firmas) registradas</td></tr>
+  <tr><td><code>/platform/orgs/new</code></td><td>Crear una nueva org</td></tr>
+  <tr><td><code>/platform/orgs/[id]</code></td><td>Configurar servicios asignados, plan, status</td></tr>
+  <tr><td><code>/platform/orgs/[id]/branding</code></td><td>Logo, colores, fuente, header/footer para PDFs</td></tr>
+  <tr><td><code>/platform/servicios</code></td><td>Catálogo global de las 9 áreas de servicio</td></tr>
+  <tr><td><code>/platform/templates</code></td><td>Plantillas HTML (cotización, contrato, entregable corto/largo, cuestionario) con sistema de variables</td></tr>
+</table>
+
+<!-- =============================================================== -->
+<h2 id="faq">FAQ · Problemas comunes</h2>
+
+<details open style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:8px 0;">
+<summary style="cursor:pointer;font-weight:500;color:var(--accent);">No puedo generar un cuestionario, el botón está deshabilitado</summary>
+<p>Probable causa: ya existe un cuestionario para esa proyección (regla dura: máximo uno por proyección). Ve a <code>/cuestionarios</code> y filtra por el cliente.</p>
+</details>
+
+<details style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:8px 0;">
+<summary style="cursor:pointer;font-weight:500;color:var(--accent);">El entregable se generó pero dice "[AI no disponible]"</summary>
+<p>Falta la variable <code>ANTHROPIC_API_KEY</code> en Convex. Corre: <code>npx convex env set ANTHROPIC_API_KEY sk-ant-...</code> Luego regenera el entregable.</p>
+</details>
+
+<details style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:8px 0;">
+<summary style="cursor:pointer;font-weight:500;color:var(--accent);">El cliente dice que le llegó el link pero no puede abrirlo</summary>
+<p>Verifica que el token del link sea correcto (copia de nuevo desde la pantalla del cuestionario). Si el cliente ya completó el cuestionario, verá "Este cuestionario ya fue completado" — no es un error.</p>
+</details>
+
+<details style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:8px 0;">
+<summary style="cursor:pointer;font-weight:500;color:var(--accent);">No me llega el email de que el cliente terminó el cuestionario</summary>
+<p>Dos causas posibles: (a) la variable <code>RESEND_API_KEY</code> no está configurada en Convex, (b) el destinatario está hardcoded como <code>ejecutivo@projex-platform.com</code>. Ambas cosas se arreglan en el sprint v2.</p>
+</details>
+
+<details style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:8px 0;">
+<summary style="cursor:pointer;font-weight:500;color:var(--accent);">Recalculé una proyección y se perdieron los status de los meses ya pagados</summary>
+<p>Bug conocido. La función <code>recalculate</code> borra todas las <code>monthlyAssignments</code> y las recrea. Está en la lista de fixes del sprint v2. <b>Mientras tanto: no recalcules proyecciones que tienen meses ya marcados como pagados o entregados</b>.</p>
+</details>
+
+<!-- =============================================================== -->
+<h2 id="capturar">Capturar pantallas reales del sistema</h2>
+
+<p>Tengo screenshots reales de las rutas públicas (<code>/sign-in</code> y <code>/q/[token]</code>). El resto son wireframes HTML que reflejan fielmente el código. Para obtener screenshots reales de las rutas autenticadas:</p>
+
+<div class="steps">
+  <div class="step">
+    <h4>Levanta el dev server</h4>
+    <pre><code>npm run dev</code></pre>
+  </div>
+  <div class="step">
+    <h4>Abre Chrome controlado por agent-browser</h4>
+    <pre><code>npx agent-browser open http://localhost:3000/sign-in</code></pre>
+    <p>Se abre una ventana de Chrome. <b>Inicia sesión manualmente ahí</b> con tus credenciales de Clerk.</p>
+  </div>
+  <div class="step">
+    <h4>Corre el script de captura</h4>
+    <pre><code>bash scripts/capture-ui.sh</code></pre>
+    <p>Esto captura las 15+ rutas autenticadas y las guarda en <code>docs/screenshots/</code>. El HTML las toma automáticamente porque los paths están pre-cableados.</p>
+  </div>
+  <div class="step">
+    <h4>Refresca esta guía</h4>
+    <p>Abre <code>docs/guia-de-uso.html</code> de nuevo. Los placeholders se convierten en imágenes reales.</p>
+  </div>
+</div>
+
+<div class="callout tip">
+  <strong>Tip:</strong> re-corre <code>scripts/capture-ui.sh</code> cuando cambies UI. Las screenshots se actualizan y el HTML siempre muestra el estado actual.
+</div>
+
+<!-- =============================================================== -->
+<h2 id="actualizar">Cómo actualizar esta guía</h2>
+
+<p>Este documento vive en <code>docs/guia-de-uso.html</code>. Cuándo tocarlo:</p>
+
+<ul>
+  <li><b>Cambias el layout de una pantalla:</b> actualiza el wireframe HTML correspondiente en la sección del paso afectado.</li>
+  <li><b>Agregas una ruta nueva:</b> agrega una sección <code>h2</code> nueva con numeración, enlace en el TOC lateral, y entrada en <code>scripts/capture-ui.sh</code>.</li>
+  <li><b>Cierras un gap del sprint v2:</b> elimina el callout amarillo/rojo correspondiente.</li>
+  <li><b>Actualizas la fecha/commit</b> en la barra <code>.meta</code> al inicio.</li>
+</ul>
+
+<p>Para regenerar todo desde cero, pide a Claude:</p>
+
+<pre><code>Lee docs/guia-de-uso.html y actualízalo leyendo el código actual de src/app/*.
+Mantén los screenshots reales que ya existen en docs/screenshots/.</code></pre>
+
+<div class="callout ok">
+  <strong>Última revisión:</strong> 2026-04-21 · Basado en lectura del código de <code>src/app/(dashboard)/*</code>, <code>src/app/q/[token]/page.tsx</code>, <code>src/components/layout/sidebar.tsx</code>. Screenshots reales de sign-in y q/not-found capturadas con <code>agent-browser</code>.
+</div>
+
+</main>
+</div>
+</body>
+</html>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useParams } from "next/navigation";
@@ -11,6 +11,7 @@ import {
   Download,
   Loader2,
   Send,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -49,12 +50,16 @@ export default function EntregableDetailPage() {
   const deliver = useMutation(
     api.functions.deliverables.mutations.deliver
   );
+  const regenerateDeliverable = useAction(
+    api.functions.deliverables.actions.generateDeliverable
+  );
 
   const { generate: generatePdf, download: downloadPdf, state: pdfState } =
     usePdfGenerator();
 
   const [tab, setTab] = useState<ContentTab>("short");
   const [delivering, setDelivering] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const branding = {
     companyName: orgBranding?.companyName ?? client?.name ?? "Empresa",
@@ -96,6 +101,38 @@ export default function EntregableDetailPage() {
       console.error("Error delivering:", err);
     } finally {
       setDelivering(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!deliverable) return;
+    if (
+      !confirm(
+        "Esto regenera las dos versiones (corta + larga) del entregable con AI. Toma entre 20 y 60 segundos. ¿Continuar?"
+      )
+    ) {
+      return;
+    }
+    setRegenerating(true);
+    try {
+      await Promise.all([
+        regenerateDeliverable({
+          assignmentId: deliverable.assignmentId,
+          projServiceId: deliverable.projServiceId,
+          clientId: deliverable.clientId,
+          templateType: "deliverable_short",
+        }),
+        regenerateDeliverable({
+          assignmentId: deliverable.assignmentId,
+          projServiceId: deliverable.projServiceId,
+          clientId: deliverable.clientId,
+          templateType: "deliverable_long",
+        }),
+      ]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al regenerar con AI");
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -176,6 +213,19 @@ export default function EntregableDetailPage() {
 
       {/* Action Buttons */}
       <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={handleRegenerate}
+          disabled={regenerating}
+          className="flex items-center gap-2 rounded-md bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/30 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {regenerating ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Sparkles size={16} />
+          )}
+          {regenerating ? "Regenerando con AI..." : "Regenerar con AI"}
+        </button>
+
         <button
           onClick={handleGeneratePdf}
           disabled={pdfState.isGenerating || pdfState.isUploading}

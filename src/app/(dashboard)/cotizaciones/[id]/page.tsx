@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   FileText,
@@ -15,6 +15,9 @@ import {
   Save,
   Download,
   Loader2,
+  FileSignature,
+  Plus,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -36,6 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function QuotationDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as Id<"quotations">;
 
   const quotation = useQuery(
@@ -45,6 +49,10 @@ export default function QuotationDetailPage() {
   const client = useQuery(
     api.functions.clients.queries.getById,
     quotation ? { id: quotation.clientId } : "skip"
+  );
+  const existingContract = useQuery(
+    api.functions.contracts.queries.getByQuotation,
+    { quotationId: id }
   );
 
   const updateContent = useMutation(
@@ -56,7 +64,22 @@ export default function QuotationDetailPage() {
   const setPdfStorageId = useMutation(
     api.functions.quotations.mutations.setPdfStorageId
   );
+  const generateContract = useMutation(
+    api.functions.contracts.mutations.generate
+  );
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
+  const [isGeneratingContract, setIsGeneratingContract] = useState(false);
+
+  const handleGenerateContract = async () => {
+    try {
+      setIsGeneratingContract(true);
+      const contractId = await generateContract({ quotationId: id });
+      router.push(`/contratos/${contractId}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al generar contrato");
+      setIsGeneratingContract(false);
+    }
+  };
 
   const { generate: generatePdf, download: downloadPdf, state: pdfState } =
     usePdfGenerator();
@@ -157,6 +180,7 @@ export default function QuotationDetailPage() {
 
   const isDraft = quotation.status === "draft";
   const isSent = quotation.status === "sent";
+  const isApproved = quotation.status === "approved";
 
   return (
     <div className="space-y-6">
@@ -289,6 +313,32 @@ export default function QuotationDetailPage() {
               Rechazar
             </button>
           </>
+        )}
+
+        {isApproved && !editing && existingContract === null && (
+          <button
+            onClick={handleGenerateContract}
+            disabled={isGeneratingContract}
+            className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {isGeneratingContract ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Plus size={16} />
+            )}
+            {isGeneratingContract ? "Generando..." : "Generar Contrato"}
+          </button>
+        )}
+
+        {isApproved && !editing && existingContract && (
+          <Link
+            href={`/contratos/${existingContract._id}`}
+            className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+          >
+            <FileSignature size={16} />
+            Ver Contrato
+            <ArrowRight size={14} />
+          </Link>
         )}
       </div>
 

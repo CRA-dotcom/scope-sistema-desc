@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Projex — Guía del Sistema</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #020617;
+    --bg-card: #0b1220;
+    --bg-hover: #111a2e;
+    --border: #1e293b;
+    --border-strong: #334155;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #60a5fa;
+    --accent-bg: #1e3a8a33;
+    --green: #34d399;
+    --green-bg: #05966922;
+    --amber: #fbbf24;
+    --amber-bg: #d9770633;
+    --red: #f87171;
+    --red-bg: #b91c1c33;
+    --violet: #c084fc;
+    --code-bg: #0f172a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+  /* Sidebar TOC */
+  aside {
+    position: sticky; top: 0; height: 100vh;
+    overflow-y: auto;
+    padding: 24px 18px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  aside h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin: 18px 0 8px;
+    padding: 0 8px;
+  }
+  aside a {
+    display: block;
+    padding: 6px 10px;
+    color: var(--text-dim);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 13.5px;
+    transition: all 120ms;
+  }
+  aside a:hover { background: var(--bg-hover); color: var(--text); }
+  aside a.lvl-2 { padding-left: 22px; font-size: 13px; color: var(--text-muted); }
+  .brand {
+    font-weight: 600; font-size: 16px;
+    padding: 0 8px 14px; border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+  .brand small {
+    display: block; font-weight: 400; color: var(--text-muted);
+    font-size: 11px; margin-top: 4px;
+  }
+
+  /* Main content */
+  main { padding: 44px 56px 120px; max-width: 980px; }
+  h1 {
+    font-size: 32px;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 16px;
+    margin: 0 0 28px;
+  }
+  h2 {
+    font-size: 22px;
+    margin: 46px 0 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h2:first-of-type { border-top: none; padding-top: 0; }
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 10px;
+    color: var(--text);
+  }
+  h4 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 18px 0 6px;
+  }
+  p { margin: 8px 0 14px; color: var(--text); }
+  ul, ol { padding-left: 22px; margin: 8px 0 14px; }
+  li { margin: 4px 0; }
+  code {
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    font-size: 13px;
+    color: #a5b4fc;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: #cbd5e1;
+  }
+
+  .hero {
+    background: linear-gradient(135deg, #1e293b22, #0f172a);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 26px;
+    margin-bottom: 28px;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    border-radius: 8px;
+  }
+  .stat .n { font-size: 22px; font-weight: 600; color: var(--accent); }
+  .stat .l { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .badge-ok { background: var(--green-bg); color: var(--green); }
+  .badge-warn { background: var(--amber-bg); color: var(--amber); }
+  .badge-bad { background: var(--red-bg); color: var(--red); }
+  .badge-info { background: var(--accent-bg); color: var(--accent); }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--bg-card);
+  }
+  tr:hover td { background: var(--bg-card); }
+  td code { font-size: 12px; }
+
+  /* Callout boxes */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-bg);
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn { border-color: var(--amber); background: var(--amber-bg); }
+  .callout.bad { border-color: var(--red); background: var(--red-bg); }
+  .callout.ok { border-color: var(--green); background: var(--green-bg); }
+  .callout strong { color: var(--text); }
+
+  /* Flow steps */
+  .step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    position: relative;
+    padding-left: 56px;
+  }
+  .step::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 16px; top: 16px;
+    width: 28px; height: 28px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 14px;
+  }
+  .steps { counter-reset: step; }
+  .step h4 { margin: 0 0 6px; color: var(--accent); text-transform: none; letter-spacing: 0; font-size: 15px; }
+  .step p { margin: 4px 0; font-size: 14px; }
+
+  /* Mermaid container */
+  .mermaid {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 16px 0;
+    text-align: center;
+  }
+
+  /* File reference */
+  .file-ref {
+    display: inline-block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--text-dim);
+    margin-right: 6px;
+  }
+
+  /* Status box */
+  .status-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    border-radius: 8px;
+    margin: 6px 0;
+  }
+
+  /* KB key shortcut */
+  kbd {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* Meta bar at top */
+  .meta {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    padding: 8px 0 14px;
+    font-size: 12px; color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .meta b { color: var(--text); font-weight: 500; }
+
+  /* Collapsible */
+  details {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 10px 0;
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--accent);
+    user-select: none;
+  }
+  details[open] summary { margin-bottom: 8px; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 28px 20px 80px; }
+    .hero-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside>
+  <div class="brand">
+    Projex<small>Guía del Sistema · v0.1</small>
+  </div>
+  <h2>Inicio</h2>
+  <a href="#intro">Vista rápida</a>
+  <a href="#modelo">Modelo de datos</a>
+  <a href="#flujo">Flujo end-to-end</a>
+  <h2>Paso a paso</h2>
+  <a href="#paso-auth">1. Auth + Org</a>
+  <a href="#paso-cliente">2. Cliente</a>
+  <a href="#paso-proyeccion">3. Proyección</a>
+  <a href="#paso-cuestionario">4. Cuestionario ★</a>
+  <a href="#paso-cotizacion">5. Cotización</a>
+  <a href="#paso-contrato">6. Contrato</a>
+  <a href="#paso-entregable">7. Entregable (AI)</a>
+  <a href="#paso-emails">8. Emails + Crons</a>
+  <h2>Operación</h2>
+  <a href="#estados">Estados y transiciones</a>
+  <a href="#manual-vs-auto">Manual vs automático</a>
+  <a href="#gaps">Gaps del sistema</a>
+  <a href="#env">Variables de entorno</a>
+  <h2>Mantenimiento</h2>
+  <a href="#actualizar">Cómo actualizar este doc</a>
+</aside>
+
+<main>
+
+<div class="meta">
+  <span><b>Última actualización:</b> 2026-04-21</span>
+  <span><b>Versión del código:</b> commit <code>4f60b41</code></span>
+  <span><b>Status:</b> <span class="badge badge-warn">Sprint v2 activo</span></span>
+  <span><b>Deadline:</b> 2026-05-15</span>
+</div>
+
+<h1>Projex — Guía del Sistema</h1>
+<p class="subtitle">Cómo funciona el sistema hoy, paso a paso. Este documento es un README vivo: cada vez que cambie el flujo, se actualiza aquí.</p>
+
+<div style="display:flex;gap:10px;padding:10px 0;margin:16px 0 24px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <a href="guia-de-uso.html" style="padding:8px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;font-size:13px;text-decoration:none;color:var(--accent);">📖 Ver guía de uso (UI paso a paso) →</a>
+  <span style="padding:8px 14px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:6px;font-size:13px;color:var(--accent);">📘 Estás en: guía técnica</span>
+</div>
+
+<div class="hero">
+  <p style="margin:0 0 6px;"><b>Projex</b> es un SaaS multi-tenant que automatiza la proyección financiera y la generación de entregables profesionales para firmas de consultoría multidisciplinaria. Un consultor crea proyecciones anuales por cliente, se generan asignaciones mensuales automáticamente, y la plataforma orquesta el ciclo <b>cuestionario → cotización → contrato → entregable</b>.</p>
+  <div class="hero-grid">
+    <div class="stat"><div class="n">13</div><div class="l">Tablas Convex</div></div>
+    <div class="stat"><div class="n">9</div><div class="l">Áreas de servicio</div></div>
+    <div class="stat"><div class="n">22</div><div class="l">Rutas Next.js</div></div>
+    <div class="stat"><div class="n">61/61</div><div class="l">Tests passing</div></div>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<h2 id="intro">Vista rápida</h2>
+
+<p>El sistema modela el ciclo de un consultor con <b>múltiples organizaciones (tenants vía Clerk)</b>, donde cada tenant atiende a sus propios clientes finales.</p>
+
+<h4>Stack real</h4>
+<ul>
+  <li><b>Frontend:</b> Next.js 15 (App Router) · React 19 · Tailwind 4 · (sin shadcn/ui instalado todavía)</li>
+  <li><b>Backend:</b> Convex (DB + queries/mutations/actions + storage + cron)</li>
+  <li><b>Auth:</b> Clerk Organizations (multi-tenant con <code>orgId</code> en JWT)</li>
+  <li><b>AI:</b> Anthropic SDK → modelo <code>claude-sonnet-4-20250514</code> <span class="badge badge-warn">desactualizado</span></li>
+  <li><b>Email:</b> Resend</li>
+  <li><b>PDF:</b> Puppeteer-core + <code>@sparticuz/chromium</code> vía <code>/api/generate-pdf</code></li>
+  <li><b>Deploy:</b> Vercel (primario) · Railway (secundario)</li>
+</ul>
+
+<h4>Roles</h4>
+<table>
+  <tr><th>Rol</th><th>Identidad</th><th>Alcance</th></tr>
+  <tr><td><code>super_admin</code></td><td>Clerk <code>publicMetadata.role</code></td><td>Acceso a <code>/platform/*</code> (gestiona orgs, servicios globales, templates)</td></tr>
+  <tr><td><code>admin</code></td><td>Clerk org role</td><td>Administra su org · configura branding · ve todo</td></tr>
+  <tr><td><code>ejecutivo</code> (<code>org:member</code>)</td><td>Clerk org role</td><td>Opera dentro de su org · gestiona sus clientes asignados</td></tr>
+</table>
+
+<!-- =================================================================== -->
+<h2 id="modelo">Modelo de datos</h2>
+
+<p>El schema vive en <span class="file-ref">convex/schema.ts</span> y define <b>13 tablas</b>. Todas (salvo <code>services</code> y <code>deliverableTemplates</code>, que pueden ser globales) incluyen <code>orgId</code> para aislamiento multi-tenant.</p>
+
+<div class="mermaid">
+erDiagram
+    organizations ||--o{ clients : tiene
+    clients ||--o{ projections : tiene
+    projections ||--o{ projectionServices : incluye
+    projections ||--|| questionnaireResponses : cuestionario
+    projectionServices ||--o{ monthlyAssignments : genera12
+    projectionServices ||--o{ quotations : cotiza
+    quotations ||--o| contracts : aprueba
+    monthlyAssignments ||--o| deliverables : entrega
+    organizations ||--|| orgConfigs : config
+    organizations ||--|| orgBranding : branding
+    services }o--o{ projectionServices : catalogo
+    deliverableTemplates }o--|| quotations : plantilla
+    deliverableTemplates }o--|| contracts : plantilla
+    deliverableTemplates }o--|| deliverables : plantilla
+</div>
+
+<h4>Tablas principales</h4>
+<table>
+  <tr><th>Tabla</th><th>Qué guarda</th><th>Relaciones</th></tr>
+  <tr><td><code>organizations</code></td><td>Tenant (orgs de Clerk espejadas). Plan, status, servicios asignados.</td><td>→ <code>clerkOrgId</code></td></tr>
+  <tr><td><code>clients</code></td><td>Clientes finales del consultor. RFC, industria, ingresos anuales, frecuencia de facturación.</td><td>← <code>orgId</code> · <code>assignedTo</code></td></tr>
+  <tr><td><code>projections</code></td><td>Proyección anual: ventas, budget, commission rate, estacionalidad (12 meses con FE).</td><td>← <code>clientId</code></td></tr>
+  <tr><td><code>services</code></td><td>Catálogo de las 9 áreas (Legal, Contable, TI, etc.). Puede ser global u override por org.</td><td>—</td></tr>
+  <tr><td><code>projectionServices</code></td><td>Pivot: qué servicios están activos en una proyección, con % elegido y peso normalizado.</td><td>← <code>projectionId</code> + <code>serviceId</code></td></tr>
+  <tr><td><code>monthlyAssignments</code></td><td>12 asignaciones por servicio activo. Monto mensual, FE, status (pending/info_received/in_progress/delivered), invoice status.</td><td>← <code>projServiceId</code></td></tr>
+  <tr><td><code>questionnaireResponses</code></td><td>Cuestionario único por proyección. Preguntas + respuestas + <code>accessToken</code> público.</td><td>← <code>projectionId</code></td></tr>
+  <tr><td><code>quotations</code></td><td>Cotización por servicio. HTML content + PDF storage + status.</td><td>← <code>projServiceId</code></td></tr>
+  <tr><td><code>contracts</code></td><td>Contrato generado desde cotización aprobada. HTML + PDF + signedAt.</td><td>← <code>quotationId</code></td></tr>
+  <tr><td><code>deliverables</code></td><td>Entregable mensual generado por AI. shortContent + longContent + audit status + <code>aiLog</code>.</td><td>← <code>assignmentId</code></td></tr>
+  <tr><td><code>orgConfigs</code></td><td>Config del motor de cálculo (weighted/fixed, commission mode, seasonality).</td><td>← <code>orgId</code></td></tr>
+  <tr><td><code>orgBranding</code></td><td>Logo, colores, fuente, header/footer para PDFs.</td><td>← <code>orgId</code></td></tr>
+  <tr><td><code>deliverableTemplates</code></td><td>Plantillas HTML para quotation/contract/deliverable_short/deliverable_long/questionnaire con variables tipadas.</td><td>global u <code>orgId</code></td></tr>
+</table>
+
+<!-- =================================================================== -->
+<h2 id="flujo">Flujo end-to-end</h2>
+
+<p>El ciclo completo desde que un consultor da de alta un cliente hasta que entrega un documento mensual:</p>
+
+<div class="mermaid">
+flowchart TD
+    A["Consultor crea cliente"] --> B["Crea proyeccion anual"]
+    B --> C{"Auto-genera"}
+    C --> D["12 monthlyAssignments por servicio activo"]
+    B -. manual .-> E["Genera cuestionario"]
+    E --> F["Cliente responde en /q/token"]
+    F --> G["Cuestionario completed"]
+    D -. manual por servicio .-> H["Genera cotizacion"]
+    H -. consultor manual .-> I["Status: sent"]
+    I -. consultor manual .-> J["Status: approved"]
+    J --> K["Genera contrato"]
+    K -. consultor manual .-> L["Status: signed"]
+    D -. manual por mes .-> M["Trigger entregable AI"]
+    M --> N["Claude llena variables y audita"]
+    N --> O["Audit: approved"]
+    O --> P["deliver: PDF + email cliente"]
+    P --> Q["assignment.status = delivered"]
+
+    style E fill:#1e3a8a,stroke:#60a5fa,color:#fff
+    style F fill:#1e3a8a,stroke:#60a5fa,color:#fff
+    style G fill:#1e3a8a,stroke:#60a5fa,color:#fff
+    style M fill:#065f46,stroke:#34d399,color:#fff
+    style N fill:#065f46,stroke:#34d399,color:#fff
+    style O fill:#065f46,stroke:#34d399,color:#fff
+</div>
+
+<div class="callout warn">
+  <strong>Importante:</strong> La mayoría de las transiciones entre pasos son <b>manuales</b> (un botón que pulsa el consultor). Lo único 100% automático hoy es: la creación de <code>monthlyAssignments</code> al crear la proyección, el pipeline AI del entregable, y el email de notificación al <i>deliver</i>. Ver <a href="#manual-vs-auto">Manual vs automático</a>.
+</div>
+
+<!-- =================================================================== -->
+<h2 id="paso-auth">1. Auth + Organización</h2>
+
+<p>Todo acceso a la plataforma requiere estar autenticado con Clerk y pertenecer a una organización.</p>
+
+<div class="steps">
+  <div class="step">
+    <h4>Usuario inicia sesión</h4>
+    <p>Clerk maneja el <code>/sign-in</code>. Si el usuario tiene múltiples orgs, Clerk muestra selector.</p>
+    <p><span class="file-ref">src/middleware.ts:3-6</span> — rutas públicas: <code>/sign-in(.*)</code> y <code>/q(.*)</code>. El resto pasa por <code>auth.protect()</code>.</p>
+  </div>
+  <div class="step">
+    <h4>JWT llega a Convex con <code>orgId</code></h4>
+    <p><span class="file-ref">convex/auth.config.ts</span> define el issuer de Clerk. El JWT trae <code>orgId</code> como claim (o <code>org_id</code> fallback).</p>
+  </div>
+  <div class="step">
+    <h4>Helpers de auth en Convex</h4>
+    <p><span class="file-ref">convex/lib/authHelpers.ts</span> expone:</p>
+    <ul>
+      <li><code>requireAuth(ctx)</code> — throw si no hay identidad.</li>
+      <li><code>getOrgId(ctx)</code> — throw si no hay org.</li>
+      <li><code>getOrgIdSafe(ctx)</code> — devuelve <code>null</code> para queries reactivas durante loading.</li>
+      <li><code>requireAdmin</code> / <code>requireSuperAdmin</code>.</li>
+    </ul>
+    <p>Toda query/mutation debe filtrar por <code>orgId</code>. Excepciones justificadas: queries públicas por <code>accessToken</code> (cuestionarios).</p>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<h2 id="paso-cliente">2. Cliente</h2>
+
+<p>El consultor da de alta un cliente final desde <code>/clientes/nuevo</code>.</p>
+
+<table>
+  <tr><th>Campo</th><th>Tipo</th><th>Notas</th></tr>
+  <tr><td><code>name</code></td><td>string</td><td>Razón social o persona física</td></tr>
+  <tr><td><code>rfc</code></td><td>string</td><td>Validado con <code>RFC_PATTERN</code> en <span class="file-ref">convex/lib/validators.ts</span></td></tr>
+  <tr><td><code>industry</code></td><td>enum</td><td>Lista cerrada <code>INDUSTRIES</code></td></tr>
+  <tr><td><code>annualRevenue</code></td><td>number</td><td>Usado como default de <code>annualSales</code> de proyección</td></tr>
+  <tr><td><code>billingFrequency</code></td><td>semanal/quincenal/mensual</td><td>—</td></tr>
+  <tr><td><code>assignedTo</code></td><td>string</td><td>Clerk userId del ejecutivo responsable</td></tr>
+  <tr><td><code>email</code></td><td><b>FALTA</b></td><td><span class="badge badge-bad">Gap</span> No existe. Hoy se usa <code>${rfc}@placeholder.com</code> en <span class="file-ref">deliverables/mutations.ts:136</span></td></tr>
+</table>
+
+<!-- =================================================================== -->
+<h2 id="paso-proyeccion">3. Proyección</h2>
+
+<p>La proyección es el corazón del sistema. Una proyección = un cliente + un año + configuración financiera + servicios activos. <b>Al crearla se auto-generan 12 asignaciones mensuales por cada servicio activo.</b></p>
+
+<h4>Cómo se crea</h4>
+
+<div class="steps">
+  <div class="step">
+    <h4>Form en <code>/proyecciones/nueva</code></h4>
+    <p>El consultor ingresa: <code>clientId</code>, <code>year</code>, <code>annualSales</code>, <code>totalBudget</code>, <code>commissionRate</code>, <code>seasonalityData</code> (array de 12 meses), <code>serviceConfigs</code> (cada servicio: <code>chosenPct</code> + <code>isActive</code>).</p>
+  </div>
+  <div class="step">
+    <h4>Mutation <code>projections.create</code></h4>
+    <p><span class="file-ref">convex/functions/projections/mutations.ts:12-149</span></p>
+    <ol>
+      <li>Verifica que el cliente pertenece al org.</li>
+      <li>Carga detalles de cada servicio (min/max/default %).</li>
+      <li>Lee <code>orgConfigs</code> para modo de cálculo (weighted/fixed, commission mode, seasonality enabled).</li>
+      <li>Llama a <code>calculateProjection()</code> del motor.</li>
+      <li>Inserta row en <code>projections</code> con status <code>draft</code>.</li>
+      <li>Por cada servicio → inserta <code>projectionServices</code>.</li>
+      <li>Si el servicio está activo → <b>inserta 12 filas en <code>monthlyAssignments</code></b> (una por mes) con status <code>pending</code> e invoice status <code>not_invoiced</code>.</li>
+    </ol>
+  </div>
+  <div class="step">
+    <h4>Motor de cálculo</h4>
+    <p><span class="file-ref">convex/lib/projectionEngine.ts</span> — lógica pura, con tests.</p>
+    <ul>
+      <li><b>Factor de Estacionalidad:</b> <code>FE<sub>mes</sub> = ventasMes / (ventasAnuales / 12)</code></li>
+      <li><b>Distribución:</b> <code>budgetServicio = remainingBudget × (chosenPct / sumPesosActivos)</code></li>
+      <li><b>Comisión proporcional:</b> se calcula como % de ventas mensuales y se distribuye proporcionalmente.</li>
+    </ul>
+  </div>
+</div>
+
+<h4>Recalcular (ojo)</h4>
+<div class="callout bad">
+  <strong>⚠️ Bug conocido:</strong> <code>projections.recalculate</code> (<span class="file-ref">mutations.ts:267-295</span>) <b>borra TODAS</b> las <code>monthlyAssignments</code> del servicio y las recrea con <code>status: pending</code>. Si el cliente ya tenía meses con <code>invoiceStatus: paid</code> o entregables <code>delivered</code>, esos estados se pierden. Fix pendiente: preservar filas con estado no-default.
+</div>
+
+<!-- =================================================================== -->
+<h2 id="paso-cuestionario">4. Cuestionario <span class="badge badge-info">Foco</span></h2>
+
+<p>Esta es la sección que pediste entender. Aquí está exactamente cómo y cuándo se generan los cuestionarios.</p>
+
+<h3>¿Cuándo se genera un cuestionario?</h3>
+
+<p><b>Nunca automáticamente.</b> El cuestionario se genera cuando el consultor pulsa un botón desde la UI de una proyección. No hay cron, no hay trigger al crear cliente, no hay trigger al aprobar cotización.</p>
+
+<div class="callout">
+  <strong>Regla dura:</strong> solo puede existir <b>UN cuestionario por proyección</b>. Intentar generar otro tira error <code>"Ya existe un cuestionario para esta proyección."</code> (<span class="file-ref">questionnaires/mutations.ts:42-44</span>).
+</div>
+
+<h3>¿Cómo se genera?</h3>
+
+<p>Función: <code>questionnaires.generate({ projectionId })</code> — <span class="file-ref">convex/functions/questionnaires/mutations.ts:22-99</span></p>
+
+<div class="steps">
+  <div class="step">
+    <h4>Validaciones</h4>
+    <p>Verifica que la proyección pertenece al org del usuario. Verifica que no exista cuestionario previo. Verifica que haya <b>al menos un <code>projectionService</code> activo</b> (<span class="file-ref">mutations.ts:54</span>).</p>
+  </div>
+  <div class="step">
+    <h4>Construye las preguntas</h4>
+    <p>Hay dos tipos:</p>
+
+    <p><b>A) 3 preguntas genéricas fijas</b> (hardcoded, <span class="file-ref">mutations.ts:7-20</span>) — aplican a todos los servicios:</p>
+    <ul>
+      <li><code>q_1_info_general</code> — "Información general del servicio requerido"</li>
+      <li><code>q_2_documentos</code> — "Documentos requeridos para este servicio"</li>
+      <li><code>q_3_observaciones</code> — "Observaciones especiales o requerimientos adicionales"</li>
+    </ul>
+
+    <p><b>B) 1 pregunta por servicio activo</b> — generada en bucle:</p>
+    <pre><code>q_svc_{projServiceId}_detalle
+"Detalle específico para el servicio: {serviceName}"</code></pre>
+
+    <p>Entonces: si la proyección tiene 5 servicios activos, el cuestionario tendrá <b>3 + 5 = 8 preguntas</b>.</p>
+  </div>
+  <div class="step">
+    <h4>Genera el accessToken</h4>
+    <p><span class="file-ref">mutations.ts:82-85</span> — concatena <code>Math.random() + Date.now() + Math.random()</code> (base36).</p>
+    <div class="callout bad">
+      <strong>⚠️ Seguridad débil:</strong> este token <b>no es criptográfico</b>. Es adivinable con suficientes intentos y <b>no tiene expiración</b>. Reemplazar por HMAC firmado con secret + <code>expiresAt</code> es uno de los fixes pendientes del sprint v2.
+    </div>
+  </div>
+  <div class="step">
+    <h4>Inserta el record</h4>
+    <p>Crea la fila en <code>questionnaireResponses</code> con <code>status: "draft"</code>, <code>answer: ""</code> en todas las preguntas, y el <code>accessToken</code> generado.</p>
+  </div>
+</div>
+
+<h3>Cómo se comparte con el cliente</h3>
+
+<p>El consultor abre la vista del cuestionario y copia el link público:</p>
+
+<pre><code>https://tu-dominio.com/q/{accessToken}</code></pre>
+
+<p>Este link es público (definido en <code>src/middleware.ts:5</code> como <code>/q(.*)</code>). <b>No hay envío automático de email</b> — el consultor debe compartir el link por el medio que quiera (WhatsApp, email manual, etc.).</p>
+
+<div class="callout warn">
+  <strong>Gap del sprint v2:</strong> enviar el cuestionario automáticamente al cliente por Resend con link firmado HMAC. Hoy no existe esa acción.
+</div>
+
+<h3>Cómo responde el cliente (flujo público)</h3>
+
+<div class="steps">
+  <div class="step">
+    <h4>Abre <code>/q/[token]</code></h4>
+    <p><span class="file-ref">src/app/q/[token]/page.tsx</span> — carga el cuestionario vía <code>publicQueries.getByToken</code> (sin auth).</p>
+  </div>
+  <div class="step">
+    <h4>Ve las preguntas + branding del org</h4>
+    <p>La query también carga el <code>orgBranding</code> (logo, colores) para presentar el cuestionario con identidad visual del consultor.</p>
+  </div>
+  <div class="step">
+    <h4>Responde y "Guardar progreso"</h4>
+    <p>Llama <code>publicMutations.updateResponsesByToken</code>. Si el status era <code>draft</code> o <code>sent</code>, pasa automáticamente a <code>in_progress</code>.</p>
+  </div>
+  <div class="step">
+    <h4>"Enviar respuestas" (submit final)</h4>
+    <p>Llama <code>publicMutations.submitByToken</code>. Status → <code>completed</code> + set <code>completedAt</code>.</p>
+  </div>
+</div>
+
+<h3>Qué pasa cuando se completa</h3>
+
+<p>Al hacer submit desde <i>la vista autenticada del consultor</i> (<code>questionnaires.submit</code>, <span class="file-ref">mutations.ts:160-202</span>), el sistema programa un email de notificación <b>al ejecutivo</b>:</p>
+
+<pre><code>to: "ejecutivo@projex-platform.com"   // ← hardcoded placeholder
+subject: "Cuestionario completado - {clientName}"</code></pre>
+
+<div class="callout bad">
+  <strong>⚠️ Gap:</strong> el destinatario está <b>hardcoded</b>. Debería resolverse desde Clerk (<code>assignedTo</code> → email del ejecutivo asignado al cliente). Ver <span class="file-ref">mutations.ts:193</span>.
+</div>
+
+<p><b>Nota:</b> el <code>submitByToken</code> (que usa el cliente final) <b>NO dispara el email</b>. Solo lo hace cuando el consultor manualmente ejecuta <code>submit</code>. Ver inconsistencia en <span class="file-ref">publicMutations.ts:37-55</span>.</p>
+
+<h3>Estados del cuestionario</h3>
+
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> draft: generate
+    draft --> sent: updateStatus manual
+    sent --> in_progress: cliente responde token
+    draft --> in_progress: cliente responde token
+    in_progress --> completed: submitByToken
+    draft --> completed: submit manual
+    sent --> completed: submit manual
+    completed --> [*]
+</div>
+
+<h3>Estructura de datos de una respuesta</h3>
+
+<pre><code>{
+  orgId: "org_abc",
+  clientId: Id&lt;"clients"&gt;,
+  projectionId: Id&lt;"projections"&gt;,
+  status: "draft" | "sent" | "in_progress" | "completed",
+  accessToken: "abc123xyz...",
+  responses: [
+    {
+      questionId: "q_1_info_general",
+      questionText: "Información general del servicio requerido",
+      answer: "",                          // ← texto libre
+      serviceNames: ["Legal","Contable",…] // ← todos los servicios activos
+    },
+    {
+      questionId: "q_svc_{id}_detalle",
+      questionText: "Detalle específico para el servicio: Legal",
+      answer: "",
+      serviceNames: ["Legal"]              // ← solo uno
+    }
+  ],
+  completedAt: 1713657600000,              // solo si status=completed
+  createdAt: 1713571200000
+}</code></pre>
+
+<h3>Resumen crítico</h3>
+
+<table>
+  <tr><th>Aspecto</th><th>Comportamiento actual</th></tr>
+  <tr><td>Cuándo se genera</td><td>Solo manualmente, desde UI de proyección</td></tr>
+  <tr><td>Cuántos por proyección</td><td>Máximo 1 (enforcement en DB)</td></tr>
+  <tr><td>Cuántas preguntas</td><td>3 genéricas + 1 por servicio activo</td></tr>
+  <tr><td>Son editables las preguntas</td><td>No. Hardcoded en <code>DEFAULT_QUESTIONS</code>. Gap: template unificado.</td></tr>
+  <tr><td>Envío al cliente</td><td>Manual (consultor copia link). No hay email auto.</td></tr>
+  <tr><td>Autenticación del cliente</td><td>Token URL-based (no HMAC, sin expiración)</td></tr>
+  <tr><td>Notificación al completar</td><td>Email a placeholder hardcoded (<b>roto</b>)</td></tr>
+  <tr><td>Dispara el siguiente paso</td><td>No. El consultor decide cuándo generar cotización.</td></tr>
+</table>
+
+<!-- =================================================================== -->
+<h2 id="paso-cotizacion">5. Cotización</h2>
+
+<p>Las cotizaciones son <b>por servicio individual</b>, no anuales agregadas (gap del sprint v2).</p>
+
+<div class="steps">
+  <div class="step">
+    <h4><code>quotations.generate({ projServiceId })</code></h4>
+    <p><span class="file-ref">convex/functions/quotations/mutations.ts:5-182</span></p>
+    <ol>
+      <li>Busca template activo: primero específico del servicio, luego genérico del org, luego global.</li>
+      <li>Si hay template: resuelve variables <code>{{name}}</code>, <code>{{rfc}}</code>, <code>{{annualAmount}}</code>, etc.</li>
+      <li>Si no hay template: usa HTML inline default.</li>
+      <li>Inserta <code>quotations</code> con <code>status: "draft"</code>.</li>
+    </ol>
+  </div>
+  <div class="step">
+    <h4>Consultor edita (opcional)</h4>
+    <p><code>updateContent</code> solo funciona en <code>draft</code>.</p>
+  </div>
+  <div class="step">
+    <h4>Consultor genera PDF</h4>
+    <p>UI llama <code>POST /api/generate-pdf</code> con el HTML + branding. Puppeteer renderiza. <code>setPdfStorageId</code> guarda el storage ID en la cotización.</p>
+  </div>
+  <div class="step">
+    <h4>Consultor marca <code>sent</code></h4>
+    <p><b>Manual.</b> No hay envío automático de email con PDF adjunto. Gap del sprint v2.</p>
+  </div>
+  <div class="step">
+    <h4>Consultor marca <code>approved</code> o <code>rejected</code></h4>
+    <p>Botón manual. No hay landing público accept/decline con HMAC. Gap del sprint v2.</p>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<h2 id="paso-contrato">6. Contrato</h2>
+
+<p>Solo se puede generar un contrato desde una cotización con <code>status: "approved"</code> (<span class="file-ref">contracts/mutations.ts:17-21</span>).</p>
+
+<div class="steps">
+  <div class="step">
+    <h4><code>contracts.generate({ quotationId })</code></h4>
+    <p>Mismo patrón que cotización: busca template, resuelve variables, inserta con <code>status: "draft"</code>.</p>
+  </div>
+  <div class="step">
+    <h4>PDF + envío manual</h4>
+    <p>Mismo flujo que cotización.</p>
+  </div>
+  <div class="step">
+    <h4>Marcar "firmado"</h4>
+    <p><b>Un click manual del consultor</b>. No hay integración con MiFiel ni otra plataforma de firma electrónica. Gap crítico del sprint v2.</p>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<h2 id="paso-entregable">7. Entregable (pipeline AI)</h2>
+
+<p>Esta es la parte más automática del sistema. Un entregable se dispara manualmente desde una <code>monthlyAssignment</code>, pero una vez disparado, Claude hace el trabajo.</p>
+
+<div class="mermaid">
+flowchart LR
+    A["UI: Generar entregable"] --> B["action: generateDeliverable"]
+    B --> C["Resolver variables<br/>cliente / proyeccion / servicio"]
+    C --> D["Buscar template"]
+    D --> E["Claude llena variables AI<br/>5 llamadas secuenciales"]
+    E --> F["saveGenerated<br/>status: pending"]
+    F --> G["action: auditDeliverable"]
+    G --> H["Claude audita"]
+    H -->|approved| I["Usuario click Deliver"]
+    H -->|rejected| J["retry o corregir manual"]
+    I --> K["PDF + email cliente"]
+    K --> L["assignment.status = delivered"]
+</div>
+
+<h4>Pipeline detallado</h4>
+<ul>
+  <li><b>Modelo:</b> <code>claude-sonnet-4-20250514</code> (<span class="badge badge-warn">actualizar a 4-5</span>)</li>
+  <li><b>Max retries:</b> 3 con backoff exponencial (1s/2s/4s)</li>
+  <li><b>Cost tracking:</b> cada llamada se guarda en <code>deliverables.aiLog[]</code> con tokens + USD</li>
+  <li><b>Pricing hardcoded:</b> $3/1M input, $15/1M output</li>
+  <li><b>Prompt caching:</b> <span class="badge badge-bad">NO implementado</span> — pierdes 50-80% de ahorro</li>
+  <li><b>Llamadas en paralelo:</b> <span class="badge badge-bad">NO</span> — hoy son secuenciales</li>
+</ul>
+
+<div class="callout bad">
+  <strong>🔴 Blocker activo:</strong> <code>ANTHROPIC_API_KEY</code> no está configurada en Convex. Sin ella, <code>getAnthropicClient()</code> devuelve <code>null</code> y todas las variables AI se reemplazan por <code>"[AI no disponible — configurar API key]"</code>. El audit se auto-aprueba. <b>Los entregables hoy son cascarones</b>. Fix: <code>npx convex env set ANTHROPIC_API_KEY sk-ant-...</code>
+</div>
+
+<h4>Estados del entregable</h4>
+
+<pre><code>auditStatus:  pending → approved | rejected | corrected
+deliveredAt:  se setea en deliver()
+retryCount:   incrementa en cada regeneración</code></pre>
+
+<p>Al hacer <code>deliver()</code> (<span class="file-ref">deliverables/mutations.ts:102-150</span>):</p>
+<ol>
+  <li>Verifica que audit está en <code>approved</code>.</li>
+  <li>Set <code>deliveredAt</code>.</li>
+  <li>Actualiza la <code>monthlyAssignment</code> a <code>status: "delivered"</code>.</li>
+  <li>Envía email al cliente (<code>${rfc}@placeholder.com</code> — <b>gap</b>).</li>
+</ol>
+
+<!-- =================================================================== -->
+<h2 id="paso-emails">8. Emails + Crons</h2>
+
+<h3>Emails</h3>
+<p>Todos los emails salen por Resend via <span class="file-ref">convex/functions/email/send.ts</span>. <code>from</code> hardcoded: <code>Projex &lt;noreply@projex-platform.com&gt;</code>.</p>
+
+<table>
+  <tr><th>Cuándo</th><th>Destinatario</th><th>Status</th></tr>
+  <tr><td>Cliente completa cuestionario (via submit consultor)</td><td><code>ejecutivo@projex-platform.com</code></td><td><span class="badge badge-bad">placeholder</span></td></tr>
+  <tr><td>Entregable deliver()</td><td><code>${rfc}@placeholder.com</code></td><td><span class="badge badge-bad">placeholder</span></td></tr>
+  <tr><td>Overdue check (cron)</td><td><code>admin@projex-platform.com</code></td><td><span class="badge badge-bad">placeholder + cron OFF</span></td></tr>
+  <tr><td>Monthly check (cron)</td><td><code>cliente@projex-platform.com</code></td><td><span class="badge badge-bad">placeholder + cron OFF</span></td></tr>
+  <tr><td>Cotización al cliente</td><td>—</td><td><span class="badge badge-bad">no existe</span></td></tr>
+  <tr><td>Contrato al cliente</td><td>—</td><td><span class="badge badge-bad">no existe</span></td></tr>
+  <tr><td>Link de cuestionario al cliente</td><td>—</td><td><span class="badge badge-bad">no existe</span></td></tr>
+</table>
+
+<h3>Crons</h3>
+<p><span class="file-ref">convex/crons.ts</span> — <b>todos los jobs están comentados</b>.</p>
+<table>
+  <tr><th>Nombre</th><th>Frecuencia</th><th>Qué hace</th><th>Activo</th></tr>
+  <tr><td>overdue-check</td><td>Diario 14:00 UTC</td><td>Revisa <code>monthlyAssignments</code> pendientes vencidas → email al admin</td><td><span class="badge badge-bad">NO</span></td></tr>
+  <tr><td>monthly-review</td><td>Mensual día 1</td><td>Email recordatorio al cliente de facturas por pagar</td><td><span class="badge badge-bad">NO</span></td></tr>
+</table>
+
+<!-- =================================================================== -->
+<h2 id="estados">Estados y transiciones (todas las tablas)</h2>
+
+<details>
+<summary>projections.status: draft → active → archived</summary>
+<pre><code>draft    : recién creada, editable
+active   : en operación (cron puede actuar sobre ella)
+archived : histórica, read-only</code></pre>
+</details>
+
+<details>
+<summary>monthlyAssignments.status: pending → info_received → in_progress → delivered</summary>
+<pre><code>pending       : creada, aún sin info del cliente
+info_received : cuestionario completado del cliente
+in_progress   : entregable en generación
+delivered     : entregable aprobado y entregado</code></pre>
+</details>
+
+<details>
+<summary>monthlyAssignments.invoiceStatus: not_invoiced → invoiced → paid</summary>
+</details>
+
+<details>
+<summary>questionnaireResponses.status: draft → sent → in_progress → completed</summary>
+</details>
+
+<details>
+<summary>quotations.status: draft → sent → approved/rejected</summary>
+</details>
+
+<details>
+<summary>contracts.status: draft → sent → signed/cancelled</summary>
+</details>
+
+<details>
+<summary>deliverables.auditStatus: pending → approved/rejected/corrected</summary>
+</details>
+
+<!-- =================================================================== -->
+<h2 id="manual-vs-auto">Manual vs automático</h2>
+
+<table>
+  <tr><th>Acción</th><th>¿Quién la dispara?</th></tr>
+  <tr><td>Crear cliente</td><td><span class="badge badge-warn">Manual</span> Consultor (form)</td></tr>
+  <tr><td>Crear proyección</td><td><span class="badge badge-warn">Manual</span> Consultor (form)</td></tr>
+  <tr><td>Crear 12 monthlyAssignments por servicio activo</td><td><span class="badge badge-ok">Auto</span> Al crear/recalcular proyección</td></tr>
+  <tr><td>Generar cuestionario</td><td><span class="badge badge-warn">Manual</span> Consultor (botón desde proyección)</td></tr>
+  <tr><td>Enviar link de cuestionario al cliente</td><td><span class="badge badge-warn">Manual</span> Copiar/pegar</td></tr>
+  <tr><td>Cliente responde cuestionario</td><td><span class="badge badge-ok">Auto</span> Guarda progreso al teclear</td></tr>
+  <tr><td>Submit del cuestionario</td><td><span class="badge badge-warn">Manual</span> Cliente o consultor</td></tr>
+  <tr><td>Avanzar <code>monthlyAssignment</code> a <code>info_received</code></td><td><span class="badge badge-bad">Gap</span> Debería ser auto al completar cuestionario</td></tr>
+  <tr><td>Generar cotización</td><td><span class="badge badge-warn">Manual</span> Por cada servicio</td></tr>
+  <tr><td>Marcar cotización sent / approved</td><td><span class="badge badge-warn">Manual</span> Click</td></tr>
+  <tr><td>Generar contrato desde cotización aprobada</td><td><span class="badge badge-warn">Manual</span> Click</td></tr>
+  <tr><td>Marcar contrato firmado</td><td><span class="badge badge-warn">Manual</span> Click (sin MiFiel)</td></tr>
+  <tr><td>Generar entregable AI</td><td><span class="badge badge-warn">Manual</span> Click desde monthly assignment</td></tr>
+  <tr><td>Claude llena variables + audita</td><td><span class="badge badge-ok">Auto</span> Pipeline en action</td></tr>
+  <tr><td>Deliver (email + PDF)</td><td><span class="badge badge-warn">Manual</span> Click</td></tr>
+  <tr><td>Recordatorios overdue / monthly</td><td><span class="badge badge-bad">Off</span> Crons comentados</td></tr>
+</table>
+
+<!-- =================================================================== -->
+<h2 id="gaps">Gaps del sistema (resumen)</h2>
+
+<h4>🔴 Bloqueantes para producción</h4>
+<ul>
+  <li><code>ANTHROPIC_API_KEY</code> no configurada → entregables vacíos</li>
+  <li>CVE crítico <code>@clerk/shared</code> — middleware bypass</li>
+  <li>CVE alto Next.js 15.5.14 — DoS</li>
+  <li>3 Convex actions públicas sin auth: <code>generateDeliverable</code>, <code>auditDeliverable</code>, <code>sendEmail</code></li>
+  <li><code>.env.local</code> posiblemente committed con secrets</li>
+  <li>Modelo Claude desactualizado</li>
+  <li>Doble wrap <code>&lt;!DOCTYPE html&gt;</code> en PDFs</li>
+</ul>
+
+<h4>🟡 Funcionales pero incompletos</h4>
+<ul>
+  <li>Crons deshabilitados</li>
+  <li>Destinatarios de email hardcoded</li>
+  <li>Tokens de cuestionario no-HMAC</li>
+  <li><code>recalculate</code> destruye estado</li>
+  <li>Sin campo <code>email</code> en <code>clients</code></li>
+  <li>Sin <code>shadcn/ui</code> (UI ad-hoc duplicada)</li>
+  <li>XSS risk: <code>dangerouslySetInnerHTML</code> sin sanitización</li>
+</ul>
+
+<h4>🔵 Sprint v2 (deadline 2026-05-15)</h4>
+<ul>
+  <li>Empresas facturadoras multi-entity — <b>no existe</b></li>
+  <li>Cotización anual por email automático — <b>parcial</b></li>
+  <li>Contrato firmado con MiFiel — <b>0%</b></li>
+  <li>Email log/inbox por cliente — <b>no existe</b></li>
+  <li>Concepto SAT + export Excel — <b>no existe</b></li>
+  <li>Cuestionario unificado (master template) — <b>parcial</b></li>
+</ul>
+
+<!-- =================================================================== -->
+<h2 id="env">Variables de entorno</h2>
+
+<h4>Hoy declaradas</h4>
+<table>
+  <tr><th>Variable</th><th>Dónde vive</th><th>Estado</th></tr>
+  <tr><td><code>NEXT_PUBLIC_CONVEX_URL</code></td><td>.env.local</td><td>✅</td></tr>
+  <tr><td><code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code></td><td>.env.local</td><td>✅</td></tr>
+  <tr><td><code>CLERK_SECRET_KEY</code></td><td>.env.local</td><td>✅</td></tr>
+  <tr><td><code>NEXT_PUBLIC_CLERK_SIGN_IN_URL</code> (+ UP/AFTER_*)</td><td>.env.local</td><td>✅</td></tr>
+</table>
+
+<h4>Faltantes (usadas en código pero no declaradas)</h4>
+<table>
+  <tr><th>Variable</th><th>Usada en</th><th>Impacto</th></tr>
+  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Convex env</td><td>🔴 AI pipeline apagado</td></tr>
+  <tr><td><code>CLERK_JWT_ISSUER_DOMAIN</code></td><td><span class="file-ref">convex/auth.config.ts</span></td><td>🔴 Auth rota en fresh install</td></tr>
+  <tr><td><code>RESEND_API_KEY</code></td><td>Convex env</td><td>🔴 Emails no salen</td></tr>
+  <tr><td><code>CHROMIUM_PATH</code></td><td>Dockerfile/Railway</td><td>🟡 Solo Docker</td></tr>
+</table>
+
+<h4>Requeridas para sprint v2</h4>
+<table>
+  <tr><th>Variable</th><th>Propósito</th></tr>
+  <tr><td><code>MIFIEL_APP_ID</code> + <code>MIFIEL_APP_SECRET</code></td><td>API de firma electrónica</td></tr>
+  <tr><td><code>MIFIEL_ENV</code></td><td>sandbox / production</td></tr>
+  <tr><td><code>MIFIEL_WEBHOOK_SECRET</code></td><td>Validar webhook de firma</td></tr>
+  <tr><td><code>QUOTATION_TOKEN_SECRET</code></td><td>HMAC para links accept/decline</td></tr>
+  <tr><td><code>RESEND_INBOUND_WEBHOOK_SECRET</code></td><td>Ingestión .eml</td></tr>
+  <tr><td><code>NEXT_PUBLIC_APP_URL</code></td><td>Construir links absolutos firmados</td></tr>
+  <tr><td><code>RESEND_FROM_EMAIL</code></td><td>Reemplaza hardcoded</td></tr>
+</table>
+
+<!-- =================================================================== -->
+<h2 id="actualizar">Cómo actualizar este documento</h2>
+
+<p>Este HTML es un README vivo. Reglas de actualización:</p>
+
+<ol>
+  <li><b>Cuando cambie un flujo crítico</b> (quién dispara qué, orden de pasos, nuevos estados): actualiza el diagrama Mermaid correspondiente + la tabla de estados.</li>
+  <li><b>Cuando se agregue/elimine una tabla</b>: actualiza el diagrama ER + la tabla "Tablas principales".</li>
+  <li><b>Cuando se cierre un gap</b>: mueve el bullet de "gaps" a la sección que corresponda y quita el badge rojo.</li>
+  <li><b>Cuando se agregue una env var</b>: actualiza la tabla correspondiente en <a href="#env">Variables de entorno</a>.</li>
+  <li><b>Al inicio del archivo:</b> actualiza la fecha y el commit hash (<code>git rev-parse --short HEAD</code>) en la barra meta.</li>
+</ol>
+
+<h4>Referencias rápidas para editar</h4>
+<ul>
+  <li>Sección cuestionario: línea ~500 del HTML</li>
+  <li>Diagrama ER: línea ~260 del HTML</li>
+  <li>Flujo end-to-end: línea ~330 del HTML</li>
+</ul>
+
+<h4>Regenerar desde cero</h4>
+<p>Si los cambios son muchos, pide a Claude:</p>
+<pre><code>Lee docs/sistema-guia.html y actualízalo leyendo el código actual de:
+- convex/schema.ts
+- convex/functions/{questionnaires,projections,quotations,contracts,deliverables}/*
+- src/middleware.ts
+- convex/crons.ts</code></pre>
+
+<div class="callout ok">
+  <strong>Último review:</strong> 2026-04-21 · Auditoría con 7 agentes paralelos · Cobertura: schema, funciones Convex, AI pipeline, flujo quotations/contracts/email, frontend, tests/build, gap analysis sprint v2.
+</div>
+
+</main>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#0b1220',
+      primaryColor: '#1e293b',
+      primaryBorderColor: '#334155',
+      primaryTextColor: '#e2e8f0',
+      lineColor: '#64748b',
+      secondaryColor: '#1e3a8a',
+      tertiaryColor: '#0f172a'
+    },
+    flowchart: { curve: 'basis', padding: 20 },
+    er: { useMaxWidth: true }
+  });
+</script>
+
+</body>
+</html>
