@@ -249,7 +249,7 @@ export default function DocumentCyclePage() {
             href={`/proyecciones/nueva?clientId=${clientId}`}
             className="mt-3 inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors"
           >
-            Crear Proyeccion
+            Crear Proyección
           </Link>
         </div>
       ) : (
@@ -277,7 +277,7 @@ export default function DocumentCyclePage() {
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="text-lg font-semibold">{svc.serviceName}</h2>
                   <span className="text-sm text-muted-foreground">
-                    {formatCurrency(svc.projection.amount)} / ano{" "}
+                    {formatCurrency(svc.projection.amount)} / año{" "}
                     {svc.projection.year}
                   </span>
                 </div>
@@ -286,7 +286,7 @@ export default function DocumentCyclePage() {
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
                   <StepCard
                     icon={TrendingUp}
-                    label="Proyeccion"
+                    label="Proyección"
                     status={projStatus}
                     subtitle={
                       STATUS_LABELS[svc.projection.status] ??
@@ -301,7 +301,7 @@ export default function DocumentCyclePage() {
                   />
                   <StepCard
                     icon={FileText}
-                    label="Cotizacion"
+                    label="Cotización"
                     status={quotStatus}
                     subtitle={
                       svc.quotation

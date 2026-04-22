@@ -252,7 +252,7 @@ export default function DashboardPage() {
           />
           <SummaryCard
             icon={<DollarSign size={20} />}
-            label="Facturacion del Mes"
+            label="Facturación del Mes"
             value={`$${currentMonthBilling.toLocaleString("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
             color="text-accent"
           />

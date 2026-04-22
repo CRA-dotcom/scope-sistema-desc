@@ -167,7 +167,7 @@ export default function BrandingPage() {
   if (org === null) {
     return (
       <div className="py-20 text-center text-sm text-red-400">
-        Organizacion no encontrada o sin permisos.
+        Organización no encontrada o sin permisos.
       </div>
     );
   }
@@ -187,7 +187,7 @@ export default function BrandingPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Branding</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {org.name} &mdash; Configuracion visual de documentos
+            {org.name} &mdash; Configuración visual de documentos
           </p>
         </div>
       </div>

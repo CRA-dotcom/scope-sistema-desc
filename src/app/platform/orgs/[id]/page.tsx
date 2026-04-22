@@ -23,7 +23,7 @@ const defaultFeatureFlags: FeatureFlags = {
 };
 
 const featureFlagLabels: Record<keyof FeatureFlags, string> = {
-  advancedConfigVisible: "Configuracion avanzada visible",
+  advancedConfigVisible: "Configuración avanzada visible",
   customServicesVisible: "Servicios personalizados visibles",
   seasonalityEditable: "Estacionalidad editable",
   manualOverrideAllowed: "Override manual permitido",
@@ -184,7 +184,7 @@ export default function OrgDetailPage() {
   if (!isNew && org === null) {
     return (
       <div className="py-20 text-center text-sm text-red-400">
-        Organizacion no encontrada o sin permisos.
+        Organización no encontrada o sin permisos.
       </div>
     );
   }
@@ -203,7 +203,7 @@ export default function OrgDetailPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">
-            {isNew ? "Nueva Organizacion" : org?.name}
+            {isNew ? "Nueva Organización" : org?.name}
           </h1>
           {!isNew && (
             <p className="mt-0.5 font-mono text-xs text-muted-foreground">
@@ -237,7 +237,7 @@ export default function OrgDetailPage() {
       {/* Org Info Section */}
       <section className="rounded-lg border border-border bg-card p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">
-          Informacion General
+          Información General
         </h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -351,12 +351,12 @@ export default function OrgDetailPage() {
 
       {/* Config Section */}
       <section className="rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Configuracion</h2>
+        <h2 className="text-lg font-semibold text-foreground">Configuración</h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
-              Modo de calculo
+              Modo de cálculo
             </label>
             <select
               value={calculationMode}
@@ -372,7 +372,7 @@ export default function OrgDetailPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
-              Modo de comision
+              Modo de comisión
             </label>
             <select
               value={commissionMode}
@@ -455,7 +455,7 @@ export default function OrgDetailPage() {
           ) : (
             <Save size={16} />
           )}
-          {isNew ? "Crear Organizacion" : "Guardar Cambios"}
+          {isNew ? "Crear Organización" : "Guardar Cambios"}
         </button>
       </div>
     </div>

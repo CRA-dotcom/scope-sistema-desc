@@ -11,6 +11,8 @@
 import type * as crons from "../crons.js";
 import type * as functions_clients_mutations from "../functions/clients/mutations.js";
 import type * as functions_clients_queries from "../functions/clients/queries.js";
+import type * as functions_contracts_actions from "../functions/contracts/actions.js";
+import type * as functions_contracts_internalQueries from "../functions/contracts/internalQueries.js";
 import type * as functions_contracts_mutations from "../functions/contracts/mutations.js";
 import type * as functions_contracts_queries from "../functions/contracts/queries.js";
 import type * as functions_cron_monthlyCheck from "../functions/cron/monthlyCheck.js";
@@ -66,6 +68,8 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "functions/clients/mutations": typeof functions_clients_mutations;
   "functions/clients/queries": typeof functions_clients_queries;
+  "functions/contracts/actions": typeof functions_contracts_actions;
+  "functions/contracts/internalQueries": typeof functions_contracts_internalQueries;
   "functions/contracts/mutations": typeof functions_contracts_mutations;
   "functions/contracts/queries": typeof functions_contracts_queries;
   "functions/cron/monthlyCheck": typeof functions_cron_monthlyCheck;

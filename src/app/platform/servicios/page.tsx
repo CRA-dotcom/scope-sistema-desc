@@ -286,7 +286,7 @@ export default function ServiciosPage() {
                     }`}
                   />
                 </div>
-                <span className="text-sm text-foreground">Es Comision</span>
+                <span className="text-sm text-foreground">Es Comisión</span>
               </label>
             </div>
           </div>
@@ -339,7 +339,7 @@ export default function ServiciosPage() {
                 <th className="px-6 py-3">Rango %</th>
                 <th className="px-6 py-3">Orden</th>
                 <th className="px-6 py-3">Default</th>
-                <th className="px-6 py-3">Comision</th>
+                <th className="px-6 py-3">Comisión</th>
                 <th className="px-6 py-3 text-right">Acciones</th>
               </tr>
             </thead>

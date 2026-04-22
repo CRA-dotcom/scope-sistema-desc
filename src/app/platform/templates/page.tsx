@@ -70,7 +70,7 @@ const emptyVariable: Variable = {
 };
 
 const TYPE_LABELS: Record<TemplateType, string> = {
-  quotation: "Cotizacion",
+  quotation: "Cotización",
   contract: "Contrato",
   deliverable_short: "Entregable Corto",
   deliverable_long: "Entregable Largo",
@@ -87,7 +87,7 @@ const TYPE_COLORS: Record<TemplateType, string> = {
 
 const SOURCE_LABELS: Record<VariableSource, string> = {
   client: "Cliente",
-  projection: "Proyeccion",
+  projection: "Proyección",
   service: "Servicio",
   ai: "IA",
   manual: "Manual",
@@ -352,7 +352,7 @@ export default function TemplatesPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                placeholder="Cotizacion Marketing Digital"
+                placeholder="Cotización Marketing Digital"
               />
             </div>
 
@@ -446,7 +446,7 @@ export default function TemplatesPage() {
               }
               rows={14}
               className="w-full rounded-md border border-border bg-secondary px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              placeholder={'<h1>Cotizacion para {{name}}</h1>\n<p>RFC: {{rfc}}</p>\n<p>Monto anual: ${{annualAmount}}</p>'}
+              placeholder={'<h1>Cotización para {{name}}</h1>\n<p>RFC: {{rfc}}</p>\n<p>Monto anual: ${{annualAmount}}</p>'}
             />
           </div>
 

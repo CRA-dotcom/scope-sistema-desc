@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
@@ -64,8 +64,8 @@ export default function QuotationDetailPage() {
   const setPdfStorageId = useMutation(
     api.functions.quotations.mutations.setPdfStorageId
   );
-  const generateContract = useMutation(
-    api.functions.contracts.mutations.generate
+  const generateContract = useAction(
+    api.functions.contracts.actions.generateContract
   );
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
   const [isGeneratingContract, setIsGeneratingContract] = useState(false);
@@ -326,7 +326,7 @@ export default function QuotationDetailPage() {
             ) : (
               <Plus size={16} />
             )}
-            {isGeneratingContract ? "Generando..." : "Generar Contrato"}
+            {isGeneratingContract ? "Generando con AI (20-60s)..." : "Generar Contrato"}
           </button>
         )}
 

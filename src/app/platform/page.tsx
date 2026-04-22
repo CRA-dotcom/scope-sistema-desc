@@ -58,7 +58,7 @@ export default function PlatformPage() {
           className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
         >
           <Plus size={16} />
-          Nueva Organizacion
+          Nueva Organización
         </Link>
       </div>
 

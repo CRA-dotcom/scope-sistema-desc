@@ -83,7 +83,7 @@ export default function FacturacionPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Receipt className="text-accent" size={28} />
-        <h1 className="text-2xl font-bold">Facturacion</h1>
+        <h1 className="text-2xl font-bold">Facturación</h1>
       </div>
 
       <p className="text-sm text-muted-foreground">
