@@ -1,4 +1,4 @@
-import { mutation } from "../../_generated/server";
+import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId } from "../../lib/authHelpers";
 
@@ -230,6 +230,44 @@ export const updateStatus = mutation({
     }
 
     await ctx.db.patch(args.id, { status: args.status });
+  },
+});
+
+export const saveGenerated = internalMutation({
+  args: {
+    orgId: v.string(),
+    projServiceId: v.id("projectionServices"),
+    clientId: v.id("clients"),
+    serviceName: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("quotations")
+      .withIndex("by_projServiceId", (q) =>
+        q.eq("projServiceId", args.projServiceId)
+      )
+      .first();
+
+    if (existing && existing.orgId === args.orgId) {
+      if (existing.status !== "draft") {
+        throw new Error(
+          "Ya existe una cotización para este servicio que no está en borrador."
+        );
+      }
+      await ctx.db.patch(existing._id, { content: args.content });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("quotations", {
+      orgId: args.orgId,
+      projServiceId: args.projServiceId,
+      clientId: args.clientId,
+      serviceName: args.serviceName,
+      content: args.content,
+      status: "draft",
+      createdAt: Date.now(),
+    });
   },
 });
 

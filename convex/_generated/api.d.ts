@@ -42,6 +42,8 @@ import type * as functions_questionnaires_mutations from "../functions/questionn
 import type * as functions_questionnaires_publicMutations from "../functions/questionnaires/publicMutations.js";
 import type * as functions_questionnaires_publicQueries from "../functions/questionnaires/publicQueries.js";
 import type * as functions_questionnaires_queries from "../functions/questionnaires/queries.js";
+import type * as functions_quotations_actions from "../functions/quotations/actions.js";
+import type * as functions_quotations_internalQueries from "../functions/quotations/internalQueries.js";
 import type * as functions_quotations_mutations from "../functions/quotations/mutations.js";
 import type * as functions_quotations_queries from "../functions/quotations/queries.js";
 import type * as functions_services_backfill from "../functions/services/backfill.js";
@@ -51,6 +53,7 @@ import type * as functions_services_seed from "../functions/services/seed.js";
 import type * as functions_storage_mutations from "../functions/storage/mutations.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
+import type * as lib_templateVariables from "../lib/templateVariables.js";
 import type * as lib_validators from "../lib/validators.js";
 
 import type {
@@ -94,6 +97,8 @@ declare const fullApi: ApiFromModules<{
   "functions/questionnaires/publicMutations": typeof functions_questionnaires_publicMutations;
   "functions/questionnaires/publicQueries": typeof functions_questionnaires_publicQueries;
   "functions/questionnaires/queries": typeof functions_questionnaires_queries;
+  "functions/quotations/actions": typeof functions_quotations_actions;
+  "functions/quotations/internalQueries": typeof functions_quotations_internalQueries;
   "functions/quotations/mutations": typeof functions_quotations_mutations;
   "functions/quotations/queries": typeof functions_quotations_queries;
   "functions/services/backfill": typeof functions_services_backfill;
@@ -103,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   "functions/storage/mutations": typeof functions_storage_mutations;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/projectionEngine": typeof lib_projectionEngine;
+  "lib/templateVariables": typeof lib_templateVariables;
   "lib/validators": typeof lib_validators;
 }>;
 

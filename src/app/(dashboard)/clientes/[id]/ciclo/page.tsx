@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
@@ -154,8 +154,8 @@ export default function DocumentCyclePage() {
     api.functions.dashboard.documentCycle.getDocumentCycle,
     { clientId }
   );
-  const generateQuotation = useMutation(
-    api.functions.quotations.mutations.generate
+  const generateQuotation = useAction(
+    api.functions.quotations.actions.generateQuotation
   );
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
@@ -368,7 +368,7 @@ export default function DocumentCyclePage() {
                     >
                       <Plus size={14} />
                       {generatingFor === svc.projServiceId
-                        ? "Generando..."
+                        ? "Generando con AI (20-60s)..."
                         : `Generar Cotización para ${svc.serviceName}`}
                     </button>
                   </div>
