@@ -14,6 +14,7 @@ import {
   Save,
   Copy,
   Check,
+  Phone,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -193,16 +194,37 @@ export default function QuestionnaireDetailPage() {
         </span>
       </div>
 
+      {/* Fill mode helper — only while draft/sent/in_progress */}
+      {!isCompleted && (
+        <div className="rounded-lg border border-border bg-secondary/20 p-4">
+          <p className="text-sm font-medium mb-1">¿Cómo vas a llenar este cuestionario?</p>
+          <p className="text-xs text-muted-foreground">
+            <b>Opción A:</b> envías el link al cliente y él lo llena (ver abajo).
+            {" · "}
+            <b>Opción B:</b> lo llenas tú mientras hablas con el cliente por teléfono — click en
+            {" "}<b>Llenar por teléfono</b>.
+          </p>
+        </div>
+      )}
+
       {/* Action Buttons */}
       {!isCompleted && (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={`/cuestionarios/${id}/responder`}
+            className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors cursor-pointer"
+          >
+            <Phone size={16} />
+            Llenar por teléfono
+          </Link>
+
           {!editing ? (
             <button
               onClick={startEditing}
               className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
             >
               <Edit3 size={16} />
-              Editar Respuestas
+              Editar inline
             </button>
           ) : (
             <button
