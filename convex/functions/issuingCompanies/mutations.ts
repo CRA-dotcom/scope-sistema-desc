@@ -199,3 +199,52 @@ export const setDefault = mutation({
     await ctx.db.patch(args.id, { isDefault: true, updatedAt: now });
   },
 });
+
+export const remove = mutation({
+  args: { id: v.id("issuingCompanies") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.orgId !== orgId) {
+      throw new Error("Empresa emitente no encontrada");
+    }
+    if (doc.isDefault) {
+      throw new Error("No puedes borrar la empresa default. Marca otra como default primero.");
+    }
+
+    const [emailLogsArr, serviceMapsArr, clientOverridesArr] = await Promise.all([
+      ctx.db
+        .query("emailLog")
+        .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+        .collect()
+        .then((rows) => rows.filter((r) => r.issuingCompanyId === args.id)),
+      ctx.db
+        .query("servicesIssuingCompanyMap")
+        .withIndex("by_issuingCompanyId", (q) => q.eq("issuingCompanyId", args.id))
+        .collect(),
+      ctx.db
+        .query("clientIssuingCompanyOverride")
+        .withIndex("by_issuingCompanyId", (q) => q.eq("issuingCompanyId", args.id))
+        .collect(),
+    ]);
+    // TODO: cuando secciones 3/4 agreguen issuingCompanyId a quotations/contracts/deliverables/deliverableTemplates,
+    // contar esas referencias aquí también.
+
+    const total = emailLogsArr.length + serviceMapsArr.length + clientOverridesArr.length;
+    if (total > 0) {
+      const parts: string[] = [];
+      if (emailLogsArr.length) parts.push(`${emailLogsArr.length} email(s)`);
+      if (serviceMapsArr.length) parts.push(`${serviceMapsArr.length} asignación(es) de servicio`);
+      if (clientOverridesArr.length) parts.push(`${clientOverridesArr.length} override(s) por cliente`);
+      throw new Error(
+        `No puede borrarse: tiene ${parts.join(", ")}. Desactívala en lugar de borrar.`
+      );
+    }
+
+    if (doc.logoStorageId) {
+      await ctx.storage.delete(doc.logoStorageId);
+    }
+    await ctx.db.delete(args.id);
+  },
+});
