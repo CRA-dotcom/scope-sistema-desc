@@ -248,3 +248,54 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+export const assignServicesToCompany = mutation({
+  args: {
+    issuingCompanyId: v.id("issuingCompanies"),
+    serviceIds: v.array(v.id("services")),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const company = await ctx.db.get(args.issuingCompanyId);
+    if (!company || company.orgId !== orgId) {
+      throw new Error("Empresa emitente no encontrada");
+    }
+
+    for (const sid of args.serviceIds) {
+      const service = await ctx.db.get(sid);
+      if (!service) throw new Error(`Servicio ${sid} no existe`);
+      if (service.orgId !== undefined && service.orgId !== orgId) {
+        throw new Error(`Servicio ${service.name} pertenece a otra organización`);
+      }
+    }
+
+    const now = Date.now();
+
+    const existingForCompany = await ctx.db
+      .query("servicesIssuingCompanyMap")
+      .withIndex("by_issuingCompanyId", (q) => q.eq("issuingCompanyId", args.issuingCompanyId))
+      .collect();
+    for (const m of existingForCompany) {
+      await ctx.db.delete(m._id);
+    }
+
+    for (const sid of args.serviceIds) {
+      const foreign = await ctx.db
+        .query("servicesIssuingCompanyMap")
+        .withIndex("by_orgId_serviceId", (q) => q.eq("orgId", orgId).eq("serviceId", sid))
+        .first();
+      if (foreign) await ctx.db.delete(foreign._id);
+    }
+
+    for (const sid of args.serviceIds) {
+      await ctx.db.insert("servicesIssuingCompanyMap", {
+        orgId,
+        serviceId: sid,
+        issuingCompanyId: args.issuingCompanyId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  },
+});
