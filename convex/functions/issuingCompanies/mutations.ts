@@ -168,3 +168,34 @@ export const update = mutation({
     await ctx.db.patch(id, patch);
   },
 });
+
+export const setDefault = mutation({
+  args: { id: v.id("issuingCompanies") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const target = await ctx.db.get(args.id);
+    if (!target || target.orgId !== orgId) {
+      throw new Error("Empresa emitente no encontrada");
+    }
+    if (!target.isActive) {
+      throw new Error("Reactiva la empresa antes de marcarla como default");
+    }
+    if (target.isDefault) {
+      return; // already default, noop
+    }
+
+    const currentDefaults = await ctx.db
+      .query("issuingCompanies")
+      .withIndex("by_orgId_isDefault", (q) => q.eq("orgId", orgId).eq("isDefault", true))
+      .collect();
+
+    const now = Date.now();
+    for (const d of currentDefaults) {
+      if (d._id !== args.id) {
+        await ctx.db.patch(d._id, { isDefault: false, updatedAt: now });
+      }
+    }
+    await ctx.db.patch(args.id, { isDefault: true, updatedAt: now });
+  },
+});
