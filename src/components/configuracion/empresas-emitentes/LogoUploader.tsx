@@ -13,7 +13,6 @@ export function LogoUploader({
   companyId,
 }: {
   companyId: Id<"issuingCompanies">;
-  currentStorageId?: Id<"_storage">;
 }) {
   const generateUploadUrl = useMutation(
     api.functions.issuingCompanies.mutations.generateUploadUrl

@@ -433,10 +433,7 @@ export function IssuingCompanyForm({
       {mode === "edit" && initialData?._id && (
         <section className="space-y-4">
           <h3 className={sectionTitle}>Logo</h3>
-          <LogoUploader
-            companyId={initialData._id}
-            currentStorageId={initialData.logoStorageId}
-          />
+          <LogoUploader companyId={initialData._id} />
         </section>
       )}
 

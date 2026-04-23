@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useUser } from "@clerk/nextjs";
+import { useOrganization } from "@clerk/nextjs";
 import Link from "next/link";
 import { Building2, Plus, Search, Star, CircleSlash, Check } from "lucide-react";
 import { useState } from "react";
@@ -22,9 +22,8 @@ type Company = {
 };
 
 export function IssuingCompanyList() {
-  const { user } = useUser();
-  const isAdmin =
-    user?.organizationMemberships?.[0]?.role === "org:admin";
+  const { membership } = useOrganization();
+  const isAdmin = membership?.role === "org:admin";
 
   const [search, setSearch] = useState("");
   const [includeInactive, setIncludeInactive] = useState(false);
@@ -62,21 +61,33 @@ export function IssuingCompanyList() {
       <div className="rounded-lg border border-border bg-card p-12 text-center">
         <Building2 className="mx-auto mb-4 text-muted-foreground" size={48} />
         <p className="text-lg font-medium">
-          No hay empresas emitentes configuradas
+          {includeInactive
+            ? "No hay empresas emitentes configuradas"
+            : "No hay empresas emitentes activas"}
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {isAdmin
             ? "Crea la primera empresa para emitir cotizaciones y contratos."
             : "Pide a un administrador que configure la primera empresa."}
         </p>
-        {isAdmin && (
-          <Link
-            href="/configuracion/empresas-emitentes/nueva"
-            className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors cursor-pointer"
-          >
-            <Plus size={16} /> Crear primera empresa
-          </Link>
-        )}
+        <div className="mt-4 flex items-center justify-center gap-3">
+          {isAdmin && (
+            <Link
+              href="/configuracion/empresas-emitentes/nueva"
+              className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors cursor-pointer"
+            >
+              <Plus size={16} /> Crear primera empresa
+            </Link>
+          )}
+          {!includeInactive && (
+            <button
+              onClick={() => setIncludeInactive(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-secondary transition-colors cursor-pointer"
+            >
+              <CircleSlash size={14} /> Ver inactivas
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -116,6 +127,14 @@ export function IssuingCompanyList() {
           </Link>
         )}
       </div>
+
+      {filtered && filtered.length === 0 && search && (
+        <div className="rounded-lg border border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            No se encontraron empresas con &quot;{search}&quot;.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-2">
         {filtered?.map((c) => (

@@ -5,7 +5,7 @@ import { Id, Doc } from "../../../../convex/_generated/dataModel";
 import { IssuingCompanyForm } from "./IssuingCompanyForm";
 import { ServicesAssignmentEditor } from "./ServicesAssignmentEditor";
 import { DangerZone } from "./DangerZone";
-import { useUser } from "@clerk/nextjs";
+import { useOrganization } from "@clerk/nextjs";
 
 type Tab = "info" | "services" | "danger";
 
@@ -14,9 +14,8 @@ export function IssuingCompanyDetailTabs({
 }: {
   company: Doc<"issuingCompanies">;
 }) {
-  const { user } = useUser();
-  const isAdmin =
-    user?.organizationMemberships?.[0]?.role === "org:admin";
+  const { membership } = useOrganization();
+  const isAdmin = membership?.role === "org:admin";
   const [tab, setTab] = useState<Tab>("info");
 
   const tabs: Array<{ id: Tab; label: string; adminOnly?: boolean }> = [

@@ -3,15 +3,14 @@
 import Link from "next/link";
 import { Building2, ChevronLeft } from "lucide-react";
 import { IssuingCompanyForm } from "@/components/configuracion/empresas-emitentes/IssuingCompanyForm";
-import { useUser } from "@clerk/nextjs";
+import { useOrganization } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function NuevaEmpresaPage() {
-  const { user, isLoaded } = useUser();
+  const { membership, isLoaded } = useOrganization();
   const router = useRouter();
-  const isAdmin =
-    user?.organizationMemberships?.[0]?.role === "org:admin";
+  const isAdmin = membership?.role === "org:admin";
 
   useEffect(() => {
     if (isLoaded && !isAdmin) {

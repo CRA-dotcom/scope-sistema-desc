@@ -4,16 +4,15 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useOrganization } from "@clerk/nextjs";
 
 export function ServicesAssignmentEditor({
   companyId,
 }: {
   companyId: Id<"issuingCompanies">;
 }) {
-  const { user } = useUser();
-  const isAdmin =
-    user?.organizationMemberships?.[0]?.role === "org:admin";
+  const { membership } = useOrganization();
+  const isAdmin = membership?.role === "org:admin";
 
   const available = useQuery(
     api.functions.issuingCompanies.queries.listAvailableServices,
