@@ -299,3 +299,58 @@ export const assignServicesToCompany = mutation({
     }
   },
 });
+
+export const generateUploadUrl = mutation({
+  args: { id: v.id("issuingCompanies") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.orgId !== orgId) {
+      throw new Error("Empresa emitente no encontrada");
+    }
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const setLogoFromStorage = mutation({
+  args: {
+    id: v.id("issuingCompanies"),
+    storageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.orgId !== orgId) {
+      throw new Error("Empresa emitente no encontrada");
+    }
+
+    if (doc.logoStorageId) {
+      await ctx.storage.delete(doc.logoStorageId);
+    }
+    await ctx.db.patch(args.id, {
+      logoStorageId: args.storageId,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const removeLogo = mutation({
+  args: { id: v.id("issuingCompanies") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.orgId !== orgId) {
+      throw new Error("Empresa emitente no encontrada");
+    }
+    if (doc.logoStorageId) {
+      await ctx.storage.delete(doc.logoStorageId);
+      await ctx.db.patch(args.id, {
+        logoStorageId: undefined,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
