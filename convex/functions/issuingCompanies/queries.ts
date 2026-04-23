@@ -195,3 +195,15 @@ export const countReferences = query({
     };
   },
 });
+
+export const getLogoUrl = query({
+  args: { id: v.id("issuingCompanies") },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return null;
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.orgId !== orgId) return null;
+    if (!doc.logoStorageId) return null;
+    return await ctx.storage.getUrl(doc.logoStorageId);
+  },
+});

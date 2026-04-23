@@ -27,6 +27,10 @@ import type * as functions_deliverables_internalQueries from "../functions/deliv
 import type * as functions_deliverables_mutations from "../functions/deliverables/mutations.js";
 import type * as functions_deliverables_queries from "../functions/deliverables/queries.js";
 import type * as functions_email_send from "../functions/email/send.js";
+import type * as functions_issuingCompanies_helpers from "../functions/issuingCompanies/helpers.js";
+import type * as functions_issuingCompanies_mutations from "../functions/issuingCompanies/mutations.js";
+import type * as functions_issuingCompanies_queries from "../functions/issuingCompanies/queries.js";
+import type * as functions_issuingCompanies_resolve from "../functions/issuingCompanies/resolve.js";
 import type * as functions_monthlyAssignments_billingQueries from "../functions/monthlyAssignments/billingQueries.js";
 import type * as functions_monthlyAssignments_mutations from "../functions/monthlyAssignments/mutations.js";
 import type * as functions_monthlyAssignments_queries from "../functions/monthlyAssignments/queries.js";
@@ -48,6 +52,7 @@ import type * as functions_quotations_actions from "../functions/quotations/acti
 import type * as functions_quotations_internalQueries from "../functions/quotations/internalQueries.js";
 import type * as functions_quotations_mutations from "../functions/quotations/mutations.js";
 import type * as functions_quotations_queries from "../functions/quotations/queries.js";
+import type * as functions_seed_v2Fixtures from "../functions/seed/v2Fixtures.js";
 import type * as functions_services_backfill from "../functions/services/backfill.js";
 import type * as functions_services_mutations from "../functions/services/mutations.js";
 import type * as functions_services_queries from "../functions/services/queries.js";
@@ -84,6 +89,10 @@ declare const fullApi: ApiFromModules<{
   "functions/deliverables/mutations": typeof functions_deliverables_mutations;
   "functions/deliverables/queries": typeof functions_deliverables_queries;
   "functions/email/send": typeof functions_email_send;
+  "functions/issuingCompanies/helpers": typeof functions_issuingCompanies_helpers;
+  "functions/issuingCompanies/mutations": typeof functions_issuingCompanies_mutations;
+  "functions/issuingCompanies/queries": typeof functions_issuingCompanies_queries;
+  "functions/issuingCompanies/resolve": typeof functions_issuingCompanies_resolve;
   "functions/monthlyAssignments/billingQueries": typeof functions_monthlyAssignments_billingQueries;
   "functions/monthlyAssignments/mutations": typeof functions_monthlyAssignments_mutations;
   "functions/monthlyAssignments/queries": typeof functions_monthlyAssignments_queries;
@@ -105,6 +114,7 @@ declare const fullApi: ApiFromModules<{
   "functions/quotations/internalQueries": typeof functions_quotations_internalQueries;
   "functions/quotations/mutations": typeof functions_quotations_mutations;
   "functions/quotations/queries": typeof functions_quotations_queries;
+  "functions/seed/v2Fixtures": typeof functions_seed_v2Fixtures;
   "functions/services/backfill": typeof functions_services_backfill;
   "functions/services/mutations": typeof functions_services_mutations;
   "functions/services/queries": typeof functions_services_queries;
