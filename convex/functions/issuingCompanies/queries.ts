@@ -85,8 +85,8 @@ export const listServiceMap = query({
 });
 
 export const listAvailableServices = query({
-  args: { issuingCompanyId: v.optional(v.id("issuingCompanies")) },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
     const role = (identity.orgRole as string) ?? "org:member";
