@@ -96,3 +96,75 @@ export const create = mutation({
     });
   },
 });
+
+export const update = mutation({
+  args: {
+    id: v.id("issuingCompanies"),
+    name: v.optional(v.string()),
+    legalName: v.optional(v.string()),
+    rfc: v.optional(v.string()),
+    regimenFiscalCode: v.optional(v.string()),
+    codigoPostal: v.optional(v.string()),
+    address: v.optional(addressValidator),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    website: v.optional(v.string()),
+    bankName: v.optional(v.string()),
+    bankAccount: v.optional(v.string()),
+    clabe: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    invoiceSerie: v.optional(v.string()),
+    signatoryName: v.optional(v.string()),
+    signatoryTitle: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.orgId !== orgId) {
+      throw new Error("Empresa emitente no encontrada");
+    }
+
+    // Guard: cannot deactivate default
+    if (args.isActive === false && doc.isDefault) {
+      throw new Error("No puedes desactivar la empresa default. Marca otra como default primero.");
+    }
+
+    const { id, ...rest } = args;
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+
+    for (const [key, value] of Object.entries(rest)) {
+      if (value !== undefined) patch[key] = value;
+    }
+
+    // Normalize / re-validate fields that were included
+    if (patch.rfc) {
+      const rfcUpper = (patch.rfc as string).toUpperCase().trim();
+      if (!isValidRFC(rfcUpper)) throw new Error("Formato de RFC inválido");
+      // Unique RFC per org (excluding self)
+      const existing = await ctx.db
+        .query("issuingCompanies")
+        .withIndex("by_orgId_rfc", (q) => q.eq("orgId", orgId).eq("rfc", rfcUpper))
+        .first();
+      if (existing && existing._id !== id) {
+        throw new Error("Ya existe una empresa emitente con ese RFC en la organización");
+      }
+      patch.rfc = rfcUpper;
+    }
+    if (patch.regimenFiscalCode) {
+      if (!validateRegimenFiscal(patch.regimenFiscalCode as string)) {
+        throw new Error("Régimen fiscal inválido");
+      }
+      patch.regimenFiscalLabel = getRegimenLabel(patch.regimenFiscalCode as string) ?? undefined;
+    }
+    if (patch.codigoPostal && !/^\d{5}$/.test(patch.codigoPostal as string)) {
+      throw new Error("Código postal debe tener 5 dígitos");
+    }
+    if (patch.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch.email as string)) {
+      throw new Error("Formato de email inválido");
+    }
+
+    await ctx.db.patch(id, patch);
+  },
+});
