@@ -1,7 +1,7 @@
 "use node";
 
 import { action } from "../../_generated/server";
-import { internal } from "../../_generated/api";
+import { internal, api } from "../../_generated/api";
 import { v } from "convex/values";
 import Anthropic from "@anthropic-ai/sdk";
 import {
@@ -10,6 +10,7 @@ import {
   type ResolverContext,
   type TemplateVariable,
 } from "../../lib/templateVariables";
+import { generateToken, hashToken, TOKEN_TTL_MS } from "./tokenHelpers";
 
 const MODEL = "claude-sonnet-4-20250514";
 const MAX_RETRIES = 3;
@@ -317,6 +318,164 @@ function slugify(s: string): string {
     .replace(/^-|-$/g, "");
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+const QUOTATION_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const sendQuotation = action({
+  args: {
+    quotationId: v.id("quotations"),
+    toOverride: v.optional(v.string()),
+    subjectOverride: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    ok: true;
+    emailLogId?: string;
+    plaintextToken: string;
+    appUrl: string;
+    sendCount: number;
+    tokenExpiresAt: number;
+  }> => {
+    // 1. Auth + orgId
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("No autenticado.");
+    const orgId = (identity.orgId ??
+      (identity as Record<string, unknown>).org_id) as string | undefined;
+    if (!orgId) throw new Error("Sin organización.");
+    const role = (identity.orgRole as string) ?? "org:member";
+
+    // 2. Gather send context
+    const context = await ctx.runQuery(
+      internal.functions.quotations.internalQueries.getSendContext,
+      { quotationId: args.quotationId }
+    );
+    if (!context) throw new Error("Cotización no encontrada.");
+    const {
+      quotation,
+      client,
+      orgBranding,
+      issuingCompany,
+      issuingCompanyError,
+    } = context;
+
+    if (quotation.orgId !== orgId)
+      throw new Error("Cotización de otra organización.");
+    if (
+      role === "org:member" &&
+      client.assignedTo &&
+      client.assignedTo !== identity.subject
+    ) {
+      throw new Error("Cliente no asignado a este ejecutivo.");
+    }
+
+    // 3. Pre-send validations
+    if (!["draft", "sent"].includes(quotation.status)) {
+      throw new Error(
+        `No se puede enviar una cotización en estado ${quotation.status}.`
+      );
+    }
+    if (!quotation.pdfStorageId) {
+      throw new Error("Genera el PDF antes de enviar.");
+    }
+    const effectiveTo = args.toOverride ?? client.contactEmail;
+    if (!effectiveTo) {
+      throw new Error(
+        "El cliente no tiene email de contacto. Agrégalo antes de enviar."
+      );
+    }
+    if (!QUOTATION_EMAIL_REGEX.test(effectiveTo)) {
+      throw new Error(`Email inválido: ${effectiveTo}`);
+    }
+    if (issuingCompanyError || !issuingCompany) {
+      throw new Error(
+        issuingCompanyError ??
+          "No hay empresa emitente configurada para este cliente/servicio."
+      );
+    }
+
+    // 4. Generate + hash token
+    const plaintextToken = generateToken();
+    const tokenHash = hashToken(plaintextToken);
+    const now = Date.now();
+    const tokenExpiresAt = now + TOKEN_TTL_MS;
+
+    // 5. Rotate token + mark sent (happens before send so DB state is consistent
+    //    even if the resend call fails — trade-off documented in tests).
+    const rotateRes = await ctx.runMutation(
+      internal.functions.quotations.internalMutations.rotateTokenAndMarkSent,
+      {
+        quotationId: args.quotationId,
+        tokenHash,
+        tokenIssuedAt: now,
+        tokenExpiresAt,
+      }
+    );
+
+    // 6. Build email
+    const subject =
+      args.subjectOverride ??
+      `Cotización ${quotation.serviceName} — ${issuingCompany.name}`;
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const bodyHtml = buildQuotationEmailHtml({
+      client: { name: client.name, contactName: client.contactName },
+      serviceName: quotation.serviceName,
+      issuingCompany: {
+        name: issuingCompany.name,
+        primaryColor: orgBranding?.primaryColor,
+      },
+      token: plaintextToken,
+      appUrl,
+    });
+    const pdfFilename = `cotizacion-${slugify(quotation.serviceName)}-${slugify(client.name)}.pdf`;
+
+    // 7. Send via 3A
+    const result: {
+      ok: boolean;
+      emailLogId?: string;
+      errorMessage?: string;
+    } = await ctx.runAction(api.functions.email.send.sendEmail, {
+      to: effectiveTo,
+      subject,
+      bodyHtml,
+      type: "quotation",
+      relatedType: "quotation",
+      relatedId: args.quotationId,
+      clientId: client._id,
+      issuingCompanyId: issuingCompany._id,
+      attachmentStorageIds: [
+        {
+          storageId: quotation.pdfStorageId,
+          filename: pdfFilename,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+
+    if (!result.ok) {
+      throw new Error(result.errorMessage ?? "Error al enviar el email.");
+    }
+
+    return {
+      ok: true as const,
+      emailLogId: result.emailLogId,
+      plaintextToken,
+      appUrl,
+      sendCount: rotateRes.sendCount,
+      tokenExpiresAt,
+    };
+  },
+});
+
 function buildQuotationEmailHtml(input: {
   client: { name: string; contactName?: string };
   serviceName: string;
@@ -324,15 +483,21 @@ function buildQuotationEmailHtml(input: {
   token: string;
   appUrl: string;
 }): string {
-  const greeting = input.client.contactName
-    ? `Estimado/a ${input.client.contactName}`
+  const safeContactName = input.client.contactName
+    ? escapeHtml(input.client.contactName)
+    : null;
+  const safeServiceName = escapeHtml(input.serviceName);
+  const safeIssuingName = escapeHtml(input.issuingCompany.name);
+  const greeting = safeContactName
+    ? `Estimado/a ${safeContactName}`
     : `Estimado/a cliente`;
+  // Note: link is a URL — do NOT escape (e.g. & in query params would break).
   const link = `${input.appUrl}/q/cotizacion/${input.token}`;
   const primary = input.issuingCompany.primaryColor ?? "#1a1a2e";
   return `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
   <p>${greeting},</p>
-  <p>Te compartimos la cotización de <strong>${input.serviceName}</strong> por parte de <strong>${input.issuingCompany.name}</strong>.</p>
+  <p>Te compartimos la cotización de <strong>${safeServiceName}</strong> por parte de <strong>${safeIssuingName}</strong>.</p>
   <p>Puedes revisarla y responder directamente desde el siguiente enlace:</p>
   <p style="margin: 32px 0; text-align: center;">
     <a href="${link}" style="display: inline-block; background: ${primary}; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600;">Ver cotización</a>
