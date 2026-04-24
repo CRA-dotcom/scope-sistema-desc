@@ -97,3 +97,15 @@ export const getExistingContract = internalQuery({
       .first();
   },
 });
+
+export const getByQuotationInternal = internalQuery({
+  args: { quotationId: v.id("quotations"), orgId: v.string() },
+  handler: async (ctx, args) => {
+    const c = await ctx.db
+      .query("contracts")
+      .withIndex("by_quotationId", (q) => q.eq("quotationId", args.quotationId))
+      .first();
+    if (!c || c.orgId !== args.orgId) return null;
+    return c;
+  },
+});

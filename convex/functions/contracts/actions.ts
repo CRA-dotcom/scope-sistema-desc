@@ -1,8 +1,9 @@
 "use node";
 
-import { action } from "../../_generated/server";
+import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
+import type { Id } from "../../_generated/dataModel";
 import Anthropic from "@anthropic-ai/sdk";
 import {
   resolveTemplateVariables,
@@ -147,6 +148,192 @@ function buildFallbackHtml(
 </div>`.trim();
 }
 
+async function doGenerate(
+  ctx: any,
+  orgId: string,
+  quotationId: Id<"quotations">
+): Promise<Id<"contracts">> {
+  const existing = await ctx.runQuery(
+    internal.functions.contracts.internalQueries.getByQuotationInternal,
+    { quotationId, orgId }
+  );
+  if (existing) return existing._id;
+
+  const quotation = await ctx.runQuery(
+    internal.functions.contracts.internalQueries.getQuotationData,
+    { quotationId }
+  );
+  if (!quotation || quotation.orgId !== orgId) {
+    throw new Error("Cotización no encontrada.");
+  }
+  if (quotation.status !== "approved") {
+    throw new Error(
+      "Solo se pueden generar contratos a partir de cotizaciones aprobadas."
+    );
+  }
+
+  const projService = await ctx.runQuery(
+    internal.functions.contracts.internalQueries.getProjServiceData,
+    { projServiceId: quotation.projServiceId }
+  );
+  if (!projService || projService.orgId !== orgId) {
+    throw new Error("Servicio de proyección no encontrado.");
+  }
+
+  const projection = await ctx.runQuery(
+    internal.functions.contracts.internalQueries.getProjectionData,
+    { projectionId: projService.projectionId }
+  );
+  if (!projection || projection.orgId !== orgId) {
+    throw new Error("Proyección no encontrada.");
+  }
+
+  const client = await ctx.runQuery(
+    internal.functions.contracts.internalQueries.getClientData,
+    { clientId: quotation.clientId }
+  );
+  if (!client || client.orgId !== orgId) {
+    throw new Error("Cliente no encontrado.");
+  }
+
+  const [orgBranding, questionnaire, template] = await Promise.all([
+    ctx.runQuery(
+      internal.functions.contracts.internalQueries.getOrgBranding,
+      { orgId }
+    ),
+    ctx.runQuery(
+      internal.functions.contracts.internalQueries.getQuestionnaireForProjection,
+      { projectionId: projService.projectionId }
+    ),
+    ctx.runQuery(
+      internal.functions.contracts.internalQueries.findContractTemplate,
+      { serviceId: projService.serviceId, orgId }
+    ),
+  ]);
+
+  const context: ResolverContext = {
+    client: {
+      name: client.name,
+      rfc: client.rfc,
+      industry: client.industry,
+      annualRevenue: client.annualRevenue,
+      billingFrequency: client.billingFrequency,
+    },
+    projection: {
+      year: projection.year,
+      annualSales: projection.annualSales,
+      totalBudget: projection.totalBudget,
+      commissionRate: projection.commissionRate,
+    },
+    projService: {
+      serviceName: projService.serviceName,
+      chosenPct: projService.chosenPct,
+      annualAmount: projService.annualAmount,
+    },
+    orgBranding: orgBranding
+      ? {
+          companyName: orgBranding.companyName,
+          primaryColor: orgBranding.primaryColor,
+          secondaryColor: orgBranding.secondaryColor,
+          accentColor: orgBranding.accentColor,
+          fontFamily: orgBranding.fontFamily,
+          headerText: orgBranding.headerText,
+          footerText: orgBranding.footerText,
+        }
+      : null,
+    documentMeta: {
+      emissionDate: new Date(),
+      validityDays: 365,
+    },
+  };
+
+  let finalContent: string;
+
+  if (template) {
+    const { html, aiVariables, pendingVariables } = resolveTemplateVariables(
+      template.htmlTemplate,
+      template.variables as TemplateVariable[],
+      context
+    );
+
+    let resolvedHtml = html;
+    const anthropic = getAnthropicClient();
+
+    if (aiVariables.length > 0 && anthropic) {
+      const questionnaireContext = questionnaire?.responses
+        ? questionnaire.responses
+            .map(
+              (r: { questionText: string; answer: string }) =>
+                `P: ${r.questionText}\nR: ${r.answer}`
+            )
+            .join("\n\n")
+        : "Sin respuestas de cuestionario disponibles.";
+
+      const systemPrompt = `Eres un abogado corporativo que redacta contratos profesionales de prestación de servicios de ${projService.serviceName}. El tono debe ser formal, claro y legalmente correcto.`;
+
+      for (const aiVar of aiVariables) {
+        try {
+          const text = await callClaudeWithRetry(
+            anthropic,
+            systemPrompt,
+            `Variable: ${aiVar.label} (${aiVar.key})\n\nCliente: ${client.name}\nRFC: ${client.rfc}\nIndustria: ${client.industry}\n\nServicio contratado: ${projService.serviceName}\nAño fiscal: ${projection.year}\nMonto anual: $${projService.annualAmount.toLocaleString("es-MX")}\nFrecuencia de facturación: ${client.billingFrequency}\n\nRespuestas del cuestionario:\n${questionnaireContext}\n\nGenera el contenido para la variable "${aiVar.label}" con lenguaje legal profesional en español. Responde solo con el contenido — sin explicaciones, sin encabezados, sin comillas.`
+          );
+
+          resolvedHtml = resolvedHtml.replace(
+            new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
+            text
+          );
+        } catch (err) {
+          console.error(
+            `[Contract Pipeline] AI variable "${aiVar.key}" failed:`,
+            err
+          );
+          resolvedHtml = resolvedHtml.replace(
+            new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
+            AI_UNAVAILABLE_PLACEHOLDER
+          );
+        }
+      }
+    } else if (aiVariables.length > 0) {
+      for (const aiVar of aiVariables) {
+        resolvedHtml = resolvedHtml.replace(
+          new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
+          AI_UNAVAILABLE_PLACEHOLDER
+        );
+      }
+    }
+
+    if (pendingVariables.length > 0) {
+      console.log(
+        `[Contract Pipeline] ${pendingVariables.length} variables con marca [PENDIENTE]: ${pendingVariables.slice(0, 5).join(", ")}${pendingVariables.length > 5 ? "..." : ""}`
+      );
+    }
+
+    finalContent = resolvedHtml;
+  } else {
+    finalContent = buildFallbackHtml(
+      context.client,
+      context.projection,
+      context.projService,
+      context.orgBranding
+    );
+  }
+
+  const contractId = await ctx.runMutation(
+    internal.functions.contracts.mutations.saveGenerated,
+    {
+      orgId,
+      quotationId,
+      projServiceId: quotation.projServiceId,
+      clientId: client._id,
+      serviceName: projService.serviceName,
+      content: finalContent,
+    }
+  );
+
+  return contractId;
+}
+
 /**
  * Generate a contract from an approved quotation with full variable resolution
  * (client, projection, service, org branding, dates) and AI fill for `ai` source
@@ -156,7 +343,7 @@ export const generateContract = action({
   args: {
     quotationId: v.id("quotations"),
   },
-  handler: async (ctx, args): Promise<string> => {
+  handler: async (ctx, args): Promise<Id<"contracts">> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("No autenticado. Inicia sesión para continuar.");
@@ -166,179 +353,29 @@ export const generateContract = action({
     if (!orgId) {
       throw new Error("No se encontró la organización. Selecciona una organización.");
     }
+    return doGenerate(ctx, orgId, args.quotationId);
+  },
+});
 
-    const quotation = await ctx.runQuery(
-      internal.functions.contracts.internalQueries.getQuotationData,
-      { quotationId: args.quotationId }
-    );
-    if (!quotation || quotation.orgId !== orgId) {
-      throw new Error("Cotización no encontrada.");
-    }
-    if (quotation.status !== "approved") {
-      throw new Error(
-        "Solo se pueden generar contratos a partir de cotizaciones aprobadas."
+/**
+ * Internal variant used by the scheduler (no auth context). Accepts orgId
+ * explicitly. Errors are logged and swallowed — the scheduler does not retry,
+ * the executive can regenerate manually.
+ */
+export const generateContractFromQuotationInternal = internalAction({
+  args: {
+    quotationId: v.id("quotations"),
+    orgId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      await doGenerate(ctx, args.orgId, args.quotationId);
+    } catch (err) {
+      console.error(
+        `[Contract auto-gen] Failed for quotation ${args.quotationId}:`,
+        err
       );
+      // No re-throw — scheduler no reintenta. Ejecutivo puede regenerar manual.
     }
-
-    const projService = await ctx.runQuery(
-      internal.functions.contracts.internalQueries.getProjServiceData,
-      { projServiceId: quotation.projServiceId }
-    );
-    if (!projService || projService.orgId !== orgId) {
-      throw new Error("Servicio de proyección no encontrado.");
-    }
-
-    const projection = await ctx.runQuery(
-      internal.functions.contracts.internalQueries.getProjectionData,
-      { projectionId: projService.projectionId }
-    );
-    if (!projection || projection.orgId !== orgId) {
-      throw new Error("Proyección no encontrada.");
-    }
-
-    const client = await ctx.runQuery(
-      internal.functions.contracts.internalQueries.getClientData,
-      { clientId: quotation.clientId }
-    );
-    if (!client || client.orgId !== orgId) {
-      throw new Error("Cliente no encontrado.");
-    }
-
-    const [orgBranding, questionnaire, template] = await Promise.all([
-      ctx.runQuery(
-        internal.functions.contracts.internalQueries.getOrgBranding,
-        { orgId }
-      ),
-      ctx.runQuery(
-        internal.functions.contracts.internalQueries.getQuestionnaireForProjection,
-        { projectionId: projService.projectionId }
-      ),
-      ctx.runQuery(
-        internal.functions.contracts.internalQueries.findContractTemplate,
-        { serviceId: projService.serviceId, orgId }
-      ),
-    ]);
-
-    const context: ResolverContext = {
-      client: {
-        name: client.name,
-        rfc: client.rfc,
-        industry: client.industry,
-        annualRevenue: client.annualRevenue,
-        billingFrequency: client.billingFrequency,
-      },
-      projection: {
-        year: projection.year,
-        annualSales: projection.annualSales,
-        totalBudget: projection.totalBudget,
-        commissionRate: projection.commissionRate,
-      },
-      projService: {
-        serviceName: projService.serviceName,
-        chosenPct: projService.chosenPct,
-        annualAmount: projService.annualAmount,
-      },
-      orgBranding: orgBranding
-        ? {
-            companyName: orgBranding.companyName,
-            primaryColor: orgBranding.primaryColor,
-            secondaryColor: orgBranding.secondaryColor,
-            accentColor: orgBranding.accentColor,
-            fontFamily: orgBranding.fontFamily,
-            headerText: orgBranding.headerText,
-            footerText: orgBranding.footerText,
-          }
-        : null,
-      documentMeta: {
-        emissionDate: new Date(),
-        validityDays: 365,
-      },
-    };
-
-    let finalContent: string;
-
-    if (template) {
-      const { html, aiVariables, pendingVariables } = resolveTemplateVariables(
-        template.htmlTemplate,
-        template.variables as TemplateVariable[],
-        context
-      );
-
-      let resolvedHtml = html;
-      const anthropic = getAnthropicClient();
-
-      if (aiVariables.length > 0 && anthropic) {
-        const questionnaireContext = questionnaire?.responses
-          ? questionnaire.responses
-              .map(
-                (r: { questionText: string; answer: string }) =>
-                  `P: ${r.questionText}\nR: ${r.answer}`
-              )
-              .join("\n\n")
-          : "Sin respuestas de cuestionario disponibles.";
-
-        const systemPrompt = `Eres un abogado corporativo que redacta contratos profesionales de prestación de servicios de ${projService.serviceName}. El tono debe ser formal, claro y legalmente correcto.`;
-
-        for (const aiVar of aiVariables) {
-          try {
-            const text = await callClaudeWithRetry(
-              anthropic,
-              systemPrompt,
-              `Variable: ${aiVar.label} (${aiVar.key})\n\nCliente: ${client.name}\nRFC: ${client.rfc}\nIndustria: ${client.industry}\n\nServicio contratado: ${projService.serviceName}\nAño fiscal: ${projection.year}\nMonto anual: $${projService.annualAmount.toLocaleString("es-MX")}\nFrecuencia de facturación: ${client.billingFrequency}\n\nRespuestas del cuestionario:\n${questionnaireContext}\n\nGenera el contenido para la variable "${aiVar.label}" con lenguaje legal profesional en español. Responde solo con el contenido — sin explicaciones, sin encabezados, sin comillas.`
-            );
-
-            resolvedHtml = resolvedHtml.replace(
-              new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
-              text
-            );
-          } catch (err) {
-            console.error(
-              `[Contract Pipeline] AI variable "${aiVar.key}" failed:`,
-              err
-            );
-            resolvedHtml = resolvedHtml.replace(
-              new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
-              AI_UNAVAILABLE_PLACEHOLDER
-            );
-          }
-        }
-      } else if (aiVariables.length > 0) {
-        for (const aiVar of aiVariables) {
-          resolvedHtml = resolvedHtml.replace(
-            new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
-            AI_UNAVAILABLE_PLACEHOLDER
-          );
-        }
-      }
-
-      if (pendingVariables.length > 0) {
-        console.log(
-          `[Contract Pipeline] ${pendingVariables.length} variables con marca [PENDIENTE]: ${pendingVariables.slice(0, 5).join(", ")}${pendingVariables.length > 5 ? "..." : ""}`
-        );
-      }
-
-      finalContent = resolvedHtml;
-    } else {
-      finalContent = buildFallbackHtml(
-        context.client,
-        context.projection,
-        context.projService,
-        context.orgBranding
-      );
-    }
-
-    const contractId = await ctx.runMutation(
-      internal.functions.contracts.mutations.saveGenerated,
-      {
-        orgId,
-        quotationId: args.quotationId,
-        projServiceId: quotation.projServiceId,
-        clientId: client._id,
-        serviceName: projService.serviceName,
-        content: finalContent,
-      }
-    );
-
-    return contractId;
   },
 });
