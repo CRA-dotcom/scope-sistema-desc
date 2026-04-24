@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { api } from "../../../_generated/api";
+import type { Id } from "../../../_generated/dataModel";
 import { setupTest, ORG_A, ORG_B } from "../../../../tests/harness";
 
 // Mock the Resend SDK. Uses a class so `new Resend(apiKey)` is callable.
@@ -87,7 +88,7 @@ describe("sendEmail action", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.providerMessageId).toBe("re_msg_abc");
-      const log = await t.run(async (ctx) => ctx.db.get(result.emailLogId));
+      const log = await t.run(async (ctx) => ctx.db.get(result.emailLogId as Id<"emailLog">));
       expect(log?.status).toBe("sent");
       expect(log?.providerMessageId).toBe("re_msg_abc");
     }
@@ -110,7 +111,7 @@ describe("sendEmail action", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toMatch(/Domain not verified/);
-      const log = await t.run(async (ctx) => ctx.db.get(result.emailLogId));
+      const log = await t.run(async (ctx) => ctx.db.get(result.emailLogId as Id<"emailLog">));
       expect(log?.status).toBe("failed");
     }
   });
@@ -128,7 +129,7 @@ describe("sendEmail action", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errorMessage).toMatch(/network timeout/);
-      const log = await t.run(async (ctx) => ctx.db.get(result.emailLogId));
+      const log = await t.run(async (ctx) => ctx.db.get(result.emailLogId as Id<"emailLog">));
       expect(log?.status).toBe("failed");
     }
   });
