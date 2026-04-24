@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { api } from "../../../_generated/api";
-import { setupTest, ORG_A, ORG_B } from "../../../__tests__/harness";
+import { setupTest, ORG_A, ORG_B } from "../../../../tests/harness";
 
 function withAdmin(orgId: string) {
   return {

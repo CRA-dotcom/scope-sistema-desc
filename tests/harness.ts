@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import schema from "../schema";
+import schema from "../convex/schema";
 
 // convex-test auto-discovers modules via the file system by default.
 // If auto-discovery fails in this setup, we may need to provide
