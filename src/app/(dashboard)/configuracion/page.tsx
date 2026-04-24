@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, Building2, Mail, ChevronRight } from "lucide-react";
+import { Settings, Building2, Mail, Plug, ChevronRight } from "lucide-react";
 
 const sections = [
   {
@@ -16,6 +16,12 @@ const sections = [
     icon: Mail,
     title: "Email Log",
     description: "Historial de emails enviados por la plataforma.",
+  },
+  {
+    href: "/configuracion/integraciones/resend",
+    icon: Plug,
+    title: "Integración Resend",
+    description: "Configura API key y dominio para enviar correos propios.",
   },
 ];
 
