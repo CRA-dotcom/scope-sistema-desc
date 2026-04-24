@@ -61,6 +61,7 @@ import type * as functions_services_mutations from "../functions/services/mutati
 import type * as functions_services_queries from "../functions/services/queries.js";
 import type * as functions_services_seed from "../functions/services/seed.js";
 import type * as functions_storage_mutations from "../functions/storage/mutations.js";
+import type * as http from "../http.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
 import type * as lib_templateVariables from "../lib/templateVariables.js";
@@ -126,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   "functions/services/queries": typeof functions_services_queries;
   "functions/services/seed": typeof functions_services_seed;
   "functions/storage/mutations": typeof functions_storage_mutations;
+  http: typeof http;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/projectionEngine": typeof lib_projectionEngine;
   "lib/templateVariables": typeof lib_templateVariables;
