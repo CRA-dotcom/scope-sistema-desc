@@ -1,5 +1,6 @@
 import { internalQuery } from "../../_generated/server";
 import { v } from "convex/values";
+import { resolveIssuingCompany } from "../issuingCompanies/resolve";
 
 export const getProjServiceData = internalQuery({
   args: { projServiceId: v.id("projectionServices") },
@@ -89,6 +90,62 @@ export const getExistingQuotation = internalQuery({
       .query("quotations")
       .withIndex("by_projServiceId", (q) =>
         q.eq("projServiceId", args.projServiceId)
+      )
+      .first();
+  },
+});
+
+export const getSendContext = internalQuery({
+  args: { quotationId: v.id("quotations") },
+  handler: async (ctx, args) => {
+    const quotation = await ctx.db.get(args.quotationId);
+    if (!quotation) return null;
+    const projService = await ctx.db.get(quotation.projServiceId);
+    if (!projService) return null;
+    const projection = await ctx.db.get(projService.projectionId);
+    if (!projection) return null;
+    const client = await ctx.db.get(projection.clientId);
+    if (!client) return null;
+    const service = await ctx.db.get(projService.serviceId);
+
+    let issuingCompany = null;
+    let issuingCompanyError: string | null = null;
+    try {
+      const resolved = await resolveIssuingCompany(ctx, {
+        orgId: quotation.orgId,
+        clientId: client._id,
+        serviceId: projService.serviceId,
+      });
+      issuingCompany = resolved.issuingCompany;
+    } catch (err) {
+      issuingCompanyError = err instanceof Error ? err.message : String(err);
+    }
+
+    const orgBranding = await ctx.db
+      .query("orgBranding")
+      .withIndex("by_orgId", (q) => q.eq("orgId", quotation.orgId))
+      .first();
+
+    return {
+      quotation,
+      projService,
+      projection,
+      client,
+      service,
+      issuingCompany,
+      issuingCompanyError,
+      orgBranding,
+    };
+  },
+});
+
+export const getByTokenHash = internalQuery({
+  args: { tokenHash: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("quotations")
+      .withIndex("by_accessTokenHash", (q) =>
+        q.eq("accessTokenHash", args.tokenHash)
       )
       .first();
   },
