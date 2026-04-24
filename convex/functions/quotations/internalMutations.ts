@@ -57,3 +57,39 @@ export const applyAcceptance = internalMutation({
     };
   },
 });
+
+export const applyDecline = internalMutation({
+  args: {
+    tokenHash: v.string(),
+    declineReason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const quotation = await ctx.db
+      .query("quotations")
+      .withIndex("by_accessTokenHash", (q) =>
+        q.eq("accessTokenHash", args.tokenHash)
+      )
+      .unique();
+    if (!quotation) throw new Error("invalid_token");
+    if (quotation.status !== "sent") throw new Error("already_responded");
+    if (
+      !quotation.tokenExpiresAt ||
+      quotation.tokenExpiresAt < Date.now()
+    ) {
+      throw new Error("expired");
+    }
+    const reasonTrimmed = args.declineReason?.slice(0, 500);
+    const reason = reasonTrimmed && reasonTrimmed.length > 0 ? reasonTrimmed : undefined;
+    await ctx.db.patch(quotation._id, {
+      status: "rejected",
+      respondedAt: Date.now(),
+      declineReason: reason,
+      accessTokenHash: undefined,
+    });
+    // TODO(pipeline-visibility): emit notifications.insert when §3B.10 ships.
+    return {
+      quotationId: quotation._id,
+      orgId: quotation.orgId,
+    };
+  },
+});
