@@ -53,10 +53,13 @@ import type * as functions_questionnaires_mutations from "../functions/questionn
 import type * as functions_questionnaires_publicMutations from "../functions/questionnaires/publicMutations.js";
 import type * as functions_questionnaires_publicQueries from "../functions/questionnaires/publicQueries.js";
 import type * as functions_questionnaires_queries from "../functions/questionnaires/queries.js";
+import type * as functions_quotations___tests___helpers_quotations from "../functions/quotations/__tests__/helpers/quotations.js";
 import type * as functions_quotations_actions from "../functions/quotations/actions.js";
+import type * as functions_quotations_internalMutations from "../functions/quotations/internalMutations.js";
 import type * as functions_quotations_internalQueries from "../functions/quotations/internalQueries.js";
 import type * as functions_quotations_mutations from "../functions/quotations/mutations.js";
 import type * as functions_quotations_queries from "../functions/quotations/queries.js";
+import type * as functions_quotations_tokenHelpers from "../functions/quotations/tokenHelpers.js";
 import type * as functions_seed_v2Fixtures from "../functions/seed/v2Fixtures.js";
 import type * as functions_services_backfill from "../functions/services/backfill.js";
 import type * as functions_services_mutations from "../functions/services/mutations.js";
@@ -121,10 +124,13 @@ declare const fullApi: ApiFromModules<{
   "functions/questionnaires/publicMutations": typeof functions_questionnaires_publicMutations;
   "functions/questionnaires/publicQueries": typeof functions_questionnaires_publicQueries;
   "functions/questionnaires/queries": typeof functions_questionnaires_queries;
+  "functions/quotations/__tests__/helpers/quotations": typeof functions_quotations___tests___helpers_quotations;
   "functions/quotations/actions": typeof functions_quotations_actions;
+  "functions/quotations/internalMutations": typeof functions_quotations_internalMutations;
   "functions/quotations/internalQueries": typeof functions_quotations_internalQueries;
   "functions/quotations/mutations": typeof functions_quotations_mutations;
   "functions/quotations/queries": typeof functions_quotations_queries;
+  "functions/quotations/tokenHelpers": typeof functions_quotations_tokenHelpers;
   "functions/seed/v2Fixtures": typeof functions_seed_v2Fixtures;
   "functions/services/backfill": typeof functions_services_backfill;
   "functions/services/mutations": typeof functions_services_mutations;
