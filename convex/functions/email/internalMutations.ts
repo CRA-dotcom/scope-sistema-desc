@@ -237,7 +237,13 @@ export const handleWebhookEvent = internalMutation({
 
     if (proposedStatus === "delivered") patch.deliveredAt = args.event.occurredAt;
     if (proposedStatus === "opened") patch.openedAt = args.event.occurredAt;
-    if (proposedStatus === "clicked") patch.clickedAt = args.event.occurredAt;
+    if (proposedStatus === "clicked") {
+      patch.clickedAt = args.event.occurredAt;
+      // clicked implies opened — if openedAt is unset, infer it from this event
+      if (log.openedAt === undefined) {
+        patch.openedAt = args.event.occurredAt;
+      }
+    }
 
     await ctx.db.patch(log._id, patch);
   },

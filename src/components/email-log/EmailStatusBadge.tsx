@@ -1,9 +1,10 @@
-import { CircleDashed, Send, Check, MailOpen, MousePointer, AlertTriangle, X } from "lucide-react";
+import { CircleDashed, Send, Check, MailOpen, MousePointer, AlertTriangle, X, Clock } from "lucide-react";
 
 type Status =
   | "queued"
   | "sent"
   | "delivered"
+  | "delivery_delayed"
   | "opened"
   | "clicked"
   | "bounced"
@@ -14,6 +15,7 @@ const STYLES: Record<Status, { label: string; cls: string; Icon: typeof Send }> 
   queued: { label: "En cola", cls: "bg-muted text-muted-foreground", Icon: CircleDashed },
   sent: { label: "Enviado", cls: "bg-blue-500/10 text-blue-500", Icon: Send },
   delivered: { label: "Entregado", cls: "bg-emerald-500/10 text-emerald-500", Icon: Check },
+  delivery_delayed: { label: "Entrega retrasada", cls: "bg-yellow-500/10 text-yellow-500", Icon: Clock },
   opened: { label: "Abierto", cls: "bg-emerald-600/15 text-emerald-600", Icon: MailOpen },
   clicked: { label: "Clickeado", cls: "bg-emerald-700/20 text-emerald-700", Icon: MousePointer },
   bounced: { label: "Rebotado", cls: "bg-destructive/10 text-destructive", Icon: AlertTriangle },
