@@ -124,7 +124,7 @@ export const getSendContext = internalQuery({
     const orgBranding = await ctx.db
       .query("orgBranding")
       .withIndex("by_orgId", (q) => q.eq("orgId", quotation.orgId))
-      .first();
+      .unique();
 
     return {
       quotation,
@@ -147,6 +147,6 @@ export const getByTokenHash = internalQuery({
       .withIndex("by_accessTokenHash", (q) =>
         q.eq("accessTokenHash", args.tokenHash)
       )
-      .first();
+      .unique();
   },
 });
