@@ -77,3 +77,89 @@ export const getById = query({
     return log;
   },
 });
+
+export const getEvents = query({
+  args: { emailLogId: v.id("emailLog") },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
+    const log = await ctx.db.get(args.emailLogId);
+    if (!log || log.orgId !== orgId) return [];
+
+    const identity = await ctx.auth.getUserIdentity();
+    const role = (identity?.orgRole as string) ?? "org:member";
+    if (role === "org:member") {
+      if (!log.clientId) return [];
+      const client = await ctx.db.get(log.clientId);
+      if (!client || client.assignedTo !== identity?.subject) return [];
+    }
+
+    const events = await ctx.db
+      .query("emailEvents")
+      .withIndex("by_emailLogId", (q) => q.eq("emailLogId", args.emailLogId))
+      .collect();
+    return events.sort((a, b) => a.occurredAt - b.occurredAt);
+  },
+});
+
+export const getAttachmentUrls = query({
+  args: { emailLogId: v.id("emailLog") },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
+    const log = await ctx.db.get(args.emailLogId);
+    if (!log || log.orgId !== orgId) return [];
+
+    const identity = await ctx.auth.getUserIdentity();
+    const role = (identity?.orgRole as string) ?? "org:member";
+    if (role === "org:member") {
+      if (!log.clientId) return [];
+      const client = await ctx.db.get(log.clientId);
+      if (!client || client.assignedTo !== identity?.subject) return [];
+    }
+
+    const urls = await Promise.all(
+      (log.attachments ?? []).map(async (att) => ({
+        filename: att.filename,
+        contentType: att.contentType,
+        url: await ctx.storage.getUrl(att.storageId),
+      }))
+    );
+    return urls;
+  },
+});
+
+export const getResendConfig = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const role = (identity.orgRole as string) ?? "org:member";
+    if (role !== "org:admin") {
+      throw new Error("Acceso denegado. Se requiere rol de Administrador.");
+    }
+
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return null;
+
+    const config = await ctx.db
+      .query("orgIntegrations")
+      .withIndex("by_orgId_provider", (q) =>
+        q.eq("orgId", orgId).eq("provider", "resend")
+      )
+      .first();
+
+    if (!config) {
+      return { configured: false as const, hasWebhookSecret: false };
+    }
+
+    return {
+      configured: true as const,
+      fromEmail: config.config.fromEmail,
+      fromName: config.config.fromName,
+      apiKeyMasked: config.config.apiKeyMasked,
+      hasWebhookSecret: !!config.config.webhookSecretRef,
+      status: config.status,
+    };
+  },
+});
