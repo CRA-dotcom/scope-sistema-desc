@@ -1,7 +1,7 @@
 "use node";
 
 import { action, internalAction } from "../../_generated/server";
-import { internal } from "../../_generated/api";
+import { internal, api } from "../../_generated/api";
 import { v } from "convex/values";
 import { Resend } from "resend";
 
@@ -217,5 +217,70 @@ export const sendEmail = action({
       );
       return { ok: false as const, emailLogId, errorMessage };
     }
+  },
+});
+
+export const testResendConnection = action({
+  args: { apiKey: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("No autenticado");
+    const role = (identity.orgRole as string) ?? "org:member";
+    if (role !== "org:admin") {
+      throw new Error("Acceso denegado. Se requiere rol de Administrador.");
+    }
+
+    try {
+      const resend = new Resend(args.apiKey);
+      const result = await resend.domains.list();
+      if (result.error) {
+        return { ok: false as const, error: result.error.message };
+      }
+      return { ok: true as const };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      return { ok: false as const, error };
+    }
+  },
+});
+
+export const resendFromLog = action({
+  args: { id: v.id("emailLog") },
+  handler: async (ctx, args): Promise<{ ok: boolean; emailLogId?: string; providerMessageId?: string; errorMessage?: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("No autenticado");
+    const role = (identity.orgRole as string) ?? "org:member";
+    if (role !== "org:admin") {
+      throw new Error("Acceso denegado. Se requiere rol de Administrador.");
+    }
+    const orgId = (identity.orgId ??
+      (identity as Record<string, unknown>).org_id) as string | undefined;
+    if (!orgId) throw new Error("Sin organización");
+
+    const original = await ctx.runQuery(
+      internal.functions.email.internalQueries.getByIdForResend,
+      { id: args.id, orgId }
+    );
+    if (!original) throw new Error("Email no encontrado");
+
+    return await ctx.runAction(api.functions.email.send.sendEmail, {
+      to: original.toEmail,
+      subject: original.subject,
+      bodyHtml: original.bodyHtml ?? "",
+      bodyText: original.bodyText,
+      cc: original.cc,
+      bcc: original.bcc,
+      replyTo: original.replyTo,
+      type: original.type,
+      relatedType: original.relatedType,
+      relatedId: original.relatedId,
+      clientId: original.clientId,
+      issuingCompanyId: original.issuingCompanyId,
+      attachmentStorageIds: original.attachments?.map((a: any) => ({
+        storageId: a.storageId,
+        filename: a.filename,
+        contentType: a.contentType,
+      })),
+    });
   },
 });
