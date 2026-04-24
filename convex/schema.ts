@@ -34,6 +34,8 @@ export default defineSchema({
     ),
     isArchived: v.boolean(),
     assignedTo: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
+    contactName: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_orgId", ["orgId"])
@@ -169,11 +171,21 @@ export default defineSchema({
       v.literal("rejected")
     ),
     createdAt: v.number(),
+
+    // 3B additions
+    lastSentAt: v.optional(v.number()),
+    sendCount: v.optional(v.number()),
+    accessTokenHash: v.optional(v.string()),
+    tokenIssuedAt: v.optional(v.number()),
+    tokenExpiresAt: v.optional(v.number()),
+    respondedAt: v.optional(v.number()),
+    declineReason: v.optional(v.string()),
   })
     .index("by_orgId", ["orgId"])
     .index("by_projServiceId", ["projServiceId"])
     .index("by_clientId", ["clientId"])
-    .index("by_orgId_status", ["orgId", "status"]),
+    .index("by_orgId_status", ["orgId", "status"])
+    .index("by_accessTokenHash", ["accessTokenHash"]),
 
   contracts: defineTable({
     orgId: v.string(),
@@ -310,4 +322,232 @@ export default defineSchema({
     .index("by_orgId", ["orgId"])
     .index("by_serviceId", ["serviceId"])
     .index("by_type", ["type"]),
+
+  issuingCompanies: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    legalName: v.string(),
+    rfc: v.string(),
+    regimenFiscalCode: v.string(),
+    regimenFiscalLabel: v.optional(v.string()),
+    codigoPostal: v.string(),
+    address: v.object({
+      street: v.string(),
+      exteriorNumber: v.optional(v.string()),
+      interiorNumber: v.optional(v.string()),
+      colonia: v.optional(v.string()),
+      city: v.string(),
+      state: v.string(),
+      country: v.string(),
+    }),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    website: v.optional(v.string()),
+    bankName: v.optional(v.string()),
+    bankAccount: v.optional(v.string()),
+    clabe: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    invoiceSerie: v.optional(v.string()),
+    logoStorageId: v.optional(v.id("_storage")),
+    signatoryName: v.optional(v.string()),
+    signatoryTitle: v.optional(v.string()),
+    isDefault: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_orgId_rfc", ["orgId", "rfc"])
+    .index("by_orgId_isDefault", ["orgId", "isDefault"])
+    .index("by_orgId_isActive", ["orgId", "isActive"]),
+
+  servicesIssuingCompanyMap: defineTable({
+    orgId: v.string(),
+    serviceId: v.id("services"),
+    issuingCompanyId: v.id("issuingCompanies"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_orgId_serviceId", ["orgId", "serviceId"])
+    .index("by_issuingCompanyId", ["issuingCompanyId"]),
+
+  clientIssuingCompanyOverride: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    serviceId: v.id("services"),
+    issuingCompanyId: v.id("issuingCompanies"),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_clientId", ["clientId"])
+    .index("by_orgId_client_service", ["orgId", "clientId", "serviceId"])
+    .index("by_issuingCompanyId", ["issuingCompanyId"]),
+
+  emailLog: defineTable({
+    orgId: v.string(),
+    type: v.union(
+      v.literal("quotation"),
+      v.literal("quotation_reminder"),
+      v.literal("contract"),
+      v.literal("contract_reminder"),
+      v.literal("deliverable"),
+      v.literal("questionnaire"),
+      v.literal("reminder"),
+      v.literal("custom")
+    ),
+    direction: v.union(v.literal("outbound"), v.literal("inbound")),
+    relatedType: v.optional(
+      v.union(
+        v.literal("quotation"),
+        v.literal("contract"),
+        v.literal("deliverable"),
+        v.literal("questionnaire"),
+        v.literal("assignment")
+      )
+    ),
+    relatedId: v.optional(v.string()),
+    clientId: v.optional(v.id("clients")),
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+    fromEmail: v.string(),
+    fromName: v.optional(v.string()),
+    toEmail: v.string(),
+    toName: v.optional(v.string()),
+    cc: v.optional(v.array(v.string())),
+    bcc: v.optional(v.array(v.string())),
+    replyTo: v.optional(v.string()),
+    subject: v.string(),
+    bodyHtml: v.optional(v.string()),
+    bodyText: v.optional(v.string()),
+    emlStorageId: v.optional(v.id("_storage")),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          filename: v.string(),
+          contentType: v.optional(v.string()),
+        })
+      )
+    ),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("sent"),
+      v.literal("delivered"),
+      v.literal("opened"),
+      v.literal("clicked"),
+      v.literal("bounced"),
+      v.literal("complained"),
+      v.literal("failed")
+    ),
+    provider: v.optional(v.string()),
+    providerMessageId: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    deliveredAt: v.optional(v.number()),
+    openedAt: v.optional(v.number()),
+    clickedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_orgId_status", ["orgId", "status"])
+    .index("by_orgId_type", ["orgId", "type"])
+    .index("by_clientId", ["clientId"])
+    .index("by_relatedId", ["relatedId"])
+    .index("by_providerMessageId", ["providerMessageId"]),
+
+  emailEvents: defineTable({
+    orgId: v.string(),
+    emailLogId: v.id("emailLog"),
+    providerMessageId: v.optional(v.string()),
+    provider: v.string(),
+    eventType: v.union(
+      v.literal("sent"),
+      v.literal("delivered"),
+      v.literal("delivery_delayed"),
+      v.literal("opened"),
+      v.literal("clicked"),
+      v.literal("bounced"),
+      v.literal("complained"),
+      v.literal("failed")
+    ),
+    metadata: v.optional(
+      v.object({
+        userAgent: v.optional(v.string()),
+        ipAddress: v.optional(v.string()),
+        link: v.optional(v.string()),
+        bounceType: v.optional(v.string()),
+        bounceReason: v.optional(v.string()),
+      })
+    ),
+    rawPayload: v.optional(v.string()),
+    occurredAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_emailLogId", ["emailLogId"])
+    .index("by_providerMessageId", ["providerMessageId"])
+    .index("by_orgId_eventType", ["orgId", "eventType"]),
+
+  orgIntegrations: defineTable({
+    orgId: v.string(),
+    provider: v.union(
+      v.literal("resend"),
+      v.literal("mifiel"),
+      v.literal("anthropic"),
+      v.literal("other")
+    ),
+    providerLabel: v.optional(v.string()),
+    config: v.object({
+      apiKeySecretRef: v.optional(v.string()),
+      apiKeyMasked: v.optional(v.string()),
+      webhookSecretRef: v.optional(v.string()),
+      webhookUrl: v.optional(v.string()),
+      fromEmail: v.optional(v.string()),
+      fromName: v.optional(v.string()),
+      sandboxMode: v.optional(v.boolean()),
+      extra: v.optional(v.string()),
+    }),
+    status: v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("error"),
+      v.literal("pending_verification")
+    ),
+    lastCheckedAt: v.optional(v.number()),
+    lastErrorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_orgId_provider", ["orgId", "provider"])
+    .index("by_orgId_status", ["orgId", "status"]),
+
+  satConcepts: defineTable({
+    orgId: v.optional(v.string()),
+    claveProdServ: v.string(),
+    description: v.string(),
+    claveUnidad: v.string(),
+    unidadLabel: v.optional(v.string()),
+    objetoImp: v.optional(
+      v.union(
+        v.literal("01"),
+        v.literal("02"),
+        v.literal("03"),
+        v.literal("04")
+      )
+    ),
+    serviceIds: v.optional(v.array(v.id("services"))),
+    tags: v.optional(v.array(v.string())),
+    isDefault: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_claveProdServ", ["claveProdServ"])
+    .index("by_orgId_active", ["orgId", "isActive"])
+    .index("by_orgId_isDefault", ["orgId", "isDefault"]),
 });
