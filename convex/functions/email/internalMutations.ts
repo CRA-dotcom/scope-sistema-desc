@@ -100,3 +100,145 @@ export const markFailed = internalMutation({
     });
   },
 });
+
+type ResendEventType =
+  | "email.sent"
+  | "email.delivered"
+  | "email.delivery_delayed"
+  | "email.opened"
+  | "email.clicked"
+  | "email.bounced"
+  | "email.complained"
+  | "email.failed";
+
+const STATUS_RANK: Record<string, number> = {
+  queued: 0,
+  sent: 1,
+  delivered: 2,
+  opened: 3,
+  clicked: 4,
+};
+
+function mapEventToStatus(
+  eventType: string
+): "sent" | "delivered" | "opened" | "clicked" | "bounced" | "complained" | "failed" | null {
+  switch (eventType) {
+    case "email.sent": return "sent";
+    case "email.delivered": return "delivered";
+    case "email.opened": return "opened";
+    case "email.clicked": return "clicked";
+    case "email.bounced": return "bounced";
+    case "email.complained": return "complained";
+    case "email.failed": return "failed";
+    case "email.delivery_delayed": return null;
+    default: return null;
+  }
+}
+
+function mapEventTypeToEmailEventsUnion(
+  eventType: string
+):
+  | "sent"
+  | "delivered"
+  | "delivery_delayed"
+  | "opened"
+  | "clicked"
+  | "bounced"
+  | "complained"
+  | "failed"
+  | null {
+  switch (eventType) {
+    case "email.sent": return "sent";
+    case "email.delivered": return "delivered";
+    case "email.delivery_delayed": return "delivery_delayed";
+    case "email.opened": return "opened";
+    case "email.clicked": return "clicked";
+    case "email.bounced": return "bounced";
+    case "email.complained": return "complained";
+    case "email.failed": return "failed";
+    default: return null;
+  }
+}
+
+export const handleWebhookEvent = internalMutation({
+  args: {
+    providerMessageId: v.string(),
+    event: v.object({
+      type: v.string(),
+      occurredAt: v.number(),
+      metadata: v.any(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const log = await ctx.db
+      .query("emailLog")
+      .withIndex("by_providerMessageId", (q) =>
+        q.eq("providerMessageId", args.providerMessageId)
+      )
+      .first();
+    if (!log) {
+      console.warn(
+        `[email.handleWebhookEvent] unknown providerMessageId=${args.providerMessageId}`
+      );
+      return;
+    }
+
+    const emailEventType = mapEventTypeToEmailEventsUnion(args.event.type);
+    if (!emailEventType) {
+      console.warn(
+        `[email.handleWebhookEvent] unknown event type=${args.event.type}`
+      );
+      return;
+    }
+
+    const rawMeta = args.event.metadata as Record<string, unknown>;
+    const eventMetadata: {
+      userAgent?: string;
+      ipAddress?: string;
+      link?: string;
+      bounceType?: string;
+      bounceReason?: string;
+    } = {};
+    if (typeof rawMeta.user_agent === "string") eventMetadata.userAgent = rawMeta.user_agent;
+    if (typeof rawMeta.ip === "string") eventMetadata.ipAddress = rawMeta.ip;
+    if (typeof rawMeta.link === "string") eventMetadata.link = rawMeta.link;
+    if (rawMeta.bounce && typeof rawMeta.bounce === "object") {
+      const b = rawMeta.bounce as Record<string, unknown>;
+      if (typeof b.type === "string") eventMetadata.bounceType = b.type;
+      if (typeof b.message === "string") eventMetadata.bounceReason = b.message;
+    }
+
+    await ctx.db.insert("emailEvents", {
+      orgId: log.orgId,
+      emailLogId: log._id,
+      providerMessageId: args.providerMessageId,
+      provider: "resend",
+      eventType: emailEventType,
+      metadata: eventMetadata,
+      rawPayload: JSON.stringify(args.event.metadata),
+      occurredAt: args.event.occurredAt,
+      createdAt: Date.now(),
+    });
+
+    const proposedStatus = mapEventToStatus(args.event.type);
+    if (!proposedStatus) return;
+
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    const terminalStatuses = ["bounced", "complained", "failed"];
+    if (terminalStatuses.includes(proposedStatus)) {
+      patch.status = proposedStatus;
+    } else {
+      const currentRank = STATUS_RANK[log.status] ?? -1;
+      const proposedRank = STATUS_RANK[proposedStatus] ?? -1;
+      if (proposedRank > currentRank) {
+        patch.status = proposedStatus;
+      }
+    }
+
+    if (proposedStatus === "delivered") patch.deliveredAt = args.event.occurredAt;
+    if (proposedStatus === "opened") patch.openedAt = args.event.occurredAt;
+    if (proposedStatus === "clicked") patch.clickedAt = args.event.occurredAt;
+
+    await ctx.db.patch(log._id, patch);
+  },
+});
