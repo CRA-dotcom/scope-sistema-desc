@@ -1,6 +1,7 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgIdSafe } from "../../lib/authHelpers";
+import { internal } from "../../_generated/api";
 
 export const getById = query({
   args: { id: v.id("quotations") },
@@ -81,3 +82,85 @@ export const listByOrg = query({
     return quotations.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
+
+export const getSendPreviewContext = query({
+  args: { quotationId: v.id("quotations") },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return null;
+
+    const quotation = await ctx.db.get(args.quotationId);
+    if (!quotation || quotation.orgId !== orgId) return null;
+
+    const client = await ctx.db.get(quotation.clientId);
+    if (!client || client.orgId !== orgId) return null;
+
+    // Ejecutivo permission gate
+    const identity = await ctx.auth.getUserIdentity();
+    const role = (identity?.orgRole as string) ?? "org:member";
+    if (role === "org:member" && client.assignedTo && client.assignedTo !== identity?.subject) {
+      return null;
+    }
+
+    const projService = await ctx.db.get(quotation.projServiceId);
+    if (!projService) return null;
+
+    // Attempt issuingCompany resolution without throwing.
+    let issuingCompanyPreview: {
+      _id: string;
+      name: string;
+      primaryColor?: string;
+      logoStorageUrl?: string | null;
+    } | null = null;
+    let issuingCompanyError: string | null = null;
+    try {
+      const resolved = await ctx.runQuery(
+        internal.functions.issuingCompanies.resolve.resolveIssuingCompanyQuery,
+        {
+          orgId,
+          clientId: client._id,
+          serviceId: projService.serviceId,
+        }
+      );
+      const logoUrl = resolved.issuingCompany.logoStorageId
+        ? await ctx.storage.getUrl(resolved.issuingCompany.logoStorageId)
+        : null;
+      issuingCompanyPreview = {
+        _id: resolved.issuingCompany._id,
+        name: resolved.issuingCompany.name,
+        primaryColor: resolved.issuingCompany.primaryColor,
+        logoStorageUrl: logoUrl,
+      };
+    } catch (err) {
+      issuingCompanyError = err instanceof Error ? err.message : String(err);
+    }
+
+    const pdfFilename = `cotizacion-${slug(quotation.serviceName)}-${slug(client.name)}.pdf`;
+    const defaultSubject = `Cotización ${quotation.serviceName}${issuingCompanyPreview ? ` — ${issuingCompanyPreview.name}` : ""}`;
+
+    return {
+      client: {
+        name: client.name,
+        contactEmail: client.contactEmail,
+        contactName: client.contactName,
+      },
+      issuingCompany: issuingCompanyPreview,
+      issuingCompanyError,
+      pdfFilename,
+      defaultSubject,
+      tokenTtlDays: 30,
+      hasPdf: !!quotation.pdfStorageId,
+      status: quotation.status,
+      sendCount: quotation.sendCount ?? 0,
+    };
+  },
+});
+
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}

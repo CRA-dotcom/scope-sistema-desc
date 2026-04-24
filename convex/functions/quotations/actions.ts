@@ -307,3 +307,37 @@ export const generateQuotation = action({
     return quotationId;
   },
 });
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function buildQuotationEmailHtml(input: {
+  client: { name: string; contactName?: string };
+  serviceName: string;
+  issuingCompany: { name: string; primaryColor?: string };
+  token: string;
+  appUrl: string;
+}): string {
+  const greeting = input.client.contactName
+    ? `Estimado/a ${input.client.contactName}`
+    : `Estimado/a cliente`;
+  const link = `${input.appUrl}/q/cotizacion/${input.token}`;
+  const primary = input.issuingCompany.primaryColor ?? "#1a1a2e";
+  return `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
+  <p>${greeting},</p>
+  <p>Te compartimos la cotización de <strong>${input.serviceName}</strong> por parte de <strong>${input.issuingCompany.name}</strong>.</p>
+  <p>Puedes revisarla y responder directamente desde el siguiente enlace:</p>
+  <p style="margin: 32px 0; text-align: center;">
+    <a href="${link}" style="display: inline-block; background: ${primary}; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600;">Ver cotización</a>
+  </p>
+  <p style="color: #666; font-size: 13px;">También adjuntamos el PDF. La cotización es válida por 30 días naturales.</p>
+  <p style="color: #666; font-size: 13px;">Si el botón no funciona, copia este link en tu navegador:<br/><span style="color: ${primary}; word-break: break-all;">${link}</span></p>
+</div>`.trim();
+}
