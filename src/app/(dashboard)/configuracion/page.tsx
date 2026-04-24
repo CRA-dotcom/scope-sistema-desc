@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, Building2, ChevronRight } from "lucide-react";
+import { Settings, Building2, Mail, ChevronRight } from "lucide-react";
 
 const sections = [
   {
@@ -10,6 +10,12 @@ const sections = [
     title: "Empresas Emitentes",
     description:
       "Personas morales que emiten cotizaciones, contratos y facturas.",
+  },
+  {
+    href: "/configuracion/email-log",
+    icon: Mail,
+    title: "Email Log",
+    description: "Historial de emails enviados por la plataforma.",
   },
 ];
 
