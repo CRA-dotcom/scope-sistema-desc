@@ -85,7 +85,29 @@ export const listByOrg = query({
 
 export const getSendPreviewContext = query({
   args: { quotationId: v.id("quotations") },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    client: {
+      name: string;
+      contactEmail?: string;
+      contactName?: string;
+    };
+    issuingCompany: {
+      _id: string;
+      name: string;
+      primaryColor?: string;
+      logoStorageUrl?: string | null;
+    } | null;
+    issuingCompanyError: string | null;
+    pdfFilename: string;
+    defaultSubject: string;
+    tokenTtlDays: number;
+    hasPdf: boolean;
+    status: "draft" | "sent" | "approved" | "rejected";
+    sendCount: number;
+  } | null> => {
     const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return null;
 
@@ -125,10 +147,16 @@ export const getSendPreviewContext = query({
       const logoUrl = resolved.issuingCompany.logoStorageId
         ? await ctx.storage.getUrl(resolved.issuingCompany.logoStorageId)
         : null;
+      // primaryColor lives on orgBranding, not issuingCompanies. Source it
+      // from there so the preview matches the actual landing-page rendering.
+      const orgBranding = await ctx.db
+        .query("orgBranding")
+        .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+        .first();
       issuingCompanyPreview = {
         _id: resolved.issuingCompany._id,
         name: resolved.issuingCompany.name,
-        primaryColor: resolved.issuingCompany.primaryColor,
+        primaryColor: orgBranding?.primaryColor,
         logoStorageUrl: logoUrl,
       };
     } catch (err) {

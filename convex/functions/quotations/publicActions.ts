@@ -2,11 +2,15 @@
 import { action } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
+import type { Id } from "../../_generated/dataModel";
 import { hashToken } from "./tokenHelpers";
 
 export const acceptQuotation = action({
   args: { token: v.string() },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ status: "approved"; quotationId: Id<"quotations"> }> => {
     const tokenHash = hashToken(args.token);
     const result = await ctx.runMutation(
       internal.functions.quotations.internalMutations.applyAcceptance,
@@ -26,7 +30,10 @@ export const declineQuotation = action({
     token: v.string(),
     declineReason: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ status: "rejected"; quotationId: Id<"quotations"> }> => {
     const tokenHash = hashToken(args.token);
     const result = await ctx.runMutation(
       internal.functions.quotations.internalMutations.applyDecline,
