@@ -13,10 +13,21 @@ export const create = mutation({
       v.literal("quincenal"),
       v.literal("mensual")
     ),
+    contactEmail: v.optional(v.string()),
+    contactName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
     const orgId = await getOrgId(ctx);
+
+    let normalizedContactEmail: string | undefined = undefined;
+    if (args.contactEmail) {
+      const e = args.contactEmail.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+        throw new Error("Email de contacto inválido.");
+      }
+      normalizedContactEmail = e;
+    }
 
     return await ctx.db.insert("clients", {
       orgId,
@@ -25,6 +36,8 @@ export const create = mutation({
       industry: args.industry,
       annualRevenue: args.annualRevenue,
       billingFrequency: args.billingFrequency,
+      contactEmail: normalizedContactEmail,
+      contactName: args.contactName,
       isArchived: false,
       assignedTo: identity.subject,
       createdAt: Date.now(),
@@ -47,6 +60,8 @@ export const update = mutation({
       )
     ),
     assignedTo: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
+    contactName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const orgId = await getOrgId(ctx);
@@ -55,12 +70,27 @@ export const update = mutation({
       throw new Error("Cliente no encontrado.");
     }
 
-    const { id, ...updates } = args;
-    const filtered = Object.fromEntries(
+    let normalizedContactEmail: string | undefined = undefined;
+    if (args.contactEmail) {
+      const e = args.contactEmail.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+        throw new Error("Email de contacto inválido.");
+      }
+      normalizedContactEmail = e;
+    }
+
+    const { id, contactEmail, contactName, ...updates } = args;
+    const filtered: Record<string, unknown> = Object.fromEntries(
       Object.entries(updates).filter(([, v]) => v !== undefined)
     );
     if (filtered.rfc) {
       filtered.rfc = (filtered.rfc as string).toUpperCase();
+    }
+    if (contactEmail !== undefined) {
+      filtered.contactEmail = normalizedContactEmail;
+    }
+    if (contactName !== undefined) {
+      filtered.contactName = contactName;
     }
 
     await ctx.db.patch(id, filtered);

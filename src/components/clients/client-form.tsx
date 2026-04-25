@@ -20,6 +20,8 @@ type ClientData = {
   industry: string;
   annualRevenue: number;
   billingFrequency: "semanal" | "quincenal" | "mensual";
+  contactEmail?: string;
+  contactName?: string;
 };
 
 export function ClientForm({
@@ -39,6 +41,8 @@ export function ClientForm({
     industry: initialData?.industry ?? "",
     annualRevenue: initialData?.annualRevenue ?? 0,
     billingFrequency: initialData?.billingFrequency ?? ("mensual" as const),
+    contactEmail: initialData?.contactEmail ?? "",
+    contactName: initialData?.contactName ?? "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -54,6 +58,12 @@ export function ClientForm({
     if (!form.industry) newErrors.industry = "Selecciona una industria";
     if (form.annualRevenue <= 0)
       newErrors.annualRevenue = "La facturación debe ser mayor a 0";
+    if (
+      form.contactEmail &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail)
+    ) {
+      newErrors.contactEmail = "Email inválido";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -68,9 +78,15 @@ export function ClientForm({
         await updateClient({
           id: initialData._id,
           ...form,
+          contactEmail: form.contactEmail || undefined,
+          contactName: form.contactName || undefined,
         });
       } else {
-        await createClient(form);
+        await createClient({
+          ...form,
+          contactEmail: form.contactEmail || undefined,
+          contactName: form.contactName || undefined,
+        });
       }
       router.push("/clientes");
     } catch (err) {
@@ -184,6 +200,41 @@ export function ClientForm({
             </label>
           ))}
         </div>
+      </div>
+
+      {/* Contact Email */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">
+          Email de contacto (opcional)
+        </label>
+        <input
+          type="email"
+          value={form.contactEmail}
+          onChange={(e) =>
+            setForm({ ...form, contactEmail: e.target.value })
+          }
+          className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          placeholder="contacto@empresa.com"
+        />
+        {errors.contactEmail && (
+          <p className="text-xs text-destructive">{errors.contactEmail}</p>
+        )}
+      </div>
+
+      {/* Contact Name */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">
+          Nombre de contacto (opcional)
+        </label>
+        <input
+          type="text"
+          value={form.contactName}
+          onChange={(e) =>
+            setForm({ ...form, contactName: e.target.value })
+          }
+          className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          placeholder="Juan Pérez"
+        />
       </div>
 
       {/* Actions */}
