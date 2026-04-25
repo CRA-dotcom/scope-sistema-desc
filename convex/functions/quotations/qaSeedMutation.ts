@@ -148,7 +148,7 @@ export const insertSeedRow = internalMutation({
     const isExpired = args.status === "sent_expired";
     const actualStatus: "sent" | "approved" | "rejected" = isExpired
       ? "sent"
-      : args.status;
+      : (args.status as "sent" | "approved" | "rejected");
     const tokenExpiresAt = isExpired
       ? Date.now() - 60_000
       : Date.now() + TOKEN_TTL_MS;

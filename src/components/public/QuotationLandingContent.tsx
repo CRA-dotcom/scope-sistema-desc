@@ -39,7 +39,8 @@ export function QuotationLandingContent({
   const [fatal, setFatal] = useState<"expired" | "invalid" | null>(null);
   const [showDecline, setShowDecline] = useState(false);
 
-  const primaryColor = issuingCompany?.primaryColor ?? "#1a1a2e";
+  const brandColor = issuingCompany?.primaryColor;
+  const primaryColor = brandColor ?? "#1a1a2e";
 
   const handleAccept = async () => {
     setSubmitting(true);
@@ -113,7 +114,10 @@ export function QuotationLandingContent({
             />
           )}
           <div>
-            <p className="text-sm font-semibold" style={{ color: primaryColor }}>
+            <p
+              className={`text-sm font-semibold ${brandColor ? "" : "text-foreground"}`}
+              style={brandColor ? { color: brandColor } : undefined}
+            >
               {issuingCompany?.name ?? "Cotización"}
             </p>
             {issuingCompany?.signatoryName && (
@@ -124,13 +128,15 @@ export function QuotationLandingContent({
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-8">
-        <div
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(quotation.content, {
-              USE_PROFILES: { html: true },
-            }),
-          }}
-        />
+        <div className="rounded-lg bg-white text-slate-900 p-8 shadow-sm">
+          <div
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(quotation.content, {
+                USE_PROFILES: { html: true },
+              }),
+            }}
+          />
+        </div>
       </main>
 
       <div
