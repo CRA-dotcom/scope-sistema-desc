@@ -33,7 +33,7 @@ export function QuotationLandingContent({
   const acceptAction = useAction(api.functions.quotations.publicActions.acceptQuotation);
   const declineAction = useAction(api.functions.quotations.publicActions.declineQuotation);
 
-  const [justResponded, setJustResponded] = useState<"approved" | "rejected" | null>(null);
+  const [justResponded, setJustResponded] = useState<"approved" | "rejected" | "unknown" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fatal, setFatal] = useState<"expired" | "invalid" | null>(null);
@@ -51,7 +51,7 @@ export function QuotationLandingContent({
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("expired")) setFatal("expired");
       else if (msg.includes("invalid_token")) setFatal("invalid");
-      else if (msg.includes("already_responded")) setJustResponded("approved"); // safe guess
+      else if (msg.includes("already_responded")) setJustResponded("unknown");
       else setError("Hubo un problema. Intenta de nuevo o contacta a tu ejecutivo.");
     } finally {
       setSubmitting(false);
@@ -69,7 +69,7 @@ export function QuotationLandingContent({
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("expired")) setFatal("expired");
       else if (msg.includes("invalid_token")) setFatal("invalid");
-      else if (msg.includes("already_responded")) setJustResponded("rejected");
+      else if (msg.includes("already_responded")) setJustResponded("unknown");
       else setError("Hubo un problema. Intenta de nuevo o contacta a tu ejecutivo.");
     } finally {
       setSubmitting(false);
@@ -78,7 +78,21 @@ export function QuotationLandingContent({
 
   if (fatal === "expired") return <ExpiredState />;
   if (fatal === "invalid") return <InvalidTokenState />;
-  if (justResponded) return <QuotationRespondedState status={justResponded} justNow respondedAt={Date.now()} />;
+  if (justResponded === "approved" || justResponded === "rejected") {
+    return <QuotationRespondedState status={justResponded} justNow respondedAt={Date.now()} />;
+  }
+  if (justResponded === "unknown") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6">
+        <div className="max-w-md text-center space-y-4">
+          <h1 className="text-xl font-semibold">Esta cotización ya fue respondida</h1>
+          <p className="text-sm text-muted-foreground">
+            Si crees que es un error, contacta a tu ejecutivo.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const expiresDate = new Date(quotation.tokenExpiresAt).toLocaleDateString("es-MX", {
     day: "numeric", month: "long", year: "numeric",

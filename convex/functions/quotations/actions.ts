@@ -12,6 +12,11 @@ import {
 } from "../../lib/templateVariables";
 import { generateToken, hashToken, TOKEN_TTL_MS } from "./tokenHelpers";
 
+function safeColor(c: string | undefined | null): string | undefined {
+  if (!c) return undefined;
+  return /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c) ? c : undefined;
+}
+
 const MODEL = "claude-sonnet-4-20250514";
 const MAX_RETRIES = 3;
 const AI_UNAVAILABLE_PLACEHOLDER = "[AI no disponible — configurar API key]";
@@ -493,7 +498,7 @@ function buildQuotationEmailHtml(input: {
     : `Estimado/a cliente`;
   // Note: link is a URL — do NOT escape (e.g. & in query params would break).
   const link = `${input.appUrl}/q/cotizacion/${input.token}`;
-  const primary = input.issuingCompany.primaryColor ?? "#1a1a2e";
+  const primary = safeColor(input.issuingCompany.primaryColor) ?? "#1a1a2e";
   return `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px;">
   <p>${greeting},</p>

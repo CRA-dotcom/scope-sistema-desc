@@ -10,8 +10,6 @@ import {
   ArrowLeft,
   FileText,
   Send,
-  CheckCircle2,
-  XCircle,
   Edit3,
   Save,
   Download,

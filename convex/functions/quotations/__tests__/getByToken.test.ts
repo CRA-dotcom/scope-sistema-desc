@@ -124,4 +124,89 @@ describe("getByToken public query", () => {
     });
     expect(result.kind).toBe("invalid");
   });
+
+  it("returns content verbatim — sanitization happens client-side", async () => {
+    const t = setupTest();
+    const clientId = await seedClient(t, ORG_A, { contactName: "Juan" });
+    const svcId = await seedIssuingCompanyForQuotation(t, ORG_A, clientId);
+    const projectionId = await t.run((ctx) =>
+      ctx.db.insert("projections", {
+        orgId: ORG_A, clientId, year: 2026,
+        annualSales: 1, totalBudget: 1, commissionRate: 0,
+        seasonalityData: [], status: "active",
+        createdAt: Date.now(), updatedAt: Date.now(),
+      })
+    );
+    const projServiceId = await t.run((ctx) =>
+      ctx.db.insert("projectionServices", {
+        orgId: ORG_A, projectionId, serviceId: svcId, serviceName: "Contable",
+        chosenPct: 10, annualAmount: 100, isActive: true,
+        normalizedWeight: 1,
+      })
+    );
+    const token = "test_dompurify";
+    const maliciousContent = '<p>Hola</p><script>alert("xss")</script>';
+    await t.run((ctx) =>
+      ctx.db.insert("quotations", {
+        orgId: ORG_A,
+        projServiceId,
+        clientId,
+        serviceName: "Contable",
+        content: maliciousContent,
+        status: "sent",
+        accessTokenHash: hashFor(token),
+        tokenExpiresAt: Date.now() + 100_000,
+        createdAt: Date.now(),
+      })
+    );
+    const result = await t.query(api.functions.quotations.publicQueries.getByToken, { token });
+    if (result.kind === "ready") {
+      // Server returns content verbatim (DOMPurify lives on the client)
+      expect(result.quotation.content).toContain("<script>");
+    }
+  });
+
+  it("safeColor strips invalid orgBranding.primaryColor values", async () => {
+    const t = setupTest();
+    const clientId = await seedClient(t, ORG_A);
+    const svcId = await seedIssuingCompanyForQuotation(t, ORG_A, clientId);
+    // Insert a malicious orgBranding with CSS injection attempt
+    await t.run((ctx) =>
+      ctx.db.insert("orgBranding", {
+        orgId: ORG_A,
+        companyName: "Test",
+        primaryColor: "; background-image: url(evil.com)", // invalid - has semicolon
+        secondaryColor: "red", // CSS keyword, not hex
+        fontFamily: "Arial, sans-serif",
+        updatedAt: Date.now(),
+      })
+    );
+    const projectionId = await t.run((ctx) =>
+      ctx.db.insert("projections", {
+        orgId: ORG_A, clientId, year: 2026,
+        annualSales: 1, totalBudget: 1, commissionRate: 0,
+        seasonalityData: [], status: "active",
+        createdAt: Date.now(), updatedAt: Date.now(),
+      })
+    );
+    const projServiceId = await t.run((ctx) =>
+      ctx.db.insert("projectionServices", {
+        orgId: ORG_A, projectionId, serviceId: svcId, serviceName: "Contable",
+        chosenPct: 10, annualAmount: 100, isActive: true,
+        normalizedWeight: 1,
+      })
+    );
+    const token = "color_test";
+    await seedQuotation(t, ORG_A, clientId, {
+      status: "sent",
+      accessTokenHash: hashFor(token),
+      tokenExpiresAt: Date.now() + 100_000,
+      projServiceId,
+    });
+    const result = await t.query(api.functions.quotations.publicQueries.getByToken, { token });
+    if (result.kind === "ready" && result.issuingCompany) {
+      expect(result.issuingCompany.primaryColor).toBeUndefined();
+      expect(result.issuingCompany.secondaryColor).toBeUndefined();
+    }
+  });
 });

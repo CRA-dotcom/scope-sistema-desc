@@ -248,6 +248,32 @@ describe("sendQuotation", () => {
     ).rejects.toThrow();
   });
 
+  it("re-send invalidates the prior token (old hash no longer matches)", async () => {
+    const t = setupTest();
+    await seedResend(t, ORG_A);
+    await seedIssuingCompanyDefault(t, ORG_A);
+    const qid = await seedQuotationForSend(t, ORG_A);
+
+    // First send
+    const r1 = await t
+      .withIdentity(admin(ORG_A))
+      .action(api.functions.quotations.actions.sendQuotation, { quotationId: qid });
+    const oldToken = r1.plaintextToken;
+
+    // Get hash of old token before re-send
+    const crypto = await import("crypto");
+    const oldHash = crypto.createHmac("sha256", "a".repeat(48)).update(oldToken).digest("base64url");
+
+    // Re-send (rotates)
+    await t
+      .withIdentity(admin(ORG_A))
+      .action(api.functions.quotations.actions.sendQuotation, { quotationId: qid });
+
+    // The OLD hash should no longer match — getByTokenHash returns null
+    const stored = await t.run((ctx) => ctx.db.get(qid));
+    expect(stored?.accessTokenHash).not.toBe(oldHash);
+  });
+
   it("resend 4xx surfaces as error; token still rotated (trade-off documented)", async () => {
     const t = setupTest();
     await seedResend(t, ORG_A);

@@ -5,7 +5,7 @@ import { internal } from "../../_generated/api";
 
 function safeColor(c: string | undefined | null): string | undefined {
   if (!c) return undefined;
-  return /^#[0-9a-f]{3,8}$/i.test(c) ? c : undefined;
+  return /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c) ? c : undefined;
 }
 
 export const getById = query({
