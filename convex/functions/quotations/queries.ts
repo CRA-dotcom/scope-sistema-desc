@@ -3,6 +3,11 @@ import { v } from "convex/values";
 import { getOrgIdSafe } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
 
+function safeColor(c: string | undefined | null): string | undefined {
+  if (!c) return undefined;
+  return /^#[0-9a-f]{3,8}$/i.test(c) ? c : undefined;
+}
+
 export const getById = query({
   args: { id: v.id("quotations") },
   handler: async (ctx, args) => {
@@ -156,7 +161,7 @@ export const getSendPreviewContext = query({
       issuingCompanyPreview = {
         _id: resolved.issuingCompany._id,
         name: resolved.issuingCompany.name,
-        primaryColor: orgBranding?.primaryColor,
+        primaryColor: safeColor(orgBranding?.primaryColor),
         logoStorageUrl: logoUrl,
       };
     } catch (err) {

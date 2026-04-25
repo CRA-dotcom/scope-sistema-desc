@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useAction } from "convex/react";
+import DOMPurify from "isomorphic-dompurify";
 import { api } from "../../../convex/_generated/api";
 import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
@@ -109,7 +110,13 @@ export function QuotationLandingContent({
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-8">
-        <div dangerouslySetInnerHTML={{ __html: quotation.content }} />
+        <div
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(quotation.content, {
+              USE_PROFILES: { html: true },
+            }),
+          }}
+        />
       </main>
 
       <div

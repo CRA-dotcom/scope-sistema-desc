@@ -58,6 +58,7 @@ import type * as functions_quotations_actions from "../functions/quotations/acti
 import type * as functions_quotations_internalMutations from "../functions/quotations/internalMutations.js";
 import type * as functions_quotations_internalQueries from "../functions/quotations/internalQueries.js";
 import type * as functions_quotations_mutations from "../functions/quotations/mutations.js";
+import type * as functions_quotations_publicActions from "../functions/quotations/publicActions.js";
 import type * as functions_quotations_publicQueries from "../functions/quotations/publicQueries.js";
 import type * as functions_quotations_queries from "../functions/quotations/queries.js";
 import type * as functions_quotations_tokenHelpers from "../functions/quotations/tokenHelpers.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   "functions/quotations/internalMutations": typeof functions_quotations_internalMutations;
   "functions/quotations/internalQueries": typeof functions_quotations_internalQueries;
   "functions/quotations/mutations": typeof functions_quotations_mutations;
+  "functions/quotations/publicActions": typeof functions_quotations_publicActions;
   "functions/quotations/publicQueries": typeof functions_quotations_publicQueries;
   "functions/quotations/queries": typeof functions_quotations_queries;
   "functions/quotations/tokenHelpers": typeof functions_quotations_tokenHelpers;

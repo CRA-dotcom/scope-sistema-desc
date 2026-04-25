@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
+import DOMPurify from "isomorphic-dompurify";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
@@ -390,7 +391,11 @@ export default function QuotationDetailPage() {
         ) : (
           <div
             className="p-6"
-            dangerouslySetInnerHTML={{ __html: quotation.content }}
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(quotation.content, {
+                USE_PROFILES: { html: true },
+              }),
+            }}
           />
         )}
       </div>

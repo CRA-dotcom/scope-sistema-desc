@@ -25,7 +25,7 @@ export default function PublicQuotationPage() {
   if (result.kind === "already_responded") {
     return (
       <QuotationRespondedState
-        status={result.status as "approved" | "rejected"}
+        status={result.status}
         respondedAt={result.respondedAt ?? undefined}
       />
     );

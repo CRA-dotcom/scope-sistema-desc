@@ -1,6 +1,11 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
 
+function safeColor(c: string | undefined | null): string | undefined {
+  if (!c) return undefined;
+  return /^#[0-9a-f]{3,8}$/i.test(c) ? c : undefined;
+}
+
 function base64urlEncode(bytes: Uint8Array): string {
   let bin = "";
   for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
@@ -43,12 +48,15 @@ export const getByToken = query({
 
     if (!quotation) return { kind: "invalid" as const };
 
-    if (quotation.status !== "sent") {
+    if (quotation.status === "approved" || quotation.status === "rejected") {
       return {
         kind: "already_responded" as const,
-        status: quotation.status,
+        status: quotation.status as "approved" | "rejected",
         respondedAt: quotation.respondedAt ?? null,
       };
+    }
+    if (quotation.status !== "sent") {
+      return { kind: "invalid" as const };
     }
 
     if (
@@ -125,8 +133,8 @@ export const getByToken = query({
       .withIndex("by_orgId", (q) => q.eq("orgId", quotation.orgId))
       .first();
     if (issuingCompanyOut) {
-      issuingCompanyOut.primaryColor = orgBranding?.primaryColor;
-      issuingCompanyOut.secondaryColor = orgBranding?.secondaryColor;
+      issuingCompanyOut.primaryColor = safeColor(orgBranding?.primaryColor);
+      issuingCompanyOut.secondaryColor = safeColor(orgBranding?.secondaryColor);
     }
 
     return {
