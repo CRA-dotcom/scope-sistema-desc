@@ -22,6 +22,8 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePdfGenerator } from "@/lib/usePdfGenerator";
+import { SendQuotationDialog } from "@/components/cotizaciones/SendQuotationDialog";
+import { SendStatusPanel } from "@/components/cotizaciones/SendStatusPanel";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Borrador",
@@ -87,6 +89,7 @@ export default function QuotationDetailPage() {
   const [editing, setEditing] = useState(false);
   const [localContent, setLocalContent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
 
   const startEditing = () => {
     if (quotation) {
@@ -283,36 +286,47 @@ export default function QuotationDetailPage() {
           </>
         )}
 
-        {isDraft && !editing && (
+        {(isDraft || isSent) && !editing && (
           <button
-            onClick={() => handleStatusChange("sent")}
-            disabled={saving}
+            onClick={() => setSendDialogOpen(true)}
+            disabled={!quotation.pdfStorageId || !client?.contactEmail}
+            title={
+              !quotation.pdfStorageId
+                ? "Genera el PDF antes de enviar"
+                : !client?.contactEmail
+                  ? "Agrega email de contacto en el cliente"
+                  : undefined
+            }
             className="flex items-center gap-2 rounded-md bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/30 transition-colors cursor-pointer disabled:opacity-50"
           >
             <Send size={16} />
-            Enviar
+            {isSent ? "Reenviar" : "Enviar por email"}
           </button>
         )}
 
         {isSent && !editing && (
-          <>
-            <button
-              onClick={() => handleStatusChange("approved")}
-              disabled={saving}
-              className="flex items-center gap-2 rounded-md bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/30 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              <CheckCircle2 size={16} />
-              Aprobar
-            </button>
-            <button
-              onClick={() => handleStatusChange("rejected")}
-              disabled={saving}
-              className="flex items-center gap-2 rounded-md bg-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              <XCircle size={16} />
-              Rechazar
-            </button>
-          </>
+          <details className="relative">
+            <summary className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-secondary transition-colors list-none">
+              <span className="text-lg leading-none">⋯</span>
+              Acciones admin
+            </summary>
+            <div className="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-border bg-card p-2 shadow-lg">
+              <button
+                onClick={() => handleStatusChange("approved")}
+                disabled={saving}
+                className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Marcar como aprobada (sin email)
+              </button>
+              <button
+                onClick={() => handleStatusChange("rejected")}
+                disabled={saving}
+                className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Marcar como rechazada (sin email)
+              </button>
+            </div>
+          </details>
         )}
 
         {isApproved && !editing && existingContract === null && (
@@ -349,6 +363,16 @@ export default function QuotationDetailPage() {
         </div>
       )}
 
+      <SendStatusPanel quotation={{
+        _id: quotation._id,
+        status: quotation.status,
+        sendCount: quotation.sendCount,
+        lastSentAt: quotation.lastSentAt,
+        tokenExpiresAt: quotation.tokenExpiresAt,
+        respondedAt: quotation.respondedAt,
+        declineReason: quotation.declineReason,
+      }} />
+
       {/* Content */}
       <div className="rounded-lg border border-border bg-card">
         {editing ? (
@@ -370,6 +394,13 @@ export default function QuotationDetailPage() {
           />
         )}
       </div>
+
+      {sendDialogOpen && (
+        <SendQuotationDialog
+          quotationId={quotation._id}
+          onClose={() => setSendDialogOpen(false)}
+        />
+      )}
     </div>
   );
 }
