@@ -44,7 +44,10 @@ export const purgeQaService = internalMutation({
       }
     }
 
-    // 3. Delete projections seeded for QA org (orgId used in seed script)
+    // 3. Delete projections seeded for QA org
+    // NOTE: This filter matches only the orgId from the documented usage example.
+    // If the seed was run with a different orgId, those projections will NOT be deleted.
+    // Verify via Convex dashboard before running: confirm all QA projections use this orgId.
     const projections = await ctx.db.query("projections").collect();
     for (const p of projections) {
       if (p.orgId === "org_qa_screenshot") {

@@ -38,10 +38,10 @@ export const seedForCapture = internalAction({
     plaintextToken: string;
     landingUrl: string;
   }> => {
-    // Production guard: this seed must NEVER run in production.
+    // If this guard pattern appears in a third QA file, extract to convex/lib/qaGuard.ts
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "qaSeedMutation está deshabilitado en producción. Usa staging/dev."
+        "qaSeed (seedForCapture) está deshabilitado en producción. Usa staging/dev."
       );
     }
     // QA-only: refuses to run unless explicitly opted-in via env var.

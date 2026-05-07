@@ -11,4 +11,13 @@ describe("qaSeed — production guard", () => {
     expect(source).toMatch(/NODE_ENV\s*===\s*["']production["']/);
     expect(source).toMatch(/throw new Error/);
   });
+
+  it("qaSeed source contiene guard NODE_ENV === 'production'", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../qaSeed.ts"),
+      "utf-8"
+    );
+    expect(source).toMatch(/NODE_ENV\s*===\s*["']production["']/);
+    expect(source).toMatch(/throw new Error/);
+  });
 });
