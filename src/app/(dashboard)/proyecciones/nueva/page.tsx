@@ -12,6 +12,7 @@ import {
 import { SeasonalityChart } from "@/components/projections/seasonality-chart";
 import { BudgetAllocationWidget } from "@/components/projections/budget-allocation-widget";
 import { SeasonalityDeltaGrid } from "@/components/projections/seasonality-delta-grid";
+import { ProjectionPeriodSelector } from "@/components/projections/projection-period-selector";
 import { computeServiceAllocation } from "@/lib/projection-allocation";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -76,6 +77,16 @@ function NuevaProyeccionContent() {
   const [annualSales, setAnnualSales] = useState(0);
   const [totalBudget, setTotalBudget] = useState(0);
   const [commissionRate, setCommissionRate] = useState(0.02);
+
+  // C2: Projection period
+  const [startMonth, setStartMonth] = useState<number>(1); // 1-12, default Jan
+  const [projectionMode, setProjectionMode] = useState<"rolling" | "fiscal">("rolling");
+
+  // Derive monthCount and effectiveBudget live
+  const monthCount = projectionMode === "fiscal" ? Math.max(1, 13 - startMonth) : 12;
+  const effectiveBudget = projectionMode === "fiscal"
+    ? totalBudget * (monthCount / 12)
+    : totalBudget;
 
   // Step 2: Seasonality deltas
   const [seasonalityDeltas, setSeasonalityDeltas] = useState<SeasonalityDelta[]>(defaultDeltas());
@@ -144,7 +155,7 @@ function NuevaProyeccionContent() {
   const allocation = useMemo(
     () =>
       computeServiceAllocation(
-        totalBudget,
+        effectiveBudget,
         annualSales,
         commissionRate,
         serviceStates.map((s) => ({
@@ -156,7 +167,7 @@ function NuevaProyeccionContent() {
         })),
         "proportional"
       ),
-    [totalBudget, annualSales, commissionRate, serviceStates]
+    [effectiveBudget, annualSales, commissionRate, serviceStates]
   );
 
   async function handleSubmit() {
@@ -177,6 +188,11 @@ function NuevaProyeccionContent() {
           chosenPct: s.chosenPct,
           isActive: s.isActive,
         })),
+        // C2: projection period fields
+        startMonth,
+        projectionMode,
+        monthCount,
+        effectiveBudget,
       });
       router.push(`/proyecciones/${projId}`);
     } catch (err) {
@@ -303,6 +319,16 @@ function NuevaProyeccionContent() {
                 />
               </div>
             </div>
+            {totalBudget > 0 && (
+              <ProjectionPeriodSelector
+                mode={projectionMode}
+                onModeChange={setProjectionMode}
+                startMonth={startMonth}
+                onStartMonthChange={setStartMonth}
+                year={year}
+                totalBudget={totalBudget}
+              />
+            )}
           </div>
         )}
 
@@ -440,7 +466,7 @@ function NuevaProyeccionContent() {
             {/* Budget allocation widget — sticky on md+, stacked on mobile */}
             <div className="md:sticky md:top-6">
               <BudgetAllocationWidget
-                budget={totalBudget}
+                budget={effectiveBudget}
                 annualSales={annualSales}
                 commissionRate={commissionRate}
                 services={serviceStates.map((s) => ({

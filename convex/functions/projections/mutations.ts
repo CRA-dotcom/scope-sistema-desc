@@ -44,6 +44,14 @@ export const create = mutation({
     seasonalityMode: v.optional(
       v.union(v.literal("legacy"), v.literal("delta_percent"))
     ),
+    // C2: projection period fields
+    startMonth: v.optional(v.number()),
+    projectionMode: v.optional(
+      v.union(v.literal("rolling"), v.literal("fiscal"))
+    ),
+    monthCount: v.optional(v.number()),
+    effectiveBudget: v.optional(v.number()),
+    previousProjectionId: v.optional(v.id("projections")),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
@@ -120,6 +128,12 @@ export const create = mutation({
       seasonalityData: seasonality,
       seasonalityDeltas: args.seasonalityDeltas,
       seasonalityMode: args.seasonalityMode ?? (args.seasonalityDeltas ? "delta_percent" : "legacy"),
+      // C2: projection period fields
+      startMonth: args.startMonth,
+      projectionMode: args.projectionMode,
+      monthCount: args.monthCount,
+      effectiveBudget: args.effectiveBudget,
+      previousProjectionId: args.previousProjectionId,
       status: "draft",
       createdAt: now,
       updatedAt: now,
@@ -255,6 +269,11 @@ export const recalculate = mutation({
         commissionRate,
         services: serviceConfigs,
         seasonalityData: seasonality,
+        // C2: pass through projection period fields from the stored record
+        startMonth: projection.startMonth,
+        projectionMode: projection.projectionMode,
+        monthCount: projection.monthCount,
+        effectiveBudget: projection.effectiveBudget,
       },
       engineConfig
     );
