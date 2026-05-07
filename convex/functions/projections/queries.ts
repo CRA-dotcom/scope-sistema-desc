@@ -60,6 +60,17 @@ export const getMatrix = query({
   },
 });
 
+export const hasSuccessor = query({
+  args: { projectionId: v.id("projections") },
+  handler: async (ctx, { projectionId }) => {
+    const candidate = await ctx.db
+      .query("projections")
+      .filter((q) => q.eq(q.field("previousProjectionId"), projectionId))
+      .first();
+    return candidate !== null;
+  },
+});
+
 export const list = query({
   args: {
     year: v.optional(v.number()),

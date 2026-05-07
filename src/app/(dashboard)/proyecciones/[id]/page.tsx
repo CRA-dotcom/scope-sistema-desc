@@ -6,11 +6,12 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight } from "lucide-react";
+import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { MatrixCellDetail } from "@/components/projections/matrix-cell-detail";
+import { resolveProjectionContext, resolveProjectionMonths } from "../../../../../convex/lib/projectionContext";
 
 const MONTH_NAMES = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -46,6 +47,13 @@ export default function ProjectionDetailPage() {
   const [isGeneratingQ, setIsGeneratingQ] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Doc<"monthlyAssignments"> | null>(null);
 
+  const projection = matrix?.projection ?? null;
+
+  const successor = useQuery(
+    api.functions.projections.queries.hasSuccessor,
+    authReady && projection ? { projectionId: projection._id } : "skip"
+  );
+
   const handleGenerateQuestionnaire = async () => {
     try {
       setIsGeneratingQ(true);
@@ -79,24 +87,66 @@ export default function ProjectionDetailPage() {
     );
   }
 
-  const { projection, services, assignments } = matrix;
+  const { services, assignments } = matrix;
   const activeServices = services.filter((s) => s.isActive);
+
+  // C4: dynamic columns via resolveProjectionContext / resolveProjectionMonths
+  const ctx = resolveProjectionContext(projection!);
+  const months = resolveProjectionMonths(ctx.startMonth, ctx.monthCount);
+  const monthLabels = months.map((m, i) => {
+    const yearOffset = Math.floor((ctx.startMonth - 1 + i) / 12);
+    const year = projection!.year + yearOffset;
+    return `${MONTH_NAMES[m - 1]} ${String(year).slice(-2)}`;
+  });
+
+  const showContinuationButton =
+    ctx.projectionMode === "fiscal" &&
+    ctx.endMonth === 12 &&
+    successor === false;
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/proyecciones"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-      >
-        <ArrowLeft size={14} />
-        Volver a Proyecciones
-      </Link>
-
       <div className="flex items-center gap-3">
-        <TrendingUp className="text-accent" size={28} />
-        <h1 className="text-2xl font-bold">
-          Proyección {projection.year}
-        </h1>
+        <Link
+          href="/proyecciones"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          <ArrowLeft size={14} />
+          Volver a Proyecciones
+        </Link>
+
+        {projection!.previousProjectionId && (
+          <Link
+            href={`/proyecciones/${projection!.previousProjectionId}`}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
+            <ChevronLeft size={12} />
+            Ver proyección anterior
+          </Link>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <TrendingUp className="text-accent" size={28} />
+          <h1 className="text-2xl font-bold">
+            Proyección {projection!.year}
+          </h1>
+          {ctx.projectionMode === "fiscal" && (
+            <div className="inline-flex items-center gap-2 rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-1 text-xs text-amber-700 dark:text-amber-400">
+              Proyección parcial · {ctx.monthCount} meses · año fiscal
+            </div>
+          )}
+        </div>
+
+        {showContinuationButton && (
+          <Link
+            href={`/proyecciones/nueva?previousProjectionId=${projection!._id}&clientId=${projection!.clientId}`}
+            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-primary hover:bg-accent/90"
+          >
+            Crear continuación 12 meses →
+          </Link>
+        )}
       </div>
 
       {/* Summary */}
@@ -104,19 +154,19 @@ export default function ProjectionDetailPage() {
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Venta Anual</p>
           <p className="mt-1 text-lg font-bold">
-            {formatCurrency(projection.annualSales)}
+            {formatCurrency(projection!.annualSales)}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Presupuesto</p>
           <p className="mt-1 text-lg font-bold">
-            {formatCurrency(projection.totalBudget)}
+            {formatCurrency(projection!.totalBudget)}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Comisión</p>
           <p className="mt-1 text-lg font-bold">
-            {(projection.commissionRate * 100).toFixed(1)}%
+            {(projection!.commissionRate * 100).toFixed(1)}%
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
@@ -168,7 +218,7 @@ export default function ProjectionDetailPage() {
         </div>
       </div>
 
-      {/* Projection Matrix (12x N grid) */}
+      {/* Projection Matrix — N columns driven by startMonth + monthCount */}
       <div className="rounded-lg border border-border bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -176,12 +226,12 @@ export default function ProjectionDetailPage() {
               <th className="sticky left-0 bg-card px-4 py-3 text-left font-medium">
                 Servicio
               </th>
-              {MONTH_NAMES.map((m) => (
+              {monthLabels.map((label, i) => (
                 <th
-                  key={m}
-                  className="px-3 py-3 text-center font-medium text-muted-foreground"
+                  key={`${months[i]}-${i}`}
+                  className="px-3 py-3 text-center font-medium text-muted-foreground whitespace-nowrap"
                 >
-                  {m}
+                  {label}
                 </th>
               ))}
               <th className="px-4 py-3 text-right font-medium text-accent">
@@ -199,11 +249,11 @@ export default function ProjectionDetailPage() {
                   <td className="sticky left-0 bg-card px-4 py-2.5 font-medium">
                     {svc.serviceName}
                   </td>
-                  {MONTH_NAMES.map((_, i) => {
-                    const ma = svcAssignments.find((a) => a.month === i + 1);
+                  {months.map((monthNum, i) => {
+                    const ma = svcAssignments.find((a) => a.month === monthNum);
                     return (
                       <td
-                        key={i}
+                        key={`${monthNum}-${i}`}
                         className={cn(
                           "px-2 py-2 text-center",
                           ma && "cursor-pointer hover:bg-accent/5 transition-colors"
@@ -247,12 +297,12 @@ export default function ProjectionDetailPage() {
               <td className="sticky left-0 bg-secondary/30 px-4 py-3">
                 Total
               </td>
-              {MONTH_NAMES.map((_, i) => {
+              {months.map((monthNum, i) => {
                 const monthTotal = assignments
-                  .filter((a) => a.month === i + 1)
+                  .filter((a) => a.month === monthNum)
                   .reduce((sum, a) => sum + a.amount, 0);
                 return (
-                  <td key={i} className="px-2 py-3 text-center text-xs">
+                  <td key={`total-${monthNum}-${i}`} className="px-2 py-3 text-center text-xs">
                     {formatCurrency(monthTotal)}
                   </td>
                 );

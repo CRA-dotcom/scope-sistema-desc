@@ -67,12 +67,14 @@ function NuevaProyeccionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedClientId = searchParams.get("clientId");
+  const preselectedPreviousProjectionId = searchParams.get("previousProjectionId");
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
   // Step 1: Basic data
   const [clientId, setClientId] = useState(preselectedClientId ?? "");
+  const [previousProjectionId] = useState<string | null>(preselectedPreviousProjectionId);
   const [year, setYear] = useState(new Date().getFullYear());
   const [annualSales, setAnnualSales] = useState(0);
   const [totalBudget, setTotalBudget] = useState(0);
@@ -193,6 +195,10 @@ function NuevaProyeccionContent() {
         projectionMode,
         monthCount,
         effectiveBudget,
+        // C4: continuation link
+        previousProjectionId: previousProjectionId
+          ? (previousProjectionId as Id<"projections">)
+          : undefined,
       });
       router.push(`/proyecciones/${projId}`);
     } catch (err) {
