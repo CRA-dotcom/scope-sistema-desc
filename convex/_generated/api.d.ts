@@ -22,6 +22,7 @@ import type * as functions_dashboard_queries from "../functions/dashboard/querie
 import type * as functions_deliverableTemplates_mutations from "../functions/deliverableTemplates/mutations.js";
 import type * as functions_deliverableTemplates_queries from "../functions/deliverableTemplates/queries.js";
 import type * as functions_deliverableTemplates_seed from "../functions/deliverableTemplates/seed.js";
+import type * as functions_deliverableTemplates_seedDefaults from "../functions/deliverableTemplates/seedDefaults.js";
 import type * as functions_deliverables_actions from "../functions/deliverables/actions.js";
 import type * as functions_deliverables_internalQueries from "../functions/deliverables/internalQueries.js";
 import type * as functions_deliverables_mutations from "../functions/deliverables/mutations.js";
@@ -39,6 +40,8 @@ import type * as functions_issuingCompanies_resolve from "../functions/issuingCo
 import type * as functions_monthlyAssignments_billingQueries from "../functions/monthlyAssignments/billingQueries.js";
 import type * as functions_monthlyAssignments_mutations from "../functions/monthlyAssignments/mutations.js";
 import type * as functions_monthlyAssignments_queries from "../functions/monthlyAssignments/queries.js";
+import type * as functions_notifications_mutations from "../functions/notifications/mutations.js";
+import type * as functions_notifications_queries from "../functions/notifications/queries.js";
 import type * as functions_orgBranding_mutations from "../functions/orgBranding/mutations.js";
 import type * as functions_orgBranding_queries from "../functions/orgBranding/queries.js";
 import type * as functions_orgConfigs_mutations from "../functions/orgConfigs/mutations.js";
@@ -47,9 +50,11 @@ import type * as functions_organizations_mutations from "../functions/organizati
 import type * as functions_organizations_queries from "../functions/organizations/queries.js";
 import type * as functions_projectionServices_mutations from "../functions/projectionServices/mutations.js";
 import type * as functions_projectionServices_queries from "../functions/projectionServices/queries.js";
+import type * as functions_projections_cron from "../functions/projections/cron.js";
 import type * as functions_projections_mutations from "../functions/projections/mutations.js";
 import type * as functions_projections_queries from "../functions/projections/queries.js";
 import type * as functions_questionnaires_mutations from "../functions/questionnaires/mutations.js";
+import type * as functions_questionnaires_populateVariables from "../functions/questionnaires/populateVariables.js";
 import type * as functions_questionnaires_publicMutations from "../functions/questionnaires/publicMutations.js";
 import type * as functions_questionnaires_publicQueries from "../functions/questionnaires/publicQueries.js";
 import type * as functions_questionnaires_queries from "../functions/questionnaires/queries.js";
@@ -60,6 +65,7 @@ import type * as functions_quotations_internalQueries from "../functions/quotati
 import type * as functions_quotations_mutations from "../functions/quotations/mutations.js";
 import type * as functions_quotations_publicActions from "../functions/quotations/publicActions.js";
 import type * as functions_quotations_publicQueries from "../functions/quotations/publicQueries.js";
+import type * as functions_quotations_qaCleanup from "../functions/quotations/qaCleanup.js";
 import type * as functions_quotations_qaSeed from "../functions/quotations/qaSeed.js";
 import type * as functions_quotations_qaSeedMutation from "../functions/quotations/qaSeedMutation.js";
 import type * as functions_quotations_queries from "../functions/quotations/queries.js";
@@ -70,9 +76,13 @@ import type * as functions_services_mutations from "../functions/services/mutati
 import type * as functions_services_queries from "../functions/services/queries.js";
 import type * as functions_services_seed from "../functions/services/seed.js";
 import type * as functions_storage_mutations from "../functions/storage/mutations.js";
+import type * as functions_storage_upload from "../functions/storage/upload.js";
 import type * as http from "../http.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
+import type * as lib_projectionContext from "../lib/projectionContext.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
+import type * as lib_questionnaireMappings from "../lib/questionnaireMappings.js";
+import type * as lib_seasonality from "../lib/seasonality.js";
 import type * as lib_templateVariables from "../lib/templateVariables.js";
 import type * as lib_validators from "../lib/validators.js";
 
@@ -97,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   "functions/deliverableTemplates/mutations": typeof functions_deliverableTemplates_mutations;
   "functions/deliverableTemplates/queries": typeof functions_deliverableTemplates_queries;
   "functions/deliverableTemplates/seed": typeof functions_deliverableTemplates_seed;
+  "functions/deliverableTemplates/seedDefaults": typeof functions_deliverableTemplates_seedDefaults;
   "functions/deliverables/actions": typeof functions_deliverables_actions;
   "functions/deliverables/internalQueries": typeof functions_deliverables_internalQueries;
   "functions/deliverables/mutations": typeof functions_deliverables_mutations;
@@ -114,6 +125,8 @@ declare const fullApi: ApiFromModules<{
   "functions/monthlyAssignments/billingQueries": typeof functions_monthlyAssignments_billingQueries;
   "functions/monthlyAssignments/mutations": typeof functions_monthlyAssignments_mutations;
   "functions/monthlyAssignments/queries": typeof functions_monthlyAssignments_queries;
+  "functions/notifications/mutations": typeof functions_notifications_mutations;
+  "functions/notifications/queries": typeof functions_notifications_queries;
   "functions/orgBranding/mutations": typeof functions_orgBranding_mutations;
   "functions/orgBranding/queries": typeof functions_orgBranding_queries;
   "functions/orgConfigs/mutations": typeof functions_orgConfigs_mutations;
@@ -122,9 +135,11 @@ declare const fullApi: ApiFromModules<{
   "functions/organizations/queries": typeof functions_organizations_queries;
   "functions/projectionServices/mutations": typeof functions_projectionServices_mutations;
   "functions/projectionServices/queries": typeof functions_projectionServices_queries;
+  "functions/projections/cron": typeof functions_projections_cron;
   "functions/projections/mutations": typeof functions_projections_mutations;
   "functions/projections/queries": typeof functions_projections_queries;
   "functions/questionnaires/mutations": typeof functions_questionnaires_mutations;
+  "functions/questionnaires/populateVariables": typeof functions_questionnaires_populateVariables;
   "functions/questionnaires/publicMutations": typeof functions_questionnaires_publicMutations;
   "functions/questionnaires/publicQueries": typeof functions_questionnaires_publicQueries;
   "functions/questionnaires/queries": typeof functions_questionnaires_queries;
@@ -135,6 +150,7 @@ declare const fullApi: ApiFromModules<{
   "functions/quotations/mutations": typeof functions_quotations_mutations;
   "functions/quotations/publicActions": typeof functions_quotations_publicActions;
   "functions/quotations/publicQueries": typeof functions_quotations_publicQueries;
+  "functions/quotations/qaCleanup": typeof functions_quotations_qaCleanup;
   "functions/quotations/qaSeed": typeof functions_quotations_qaSeed;
   "functions/quotations/qaSeedMutation": typeof functions_quotations_qaSeedMutation;
   "functions/quotations/queries": typeof functions_quotations_queries;
@@ -145,9 +161,13 @@ declare const fullApi: ApiFromModules<{
   "functions/services/queries": typeof functions_services_queries;
   "functions/services/seed": typeof functions_services_seed;
   "functions/storage/mutations": typeof functions_storage_mutations;
+  "functions/storage/upload": typeof functions_storage_upload;
   http: typeof http;
   "lib/authHelpers": typeof lib_authHelpers;
+  "lib/projectionContext": typeof lib_projectionContext;
   "lib/projectionEngine": typeof lib_projectionEngine;
+  "lib/questionnaireMappings": typeof lib_questionnaireMappings;
+  "lib/seasonality": typeof lib_seasonality;
   "lib/templateVariables": typeof lib_templateVariables;
   "lib/validators": typeof lib_validators;
 }>;
