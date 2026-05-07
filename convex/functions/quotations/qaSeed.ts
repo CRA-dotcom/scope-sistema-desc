@@ -38,6 +38,12 @@ export const seedForCapture = internalAction({
     plaintextToken: string;
     landingUrl: string;
   }> => {
+    // Production guard: this seed must NEVER run in production.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "qaSeedMutation está deshabilitado en producción. Usa staging/dev."
+      );
+    }
     // QA-only: refuses to run unless explicitly opted-in via env var.
     // Convex deployments default NODE_ENV to "production" even on dev tier,
     // so we gate on an explicit QA_SEED_ALLOWED=true env var that must be

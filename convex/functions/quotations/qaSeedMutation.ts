@@ -28,6 +28,12 @@ export const insertSeedRow = internalMutation({
     ctx,
     args
   ): Promise<{ quotationId: Id<"quotations"> }> => {
+    // Production guard: this seed must NEVER run in production.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "qaSeedMutation está deshabilitado en producción. Usa staging/dev."
+      );
+    }
     if (process.env.QA_SEED_ALLOWED !== "true") {
       throw new Error(
         "insertSeedRow is QA-only and requires QA_SEED_ALLOWED=true."
