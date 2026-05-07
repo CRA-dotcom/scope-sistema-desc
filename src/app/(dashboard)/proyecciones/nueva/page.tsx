@@ -11,6 +11,8 @@ import {
   generateSeasonalityData,
 } from "../../../../../convex/lib/projectionEngine";
 import { SeasonalityChart } from "@/components/projections/seasonality-chart";
+import { BudgetAllocationWidget } from "@/components/projections/budget-allocation-widget";
+import { computeServiceAllocation } from "@/lib/projection-allocation";
 import { formatCurrency } from "@/lib/utils";
 import {
   TrendingUp,
@@ -128,6 +130,20 @@ function NuevaProyeccionContent() {
           seasonalityData,
         })
       : null;
+
+  // Live budget allocation for step 2 widget
+  const allocation = computeServiceAllocation(
+    totalBudget,
+    annualSales,
+    commissionRate,
+    serviceStates.map((s) => ({
+      serviceId: s.serviceId,
+      serviceName: s.serviceName,
+      isActive: s.isActive,
+      isCommission: s.serviceName === "Comisiones",
+      chosenPct: s.chosenPct,
+    }))
+  );
 
   function distributeEvenly() {
     const monthly = annualSales / 12;
@@ -390,79 +406,98 @@ function NuevaProyeccionContent() {
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Configura los servicios activos y sus porcentajes para esta
-              proyección.
-            </p>
-            <div className="space-y-3">
-              {serviceStates.map((svc, i) => (
-                <div
-                  key={svc.serviceId}
-                  className={cn(
-                    "flex items-center gap-4 rounded-md border p-3 transition-colors",
-                    svc.isActive
-                      ? "border-accent/30 bg-accent/5"
-                      : "border-border opacity-50"
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={svc.isActive}
-                    onChange={(e) => {
-                      const updated = [...serviceStates];
-                      updated[i] = {
-                        ...updated[i],
-                        isActive: e.target.checked,
-                      };
-                      setServiceStates(updated);
-                    }}
-                    className="accent-accent cursor-pointer"
-                    disabled={svc.serviceName === "Comisiones"}
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{svc.serviceName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {svc.type === "base" ? "Base" : "Comodín"} &middot;{" "}
-                      {svc.serviceName === "Comisiones"
-                        ? `= Tasa de comisión (${(commissionRate * 100).toFixed(1)}%)`
-                        : `Rango: ${(svc.minPct * 100).toFixed(1)}% - ${(svc.maxPct * 100).toFixed(1)}%`}
-                    </p>
-                  </div>
-                  {svc.serviceName !== "Comisiones" && svc.isActive && (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={svc.minPct * 100}
-                        max={svc.maxPct * 100}
-                        step={0.5}
-                        value={svc.chosenPct * 100}
-                        onChange={(e) => {
-                          const updated = [...serviceStates];
-                          updated[i] = {
-                            ...updated[i],
-                            chosenPct: Number(e.target.value) / 100,
-                          };
-                          setServiceStates(updated);
-                        }}
-                        className="w-24 accent-accent cursor-pointer"
-                      />
-                      <span className="w-12 text-right text-sm font-medium">
-                        {(svc.chosenPct * 100).toFixed(1)}%
-                      </span>
+          <div className="flex flex-col-reverse md:grid md:grid-cols-[1fr_220px] gap-6 items-start">
+            {/* Service list */}
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Configura los servicios activos y sus porcentajes para esta
+                proyección.
+              </p>
+              <div className="space-y-3">
+                {serviceStates.map((svc, i) => (
+                  <div
+                    key={svc.serviceId}
+                    className={cn(
+                      "flex items-center gap-4 rounded-md border p-3 transition-colors",
+                      svc.isActive
+                        ? "border-accent/30 bg-accent/5"
+                        : "border-border opacity-50"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={svc.isActive}
+                      onChange={(e) => {
+                        const updated = [...serviceStates];
+                        updated[i] = {
+                          ...updated[i],
+                          isActive: e.target.checked,
+                        };
+                        setServiceStates(updated);
+                      }}
+                      className="accent-accent cursor-pointer"
+                      disabled={svc.serviceName === "Comisiones"}
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{svc.serviceName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {svc.type === "base" ? "Base" : "Comodín"} &middot;{" "}
+                        {svc.serviceName === "Comisiones"
+                          ? `= Tasa de comisión (${(commissionRate * 100).toFixed(1)}%)`
+                          : `Rango: ${(svc.minPct * 100).toFixed(1)}% - ${(svc.maxPct * 100).toFixed(1)}%`}
+                      </p>
                     </div>
-                  )}
-                  {preview && svc.isActive && (
-                    <span className="text-sm font-medium text-accent">
-                      {formatCurrency(
-                        preview.services.find(
-                          (s) => s.serviceId === svc.serviceId
-                        )?.annualAmount ?? 0
-                      )}
-                    </span>
-                  )}
-                </div>
-              ))}
+                    {svc.serviceName !== "Comisiones" && svc.isActive && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={svc.minPct * 100}
+                          max={svc.maxPct * 100}
+                          step={0.5}
+                          value={svc.chosenPct * 100}
+                          onChange={(e) => {
+                            const updated = [...serviceStates];
+                            updated[i] = {
+                              ...updated[i],
+                              chosenPct: Number(e.target.value) / 100,
+                            };
+                            setServiceStates(updated);
+                          }}
+                          className="w-24 accent-accent cursor-pointer"
+                        />
+                        <span className="w-12 text-right text-sm font-medium">
+                          {(svc.chosenPct * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+                    {preview && svc.isActive && (
+                      <span className="text-sm font-medium text-accent">
+                        {formatCurrency(
+                          preview.services.find(
+                            (s) => s.serviceId === svc.serviceId
+                          )?.annualAmount ?? 0
+                        )}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Budget allocation widget — sticky on md+, stacked on mobile */}
+            <div className="md:sticky md:top-6">
+              <BudgetAllocationWidget
+                budget={totalBudget}
+                annualSales={annualSales}
+                commissionRate={commissionRate}
+                services={serviceStates.map((s) => ({
+                  serviceId: s.serviceId,
+                  serviceName: s.serviceName,
+                  isActive: s.isActive,
+                  isCommission: s.serviceName === "Comisiones",
+                  chosenPct: s.chosenPct,
+                }))}
+              />
             </div>
           </div>
         )}
@@ -559,14 +594,29 @@ function NuevaProyeccionContent() {
         </button>
 
         {step < 3 ? (
-          <button
-            onClick={() => setStep(step + 1)}
-            disabled={step === 0 && (!clientId || annualSales <= 0 || totalBudget <= 0)}
-            className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            Siguiente
-            <ArrowRight size={14} />
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={() => setStep(step + 1)}
+              disabled={
+                (step === 0 && (!clientId || annualSales <= 0 || totalBudget <= 0)) ||
+                (step === 2 && Math.abs(allocation.remaining) > 0.01)
+              }
+              title={
+                step === 2 && Math.abs(allocation.remaining) > 0.01
+                  ? "Asigna exactamente el presupuesto antes de continuar."
+                  : undefined
+              }
+              className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              Siguiente
+              <ArrowRight size={14} />
+            </button>
+            {step === 2 && Math.abs(allocation.remaining) > 0.01 && (
+              <p className="text-xs text-muted-foreground">
+                Asigna exactamente el presupuesto antes de continuar.
+              </p>
+            )}
+          </div>
         ) : (
           <button
             onClick={handleSubmit}
