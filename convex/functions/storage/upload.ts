@@ -52,6 +52,10 @@ export const getUploadUrl = mutation({
 /**
  * Returns the signed download URL for a storage ID in token-based contexts.
  * Validates that the access token belongs to a questionnaire that contains this storageId.
+ *
+ * SECURITY: also verifies that the requested storageId is actually referenced in one of
+ * the questionnaire's file_upload responses — prevents IDOR where any valid public token
+ * could be used to fetch a signed URL for ANY storageId in the system.
  */
 export const getUploadUrlByToken = mutation({
   args: {
@@ -66,6 +70,16 @@ export const getUploadUrlByToken = mutation({
 
     if (!questionnaire) {
       throw new Error("Cuestionario no encontrado o token inválido.");
+    }
+
+    // CRITICAL: verify storageId is referenced in this questionnaire's responses.
+    // file_upload responses store the Convex _storage ID directly in `answer`.
+    // Do not reveal whether the storageId exists — return null as if not found.
+    const isReferenced = questionnaire.responses.some(
+      (r) => r.type === "file_upload" && r.answer === args.storageId
+    );
+    if (!isReferenced) {
+      return null;
     }
 
     return await ctx.storage.getUrl(args.storageId);

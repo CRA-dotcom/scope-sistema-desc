@@ -99,7 +99,7 @@ describe("buildProjectionPdfHtml — fiscal 8 months May-Dec", () => {
     expect(html).toContain("Dic 26");
     // Months 1-4 (Jan-Apr) should NOT appear as column headers
     // (they appear elsewhere as text so we check the th pattern)
-    const thMatches = html.match(/<th[^>]*>.*?Ene 26.*?<\/th>/s);
+    const thMatches = html.match(/<th[^>]*>[\s\S]*?Ene 26[\s\S]*?<\/th>/);
     expect(thMatches).toBeNull();
   });
 

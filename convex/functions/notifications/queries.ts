@@ -1,4 +1,5 @@
 import { query } from "../../_generated/server";
+import { getOrgIdSafe } from "../../lib/authHelpers";
 
 /**
  * C5: listForUser — returns unread notifications for the current user.
@@ -15,8 +16,8 @@ export const listForUser = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
-    const orgId = (identity as any).orgId as string | undefined;
     const userId = identity.subject;
+    const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return [];
 
     const list = await ctx.db
@@ -41,8 +42,8 @@ export const listAll = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
-    const orgId = (identity as any).orgId as string | undefined;
     const userId = identity.subject;
+    const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return [];
 
     const list = await ctx.db

@@ -226,6 +226,15 @@ export const recalculate = mutation({
     const commissionRate = args.commissionRate ?? projection.commissionRate;
     const seasonality = args.seasonalityData ?? projection.seasonalityData;
 
+    // Recompute effectiveBudget so fiscal projections stay consistent when
+    // totalBudget changes. For rolling projections effectiveBudget === totalBudget.
+    const monthCount = projection.monthCount ?? 12;
+    const projectionMode = projection.projectionMode ?? "rolling";
+    const effectiveBudget =
+      projectionMode === "fiscal"
+        ? totalBudget * (monthCount / 12)
+        : totalBudget;
+
     // Get existing projection services
     const existingProjServices = await ctx.db
       .query("projectionServices")
@@ -275,19 +284,21 @@ export const recalculate = mutation({
         commissionRate,
         services: serviceConfigs,
         seasonalityData: seasonality,
-        // C2: pass through projection period fields from the stored record
+        // C2: pass through projection period fields from the stored record;
+        // use the recomputed effectiveBudget so fiscal projections are correct.
         startMonth: projection.startMonth,
         projectionMode: projection.projectionMode,
         monthCount: projection.monthCount,
-        effectiveBudget: projection.effectiveBudget,
+        effectiveBudget,
       },
       engineConfig
     );
 
-    // Update projection
+    // Update projection — also persist the recomputed effectiveBudget.
     await ctx.db.patch(args.projectionId, {
       annualSales,
       totalBudget,
+      effectiveBudget,
       commissionRate,
       seasonalityData: seasonality,
       updatedAt: Date.now(),
