@@ -35,10 +35,16 @@ export function computeServiceAllocation(
   budget: number,
   annualSales: number,
   commissionRate: number,
-  services: AllocationServiceInput[]
+  services: AllocationServiceInput[],
+  commissionMode: "proportional" | "fixed_monthly" = "proportional"
 ): AllocationResult {
-  // Step 1: Annual commissions (mirrors engine L130)
-  const annualCommissions = annualSales * commissionRate;
+  // Step 1: Annual commissions (mirrors engine L130 / L167-208)
+  // proportional: annualSales × commissionRate
+  // fixed_monthly: commissionRate × totalBudget (monthly = rate×budget/12; annual = rate×budget)
+  const annualCommissions =
+    commissionMode === "fixed_monthly"
+      ? commissionRate * budget
+      : annualSales * commissionRate;
 
   // Step 2: Remaining budget for base services (mirrors engine L133)
   const remainingBudget = budget - annualCommissions;
@@ -50,17 +56,12 @@ export function computeServiceAllocation(
   const totalWeight = activeServices.reduce((sum, s) => sum + s.chosenPct, 0);
 
   // Step 5: Per-service annualAmount (mirrors engine L147-258)
-  const perService: AllocationResult["perService"] = services.map((service) => {
-    // Commission services don't consume remaining budget (handled separately)
-    if (service.isCommission) {
-      return {
-        serviceId: service.serviceId,
-        serviceName: service.serviceName,
-        chosenPct: service.chosenPct,
-        annualAmount: 0, // not included in perService sum; added separately via annualCommissions
-      };
-    }
-
+  // Commission services are excluded from perService entirely; they are accounted for
+  // via annualCommissions in the assigned total. Including them with annualAmount=0
+  // was a latent correctness trap for downstream consumers.
+  const perService: AllocationResult["perService"] = services
+    .filter((service) => !service.isCommission)
+    .map((service) => {
     if (!service.isActive) {
       return {
         serviceId: service.serviceId,
@@ -84,13 +85,14 @@ export function computeServiceAllocation(
 
   // Step 6: Residual reconciliation — close IEEE 754 drift on heaviest service
   // (mirrors engine L260-294)
-  const baseEntries = perService.filter((s) => {
+  // perService only contains non-commission entries (commission was filtered in Step 5)
+  const activeEntries = perService.filter((s) => {
     const input = services.find((i) => i.serviceId === s.serviceId);
-    return input?.isActive && !input?.isCommission;
+    return input?.isActive;
   });
 
-  if (baseEntries.length > 0) {
-    const sumBase = baseEntries.reduce((acc, s) => acc + s.annualAmount, 0);
+  if (activeEntries.length > 0) {
+    const sumBase = activeEntries.reduce((acc, s) => acc + s.annualAmount, 0);
     const drift = remainingBudget - sumBase;
     if (Math.abs(drift) > 0) {
       // Find the heaviest (highest chosenPct) to absorb drift

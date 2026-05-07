@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
@@ -54,6 +54,7 @@ type ServiceFormState = {
   maxPct: number;
   chosenPct: number;
   isActive: boolean;
+  isCommission: boolean;
 };
 
 function NuevaProyeccionContent() {
@@ -109,7 +110,8 @@ function NuevaProyeccionContent() {
           minPct: s.minPct,
           maxPct: s.maxPct,
           chosenPct: s.defaultPct,
-          isActive: s.name !== "Comisiones",
+          isCommission: s.isCommission ?? false,
+          isActive: !(s.isCommission ?? false),
         }))
       );
     }
@@ -131,18 +133,27 @@ function NuevaProyeccionContent() {
         })
       : null;
 
-  // Live budget allocation for step 2 widget
-  const allocation = computeServiceAllocation(
-    totalBudget,
-    annualSales,
-    commissionRate,
-    serviceStates.map((s) => ({
-      serviceId: s.serviceId,
-      serviceName: s.serviceName,
-      isActive: s.isActive,
-      isCommission: s.serviceName === "Comisiones",
-      chosenPct: s.chosenPct,
-    }))
+  // Live budget allocation for step 2 widget — hoisted to page level so the
+  // submit-guard can read allocation.remaining without duplicating work.
+  // Widget receives the pre-computed allocation as a prop (purely presentational).
+  // Engine default is proportional; if a future step exposes commissionMode toggle,
+  // propagate it here (replace "proportional" with the org-config value).
+  const allocation = useMemo(
+    () =>
+      computeServiceAllocation(
+        totalBudget,
+        annualSales,
+        commissionRate,
+        serviceStates.map((s) => ({
+          serviceId: s.serviceId,
+          serviceName: s.serviceName,
+          isActive: s.isActive,
+          isCommission: s.isCommission,
+          chosenPct: s.chosenPct,
+        })),
+        "proportional"
+      ),
+    [totalBudget, annualSales, commissionRate, serviceStates]
   );
 
   function distributeEvenly() {
@@ -436,18 +447,18 @@ function NuevaProyeccionContent() {
                         setServiceStates(updated);
                       }}
                       className="accent-accent cursor-pointer"
-                      disabled={svc.serviceName === "Comisiones"}
+                      disabled={svc.isCommission}
                     />
                     <div className="flex-1">
                       <p className="text-sm font-medium">{svc.serviceName}</p>
                       <p className="text-xs text-muted-foreground">
                         {svc.type === "base" ? "Base" : "Comodín"} &middot;{" "}
-                        {svc.serviceName === "Comisiones"
+                        {svc.isCommission
                           ? `= Tasa de comisión (${(commissionRate * 100).toFixed(1)}%)`
                           : `Rango: ${(svc.minPct * 100).toFixed(1)}% - ${(svc.maxPct * 100).toFixed(1)}%`}
                       </p>
                     </div>
-                    {svc.serviceName !== "Comisiones" && svc.isActive && (
+                    {!svc.isCommission && svc.isActive && (
                       <div className="flex items-center gap-2">
                         <input
                           type="range"
@@ -494,9 +505,10 @@ function NuevaProyeccionContent() {
                   serviceId: s.serviceId,
                   serviceName: s.serviceName,
                   isActive: s.isActive,
-                  isCommission: s.serviceName === "Comisiones",
+                  isCommission: s.isCommission,
                   chosenPct: s.chosenPct,
                 }))}
+                allocation={allocation}
               />
             </div>
           </div>

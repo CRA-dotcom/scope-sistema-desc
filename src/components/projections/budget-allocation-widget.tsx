@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   computeServiceAllocation,
   type AllocationServiceInput,
+  type AllocationResult,
 } from "@/lib/projection-allocation";
 
 interface BudgetAllocationWidgetProps {
@@ -13,6 +13,8 @@ interface BudgetAllocationWidgetProps {
   annualSales: number;
   commissionRate: number;
   services: AllocationServiceInput[];
+  /** Pre-computed allocation from the page. When provided, skips internal computation. */
+  allocation?: AllocationResult;
   className?: string;
 }
 
@@ -24,20 +26,28 @@ export function BudgetAllocationWidget({
   annualSales,
   commissionRate,
   services,
+  allocation: allocationProp,
   className,
 }: BudgetAllocationWidgetProps) {
-  const allocation = useMemo(
-    () => computeServiceAllocation(budget, annualSales, commissionRate, services),
-    [budget, annualSales, commissionRate, services]
+  // If the parent hoists allocation via useMemo, use that directly (no double computation).
+  // Fallback to local useMemo for standalone usage (e.g., Storybook, isolated tests).
+  const localAllocation = useMemo(
+    () =>
+      allocationProp === undefined
+        ? computeServiceAllocation(budget, annualSales, commissionRate, services)
+        : null,
+    [allocationProp, budget, annualSales, commissionRate, services]
   );
+  const allocation = allocationProp ?? localAllocation!;
 
   const { assigned, remaining, marginPct, perService } = allocation;
 
-  // Only show active, non-commission services in the breakdown
+  // perService only contains non-commission entries (commission is excluded upstream).
+  // Filter to active services and sort by weight descending.
   const visibleServices = perService
     .filter((s) => {
       const input = services.find((i) => i.serviceId === s.serviceId);
-      return input?.isActive && !input?.isCommission;
+      return input?.isActive;
     })
     .sort((a, b) => b.chosenPct - a.chosenPct);
 
