@@ -257,6 +257,38 @@ export function calculateProjection(
     };
   });
 
+  // Step 5b: Residual reconciliation — close floating-point drift on
+  // the base service with the highest normalizedWeight so that
+  // sum(base annualAmount) === remainingBudget exactamente (tolerancia centavo).
+  // Sin esto, varias multiplicaciones acumulan a presupuestos del orden de
+  // $24M y pueden llegar a discrepancias visibles ($1M en el reporte del usuario).
+  //
+  // Selecciona base services usando normalizedWeight > 0 — único filter que ya
+  // excluye inactivos (weight=0 por L155) y comisiones (weight=0 por L183/206).
+  const baseAllocations = serviceAllocations.filter((s) => s.normalizedWeight > 0);
+  if (baseAllocations.length > 0) {
+    const sumBase = baseAllocations.reduce((acc, s) => acc + s.annualAmount, 0);
+    const drift = remainingBudget - sumBase;
+    if (Math.abs(drift) > 0) {
+      const heaviest = baseAllocations.reduce((max, s) =>
+        s.normalizedWeight > max.normalizedWeight ? s : max
+      );
+      heaviest.annualAmount += drift;
+      // Reconciliar drift dentro de cada base service en sus monthlyAmounts:
+      // el mes con mayor feFactor absorbe el residuo del servicio.
+      for (const svc of baseAllocations) {
+        const monthlySum = svc.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
+        const monthlyDrift = svc.annualAmount - monthlySum;
+        if (Math.abs(monthlyDrift) > 0 && svc.monthlyAmounts.length > 0) {
+          const heaviestMonth = svc.monthlyAmounts.reduce((max, m) =>
+            m.feFactor > max.feFactor ? m : max
+          );
+          heaviestMonth.adjustedAmount += monthlyDrift;
+        }
+      }
+    }
+  }
+
   // Step 6: Monthly totals
   const monthlyTotals = effectiveSeasonality.map((m) => ({
     month: m.month,
