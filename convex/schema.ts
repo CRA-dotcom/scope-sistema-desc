@@ -68,6 +68,13 @@ export default defineSchema({
     seasonalityMode: v.optional(
       v.union(v.literal("legacy"), v.literal("delta_percent"))
     ),
+    startMonth: v.optional(v.number()),
+    projectionMode: v.optional(
+      v.union(v.literal("rolling"), v.literal("fiscal"))
+    ),
+    monthCount: v.optional(v.number()),
+    effectiveBudget: v.optional(v.number()),
+    previousProjectionId: v.optional(v.id("projections")),
     status: v.union(
       v.literal("draft"),
       v.literal("active"),
