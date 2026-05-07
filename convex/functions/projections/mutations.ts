@@ -8,6 +8,9 @@ import {
   type MonthlyData,
   type EngineConfig,
 } from "../../lib/projectionEngine";
+import { seasonalityDataFromDeltas } from "../../lib/seasonality";
+// Note: convex/lib/seasonality.ts is a pure TS file with no browser-only APIs,
+// safe to import in Convex server functions.
 
 export const create = mutation({
   args: {
@@ -29,6 +32,17 @@ export const create = mutation({
         chosenPct: v.number(),
         isActive: v.boolean(),
       })
+    ),
+    seasonalityDeltas: v.optional(
+      v.array(
+        v.object({
+          month: v.number(),
+          deltaPercent: v.number(),
+        })
+      )
+    ),
+    seasonalityMode: v.optional(
+      v.union(v.literal("legacy"), v.literal("delta_percent"))
     ),
   },
   handler: async (ctx, args) => {
@@ -59,10 +73,13 @@ export const create = mutation({
       })
     );
 
+    // Resolve seasonality: if deltas provided, compute from them; else use raw data or even spread
     const seasonality: MonthlyData[] =
-      args.seasonalityData.length === 12
-        ? args.seasonalityData
-        : generateEvenSeasonality(args.annualSales);
+      args.seasonalityDeltas && args.seasonalityDeltas.length === 12
+        ? seasonalityDataFromDeltas(args.annualSales, args.seasonalityDeltas)
+        : args.seasonalityData.length === 12
+          ? args.seasonalityData
+          : generateEvenSeasonality(args.annualSales);
 
     // Fetch org config for engine settings
     const orgConfig = await ctx.db
@@ -101,6 +118,8 @@ export const create = mutation({
       totalBudget: args.totalBudget,
       commissionRate: args.commissionRate,
       seasonalityData: seasonality,
+      seasonalityDeltas: args.seasonalityDeltas,
+      seasonalityMode: args.seasonalityMode ?? (args.seasonalityDeltas ? "delta_percent" : "legacy"),
       status: "draft",
       createdAt: now,
       updatedAt: now,

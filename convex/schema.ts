@@ -57,6 +57,17 @@ export default defineSchema({
         feFactor: v.number(),
       })
     ),
+    seasonalityDeltas: v.optional(
+      v.array(
+        v.object({
+          month: v.number(),
+          deltaPercent: v.number(),
+        })
+      )
+    ),
+    seasonalityMode: v.optional(
+      v.union(v.literal("legacy"), v.literal("delta_percent"))
+    ),
     status: v.union(
       v.literal("draft"),
       v.literal("active"),

@@ -8,12 +8,17 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import {
   calculateProjection,
   generateEvenSeasonality,
-  generateSeasonalityData,
 } from "../../../../../convex/lib/projectionEngine";
 import { SeasonalityChart } from "@/components/projections/seasonality-chart";
 import { BudgetAllocationWidget } from "@/components/projections/budget-allocation-widget";
+import { SeasonalityDeltaGrid } from "@/components/projections/seasonality-delta-grid";
 import { computeServiceAllocation } from "@/lib/projection-allocation";
 import { formatCurrency } from "@/lib/utils";
+import {
+  type SeasonalityDelta,
+  seasonalityDataFromDeltas,
+  defaultDeltas,
+} from "@/lib/seasonality";
 import {
   TrendingUp,
   ArrowLeft,
@@ -72,10 +77,8 @@ function NuevaProyeccionContent() {
   const [totalBudget, setTotalBudget] = useState(0);
   const [commissionRate, setCommissionRate] = useState(0.02);
 
-  // Step 2: Monthly sales
-  const [monthlySales, setMonthlySales] = useState<number[]>(
-    Array(12).fill(0)
-  );
+  // Step 2: Seasonality deltas
+  const [seasonalityDeltas, setSeasonalityDeltas] = useState<SeasonalityDelta[]>(defaultDeltas());
   const [useSeasonality, setUseSeasonality] = useState(false);
 
   // Step 3: Services
@@ -119,7 +122,7 @@ function NuevaProyeccionContent() {
 
   // Calculate preview
   const seasonalityData = useSeasonality
-    ? generateSeasonalityData(monthlySales, annualSales)
+    ? seasonalityDataFromDeltas(annualSales, seasonalityDeltas)
     : generateEvenSeasonality(annualSales);
 
   const preview =
@@ -156,11 +159,6 @@ function NuevaProyeccionContent() {
     [totalBudget, annualSales, commissionRate, serviceStates]
   );
 
-  function distributeEvenly() {
-    const monthly = annualSales / 12;
-    setMonthlySales(Array(12).fill(Math.round(monthly)));
-  }
-
   async function handleSubmit() {
     if (!clientId) return;
     setLoading(true);
@@ -172,6 +170,8 @@ function NuevaProyeccionContent() {
         totalBudget,
         commissionRate,
         seasonalityData,
+        seasonalityDeltas: useSeasonality ? seasonalityDeltas : undefined,
+        seasonalityMode: useSeasonality ? "delta_percent" : "legacy",
         serviceConfigs: serviceStates.map((s) => ({
           serviceId: s.serviceId as Id<"services">,
           chosenPct: s.chosenPct,
@@ -315,63 +315,21 @@ function NuevaProyeccionContent() {
                     <input
                       type="checkbox"
                       checked={useSeasonality}
-                      onChange={(e) => {
-                        setUseSeasonality(e.target.checked);
-                        if (e.target.checked && monthlySales.every((v) => v === 0)) {
-                          distributeEvenly();
-                        }
-                      }}
+                      onChange={(e) => setUseSeasonality(e.target.checked)}
                       className="accent-accent"
                     />
                     <span className="text-sm font-medium">
-                      Usar estacionalidad personalizada
+                      Aplicar estacionalidad personalizada
                     </span>
                   </label>
-                  {useSeasonality && (
-                    <button
-                      onClick={distributeEvenly}
-                      className="text-xs text-accent hover:underline cursor-pointer"
-                    >
-                      Distribuir uniformemente
-                    </button>
-                  )}
                 </div>
 
                 {useSeasonality ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {MONTH_NAMES.map((name, i) => {
-                      const fe = seasonalityData[i]?.feFactor ?? 1;
-                      return (
-                        <div key={name} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-medium">{name}</label>
-                            <span
-                              className={cn(
-                                "text-xs",
-                                fe > 1.1
-                                  ? "text-accent"
-                                  : fe < 0.9
-                                    ? "text-warning"
-                                    : "text-muted-foreground"
-                              )}
-                            >
-                              FE: {fe.toFixed(2)}
-                            </span>
-                          </div>
-                          <input
-                            type="number"
-                            value={monthlySales[i] || ""}
-                            onChange={(e) => {
-                              const updated = [...monthlySales];
-                              updated[i] = Number(e.target.value);
-                              setMonthlySales(updated);
-                            }}
-                            className="w-full rounded-md border border-border bg-secondary px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <SeasonalityDeltaGrid
+                    value={seasonalityDeltas}
+                    onChange={setSeasonalityDeltas}
+                    annualSales={annualSales}
+                  />
                 ) : (
                   <div className="rounded-md bg-secondary/50 p-4 text-center">
                     <p className="text-sm text-muted-foreground">
@@ -384,22 +342,6 @@ function NuevaProyeccionContent() {
 
                 {useSeasonality && seasonalityData.length === 12 && (
                   <SeasonalityChart data={seasonalityData} />
-                )}
-
-                {useSeasonality && (
-                  <div className="rounded-md bg-secondary/50 p-3">
-                    <p className="text-xs text-muted-foreground">
-                      Total ingresado:{" "}
-                      {formatCurrency(
-                        monthlySales.reduce((a, b) => a + b, 0)
-                      )}{" "}
-                      / {formatCurrency(annualSales)} (
-                      {annualSales > 0
-                        ? ((monthlySales.reduce((a, b) => a + b, 0) / annualSales) * 100).toFixed(1)
-                        : "0.0"}
-                      %)
-                    </p>
-                  </div>
                 )}
               </>
             ) : (
