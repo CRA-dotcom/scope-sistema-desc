@@ -18,5 +18,13 @@ const crons = cronJobs();
 //   internal.functions.cron.monthlyCheck.run,
 //   {}
 // );
+//
+// C5: Daily check for fiscal projections that just closed.
+// Activar cuando Christian reactive crons en deploy (15-may per MOC blocker).
+// crons.daily(
+//   "notify fiscal close events",
+//   { hourUTC: 6, minuteUTC: 0 },
+//   internal.functions.projections.cron.notifyFiscalCloseEvents
+// );
 
 export default crons;

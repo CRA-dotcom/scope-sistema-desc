@@ -568,4 +568,18 @@ export default defineSchema({
     .index("by_claveProdServ", ["claveProdServ"])
     .index("by_orgId_active", ["orgId", "isActive"])
     .index("by_orgId_isDefault", ["orgId", "isDefault"]),
+
+  // C5: in-app notifications for dashboard
+  notifications: defineTable({
+    orgId: v.string(),
+    assignedTo: v.optional(v.string()),       // userId of assignee (undefined = org-wide)
+    type: v.string(),                          // "fiscal_close" | future types
+    message: v.string(),
+    relatedProjectionId: v.optional(v.id("projections")),
+    relatedClientId: v.optional(v.id("clients")),
+    createdAt: v.number(),
+    readAt: v.optional(v.number()),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_assignedTo", ["assignedTo"]),
 });
