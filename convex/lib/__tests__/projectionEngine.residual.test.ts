@@ -47,6 +47,7 @@ describe("projectionEngine — residual reconciliation", () => {
     });
 
     const baseServicesSum = result.services
+      // TODO: switch to !s.isCommission once engine propagates the field (separate hardening ticket)
       .filter((s) => !s.serviceName.startsWith("Comisiones"))
       .reduce((acc, s) => acc + s.annualAmount, 0);
 
@@ -80,26 +81,34 @@ describe("projectionEngine — residual reconciliation", () => {
     expect(Math.abs(result.grandTotal - totalBudget)).toBeLessThan(0.01);
   });
 
-  it("property: para 50 combinaciones aleatorias, sum == budget (tolerancia $0.01)", () => {
-    const totalBudget = 1_000_000;
-    const annualSales = 1_500_000;
+  it("hand-crafted adversarial inputs: sum == remainingBudget (tolerancia $0.01)", () => {
+    const cases: Array<{
+      name: string;
+      totalBudget: number;
+      annualSales: number;
+      weights: number[];
+    }> = [
+      { name: "2 services equal weight", totalBudget: 1_000_000, annualSales: 1_500_000, weights: [0.10, 0.10] },
+      { name: "10 services tiny weights", totalBudget: 24_000_000, annualSales: 31_200_000, weights: [0.013, 0.027, 0.041, 0.053, 0.067, 0.071, 0.083, 0.097, 0.103, 0.109] },
+      { name: "prime-ish weights", totalBudget: 24_000_000, annualSales: 31_200_000, weights: [0.0337, 0.0721, 0.1283, 0.2055, 0.2604] },
+      { name: "irrational-ish weights", totalBudget: 7_777_777, annualSales: 9_999_999, weights: [1/7, 1/11, 1/13, 1/17] },
+      { name: "tiny budget many services", totalBudget: 1234.56, annualSales: 5000, weights: [0.05, 0.07, 0.11, 0.13, 0.17] },
+    ];
 
-    for (let i = 0; i < 50; i++) {
-      const numServices = 2 + Math.floor(Math.random() * 8);
-      const weights = Array.from({ length: numServices }, () => 0.05 + Math.random() * 0.20);
+    for (const c of cases) {
       const result = calculateProjection({
-        annualSales,
-        totalBudget,
+        annualSales: c.annualSales,
+        totalBudget: c.totalBudget,
         commissionRate: 0,
-        services: makeServices(numServices, weights),
-        seasonalityData: generateEvenSeasonality(annualSales),
+        services: makeServices(c.weights.length, c.weights),
+        seasonalityData: generateEvenSeasonality(c.annualSales),
       });
       const sum = result.services.reduce((acc, s) => acc + s.annualAmount, 0);
-      expect(Math.abs(sum - result.remainingBudget)).toBeLessThan(0.01);
+      expect(Math.abs(sum - result.remainingBudget), c.name).toBeLessThan(0.01);
     }
   });
 
-  it("property: monthlyTotals[i].total suma a annualAmount por servicio", () => {
+  it("property: cada servicio sum(monthlyAmounts.adjustedAmount) === annualAmount", () => {
     const annualSales = 1_200_000;
     const result = calculateProjection({
       annualSales,

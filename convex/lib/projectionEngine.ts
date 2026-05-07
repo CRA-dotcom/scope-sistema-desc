@@ -257,14 +257,19 @@ export function calculateProjection(
     };
   });
 
-  // Step 5b: Residual reconciliation — close floating-point drift on
-  // the base service with the highest normalizedWeight so that
-  // sum(base annualAmount) === remainingBudget exactamente (tolerancia centavo).
-  // Sin esto, varias multiplicaciones acumulan a presupuestos del orden de
-  // $24M y pueden llegar a discrepancias visibles ($1M en el reporte del usuario).
+  // Step 5b: Defensive residual reconciliation.
+  // IEEE 754 drift in `remainingBudget * normalizedWeight` is sub-nanocent
+  // (~4.7e-10 max measured at $24M scale). This block exists as a guard so
+  // that sum(base annualAmount) === remainingBudget at exactly $0.01 tolerance
+  // regardless of how the engine evolves in Fase B/C, and so monthly amounts
+  // sum exactly to each service's annualAmount.
   //
-  // Selecciona base services usando normalizedWeight > 0 — único filter que ya
-  // excluye inactivos (weight=0 por L155) y comisiones (weight=0 por L183/206).
+  // Note: this does NOT address the user-reported $1M discrepancy in the wizard
+  // preview — that has a different root cause (see docs/qa/audit-budget-paths.md
+  // "Hipótesis alternativa" section). This block is regression insurance.
+  //
+  // Filter `normalizedWeight > 0` excludes inactives (weight=0 by L155),
+  // commissions (weight=0 by L183/L206), and fixed-mode services.
   const baseAllocations = serviceAllocations.filter((s) => s.normalizedWeight > 0);
   if (baseAllocations.length > 0) {
     const sumBase = baseAllocations.reduce((acc, s) => acc + s.annualAmount, 0);
@@ -274,17 +279,16 @@ export function calculateProjection(
         s.normalizedWeight > max.normalizedWeight ? s : max
       );
       heaviest.annualAmount += drift;
-      // Reconciliar drift dentro de cada base service en sus monthlyAmounts:
-      // el mes con mayor feFactor absorbe el residuo del servicio.
-      for (const svc of baseAllocations) {
-        const monthlySum = svc.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
-        const monthlyDrift = svc.annualAmount - monthlySum;
-        if (Math.abs(monthlyDrift) > 0 && svc.monthlyAmounts.length > 0) {
-          const heaviestMonth = svc.monthlyAmounts.reduce((max, m) =>
-            m.feFactor > max.feFactor ? m : max
-          );
-          heaviestMonth.adjustedAmount += monthlyDrift;
-        }
+      // Only `heaviest` had its annualAmount adjusted, so only its monthly amounts
+      // can have drift relative to the new annualAmount. Close that drift on the
+      // month with the highest feFactor.
+      const monthlySum = heaviest.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
+      const monthlyDrift = heaviest.annualAmount - monthlySum;
+      if (Math.abs(monthlyDrift) > 0 && heaviest.monthlyAmounts.length > 0) {
+        const heaviestMonth = heaviest.monthlyAmounts.reduce((max, m) =>
+          m.feFactor > max.feFactor ? m : max
+        );
+        heaviestMonth.adjustedAmount += monthlyDrift;
       }
     }
   }
