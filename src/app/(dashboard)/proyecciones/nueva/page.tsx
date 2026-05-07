@@ -348,8 +348,9 @@ function NuevaProyeccionContent() {
                 ) : (
                   <div className="rounded-md bg-secondary/50 p-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                      Sin estacionalidad: las ventas se distribuirán uniformemente
-                      ({formatCurrency(annualSales / 12)}/mes).
+                      Sin estacionalidad: la venta anual del cliente se reparte
+                      uniformemente como {formatCurrency(annualSales / 12)}/mes
+                      (referencia para FE — no es la distribución del presupuesto).
                     </p>
                   </div>
                 )}
@@ -470,22 +471,37 @@ function NuevaProyeccionContent() {
           <div className="space-y-5">
             <h3 className="text-lg font-semibold">Resumen de Proyección</h3>
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-md bg-secondary p-3">
-                <p className="text-xs text-muted-foreground">Venta Anual</p>
+              <div className="rounded-md bg-secondary/40 p-3 border border-dashed border-muted-foreground/20">
+                <p className="text-xs text-muted-foreground">
+                  Facturación anual del cliente
+                </p>
                 <p className="text-lg font-bold">
                   {formatCurrency(annualSales)}
                 </p>
-              </div>
-              <div className="rounded-md bg-secondary p-3">
-                <p className="text-xs text-muted-foreground">Presupuesto</p>
-                <p className="text-lg font-bold">
-                  {formatCurrency(totalBudget)}
+                <p className="text-[10px] text-muted-foreground mt-1 italic">
+                  Referencia, no se distribuye
                 </p>
               </div>
               <div className="rounded-md bg-secondary p-3">
-                <p className="text-xs text-muted-foreground">Total Asignado</p>
+                <p className="text-xs text-muted-foreground">
+                  Presupuesto contratado
+                </p>
+                <p className="text-lg font-bold">
+                  {formatCurrency(totalBudget)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1 italic">
+                  Base de distribución
+                </p>
+              </div>
+              <div className="rounded-md bg-secondary p-3">
+                <p className="text-xs text-muted-foreground">
+                  Total asignado a servicios
+                </p>
                 <p className="text-lg font-bold text-accent">
                   {formatCurrency(preview.grandTotal)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1 italic">
+                  Suma de los servicios contratados
                 </p>
               </div>
             </div>
