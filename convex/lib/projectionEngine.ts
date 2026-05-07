@@ -4,6 +4,8 @@
  * No side effects - all functions take data in and return results.
  */
 
+import { resolveProjectionContext, resolveProjectionMonths } from "./projectionContext";
+
 export type ServiceConfig = {
   serviceId: string;
   serviceName: string;
@@ -39,7 +41,12 @@ export type ProjectionInput = {
   totalBudget: number;
   commissionRate: number;
   services: ServiceConfig[];
-  seasonalityData: MonthlyData[];
+  seasonalityData: MonthlyData[]; // can be 12 entries OR exactly monthCount entries
+  // NEW optional: fiscal/rolling mode support
+  monthCount?: number;       // default 12
+  startMonth?: number;       // default 1
+  effectiveBudget?: number;  // default totalBudget
+  projectionMode?: "rolling" | "fiscal"; // informational; default "rolling"
 };
 
 export type ServiceAllocation = {
@@ -112,32 +119,66 @@ export function generateEvenSeasonality(annualSales: number): MonthlyData[] {
 /**
  * Main projection calculation.
  * Replicates Excel Hoja 3 (Matriz de Proyección) logic.
+ *
+ * Supports fiscal/rolling mode via optional monthCount, startMonth,
+ * effectiveBudget, and projectionMode. Legacy callers that omit these
+ * fields receive identical 12-month, full-budget behavior as before.
  */
 export function calculateProjection(
   input: ProjectionInput,
   config?: EngineConfig
 ): ProjectionResult {
   const resolvedConfig = config ?? DEFAULT_ENGINE_CONFIG;
-  const { annualSales, totalBudget, commissionRate, services, seasonalityData } =
-    input;
+  const { annualSales, commissionRate, services } = input;
+
+  // Derive context — handles defaults for legacy callers
+  const ctx = resolveProjectionContext({
+    totalBudget: input.totalBudget,
+    year: 0, // year not needed for arithmetic
+    startMonth: input.startMonth,
+    projectionMode: input.projectionMode,
+    monthCount: input.monthCount,
+    effectiveBudget: input.effectiveBudget,
+  });
+
+  const projectionMonths = resolveProjectionMonths(ctx.startMonth, ctx.monthCount);
+
+  // Filter seasonality to only the months covered by this projection.
+  // If user already provided exactly monthCount entries matching the projection
+  // months, use them as-is. Otherwise extract the relevant entries from the
+  // full 12-month array.
+  const fullSeasonality = input.seasonalityData;
+  const filteredSeasonality: MonthlyData[] =
+    fullSeasonality.length === ctx.monthCount &&
+    fullSeasonality.every((m, i) => m.month === projectionMonths[i])
+      ? fullSeasonality
+      : projectionMonths.map((m) => {
+          const found = fullSeasonality.find((s) => s.month === m);
+          if (!found) {
+            throw new Error(
+              `seasonalityData missing entry for month ${m} (projection covers ${projectionMonths.join(",")})`
+            );
+          }
+          return found;
+        });
 
   // Apply seasonality override: when disabled, force all FE factors to 1
   const effectiveSeasonality: MonthlyData[] = resolvedConfig.seasonalityEnabled
-    ? seasonalityData
-    : seasonalityData.map((m) => ({ ...m, feFactor: 1 }));
+    ? filteredSeasonality
+    : filteredSeasonality.map((m) => ({ ...m, feFactor: 1 }));
 
-  // Step 1: Annual commissions
-  const annualCommissions = annualSales * commissionRate;
+  // Step 1: Annual commissions — prorated to monthCount.
+  // For rolling 12-month: same as annualSales * commissionRate (monthCount/12 = 1).
+  // For fiscal N-month: proportionally reduced.
+  const annualCommissions = annualSales * commissionRate * (ctx.monthCount / 12);
 
-  // Step 2: Remaining budget (excluding commissions)
-  const remainingBudget = totalBudget - annualCommissions;
+  // Step 2: Remaining budget (excluding commissions).
+  // Uses effectiveBudget (prorated for fiscal), not totalBudget.
+  const remainingBudget = ctx.effectiveBudget - annualCommissions;
 
   // Step 3: Get active non-commission services
   const activeServices = services.filter(
     (s) => s.isActive && !s.isCommission
-  );
-  const commissionService = services.find(
-    (s) => s.isCommission === true
   );
 
   // Step 4: Sum weights of active services (excl. commission service)
@@ -165,8 +206,9 @@ export function calculateProjection(
 
     if (service.isCommission === true) {
       if (resolvedConfig.commissionMode === "fixed_monthly") {
-        // Fixed monthly commission: commissionRate * totalBudget / 12 per month
-        const fixedMonthly = commissionRate * totalBudget / 12;
+        // Fixed monthly commission: commissionRate * effectiveBudget / monthCount per month.
+        // For legacy callers: effectiveBudget = totalBudget, monthCount = 12 → same as before.
+        const fixedMonthly = (commissionRate * ctx.effectiveBudget) / ctx.monthCount;
         const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
           month: m.month,
           baseAmount: fixedMonthly,
@@ -186,7 +228,8 @@ export function calculateProjection(
         };
       }
 
-      // Commission service: proportional to monthly sales, not normalized
+      // Proportional commission: per-month commission = m.monthlySales * commissionRate.
+      // Loop only covers effectiveSeasonality (N entries), so only months in scope are summed.
       const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => {
         const monthlyCommission = m.monthlySales * commissionRate;
         return {
@@ -210,9 +253,10 @@ export function calculateProjection(
     }
 
     if (resolvedConfig.calculationMode === "fixed") {
-      // Fixed mode: use fixedMonthlyAmount, no weight normalization, no FE adjustment
+      // Fixed mode: use fixedMonthlyAmount, no weight normalization, no FE adjustment.
+      // annualAmount spans only the monthCount months covered.
       const fixedMonthly = service.fixedMonthlyAmount ?? 0;
-      const annualAmount = fixedMonthly * 12;
+      const annualAmount = fixedMonthly * ctx.monthCount;
 
       const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
         month: m.month,
@@ -233,10 +277,10 @@ export function calculateProjection(
       };
     }
 
-    // Normal service: weight-based distribution
+    // Normal service: weight-based distribution over effectiveBudget.
     const normalizedWeight = totalWeight > 0 ? service.chosenPct / totalWeight : 0;
     const annualAmount = remainingBudget * normalizedWeight;
-    const monthlyBase = annualAmount / 12;
+    const monthlyBase = annualAmount / ctx.monthCount;
 
     const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
       month: m.month,
@@ -261,15 +305,11 @@ export function calculateProjection(
   // IEEE 754 drift in `remainingBudget * normalizedWeight` is sub-nanocent
   // (~4.7e-10 max measured at $24M scale). This block exists as a guard so
   // that sum(base annualAmount) === remainingBudget at exactly $0.01 tolerance
-  // regardless of how the engine evolves in Fase B/C, and so monthly amounts
-  // sum exactly to each service's annualAmount.
+  // regardless of how the engine evolves, and so monthly amounts sum exactly
+  // to each service's annualAmount.
   //
-  // Note: this does NOT address the user-reported $1M discrepancy in the wizard
-  // preview — that has a different root cause (see docs/qa/audit-budget-paths.md
-  // "Hipótesis alternativa" section). This block is regression insurance.
-  //
-  // Filter `normalizedWeight > 0` excludes inactives (weight=0 by L155),
-  // commissions (weight=0 by L183/L206), and fixed-mode services.
+  // Filter `normalizedWeight > 0` excludes inactives (weight=0), commissions
+  // (weight=0), and fixed-mode services.
   const baseAllocations = serviceAllocations.filter((s) => s.normalizedWeight > 0);
   if (baseAllocations.length > 0) {
     const sumBase = baseAllocations.reduce((acc, s) => acc + s.annualAmount, 0);
@@ -293,7 +333,7 @@ export function calculateProjection(
     }
   }
 
-  // Step 6: Monthly totals
+  // Step 6: Monthly totals — iterates effectiveSeasonality (N entries, not always 12)
   const monthlyTotals = effectiveSeasonality.map((m) => ({
     month: m.month,
     total: serviceAllocations.reduce(
