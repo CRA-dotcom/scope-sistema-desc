@@ -157,6 +157,37 @@ export default defineSchema({
         questionText: v.string(),
         answer: v.string(),
         serviceNames: v.array(v.string()),
+        // D1: new question type support (optional — existing questions default to "text" behaviour)
+        type: v.optional(
+          v.union(
+            v.literal("text"),
+            v.literal("textarea"),
+            v.literal("select"),
+            v.literal("number"),
+            v.literal("date"),
+            v.literal("file_upload")
+          )
+        ),
+        // D1: file_upload constraints (only meaningful when type === "file_upload")
+        fileConfig: v.optional(
+          v.object({
+            acceptedMimeTypes: v.array(v.string()),
+            maxSizeMB: v.number(),
+            multiple: v.boolean(),
+          })
+        ),
+        // D1: links this question to deliverable template variables
+        templateVariableMappings: v.optional(
+          v.array(
+            v.object({
+              templateId: v.id("deliverableTemplates"),
+              variableName: v.string(),
+            })
+          )
+        ),
+        // D1: for file_upload answers, holds the original filename alongside the
+        //     Convex _storage ID stored in `answer`
+        filename: v.optional(v.string()),
       })
     ),
     status: v.union(
