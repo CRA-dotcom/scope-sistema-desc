@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useOrgConfig } from "@/lib/useOrgConfig";
+import { useAuth } from "@clerk/nextjs";
 
 export default function NuevaProyeccionWrapper() {
   return (
@@ -78,8 +79,17 @@ function NuevaProyeccionContent() {
   const [serviceStates, setServiceStates] = useState<ServiceFormState[]>([]);
 
   const { flags } = useOrgConfig();
-  const clients = useQuery(api.functions.clients.queries.list, {});
-  const services = useQuery(api.functions.services.queries.listGlobal);
+  const { isLoaded, orgId } = useAuth();
+  const authReady = isLoaded && !!orgId;
+
+  const clients = useQuery(
+    api.functions.clients.queries.list,
+    authReady ? {} : "skip"
+  );
+  const services = useQuery(
+    api.functions.services.queries.listGlobal,
+    authReady ? {} : "skip"
+  );
   const createProjection = useMutation(
     api.functions.projections.mutations.create
   );

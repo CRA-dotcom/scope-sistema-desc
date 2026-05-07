@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -28,12 +29,16 @@ export default function ProjectionDetailPage() {
   const router = useRouter();
   const projectionId = params.id as Id<"projections">;
 
-  const matrix = useQuery(api.functions.projections.queries.getMatrix, {
-    projectionId,
-  });
+  const { isLoaded, orgId } = useAuth();
+  const authReady = isLoaded && !!orgId;
+
+  const matrix = useQuery(
+    api.functions.projections.queries.getMatrix,
+    authReady ? { projectionId } : "skip"
+  );
   const questionnaire = useQuery(
     api.functions.questionnaires.queries.getByProjection,
-    { projectionId }
+    authReady ? { projectionId } : "skip"
   );
   const generateQuestionnaire = useMutation(
     api.functions.questionnaires.mutations.generate
