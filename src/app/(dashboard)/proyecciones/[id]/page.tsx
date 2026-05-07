@@ -6,12 +6,14 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft } from "lucide-react";
+import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { MatrixCellDetail } from "@/components/projections/matrix-cell-detail";
 import { resolveProjectionContext, resolveProjectionMonths } from "../../../../../convex/lib/projectionContext";
+import { usePdfGenerator } from "@/lib/usePdfGenerator";
+import { buildProjectionPdfHtml } from "@/lib/projectionPdfBuilder";
 
 const MONTH_NAMES = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -47,6 +49,9 @@ export default function ProjectionDetailPage() {
   const [isGeneratingQ, setIsGeneratingQ] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Doc<"monthlyAssignments"> | null>(null);
 
+  const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
+  const { download: downloadPdf, state: pdfState } = usePdfGenerator();
+
   const projection = matrix?.projection ?? null;
 
   const successor = useQuery(
@@ -62,6 +67,28 @@ export default function ProjectionDetailPage() {
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al generar cuestionario");
       setIsGeneratingQ(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!matrix) return;
+    try {
+      const branding = {
+        companyName: orgBranding?.companyName ?? "Projex",
+        primaryColor: orgBranding?.primaryColor ?? "#1a1a2e",
+        secondaryColor: orgBranding?.secondaryColor ?? "#6c63ff",
+        accentColor: orgBranding?.accentColor ?? "#22c55e",
+        fontFamily: orgBranding?.fontFamily ?? "Arial, sans-serif",
+      };
+      const htmlContent = buildProjectionPdfHtml(
+        matrix.projection,
+        matrix.services,
+        matrix.assignments
+      );
+      const year = matrix.projection.year;
+      await downloadPdf(htmlContent, branding, `proyeccion-${year}.pdf`);
+    } catch (err) {
+      console.error("Error al descargar PDF de proyección:", err);
     }
   };
 
@@ -139,14 +166,30 @@ export default function ProjectionDetailPage() {
           )}
         </div>
 
-        {showContinuationButton && (
-          <Link
-            href={`/proyecciones/nueva?previousProjectionId=${projection!._id}&clientId=${projection!.clientId}`}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-primary hover:bg-accent/90"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfState.isGenerating}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
           >
-            Crear continuación 12 meses →
-          </Link>
-        )}
+            {pdfState.isGenerating ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Download size={14} />
+            )}
+            {pdfState.isGenerating ? "Generando..." : "Descargar PDF"}
+          </button>
+
+          {showContinuationButton && (
+            <Link
+              href={`/proyecciones/nueva?previousProjectionId=${projection!._id}&clientId=${projection!.clientId}`}
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-primary hover:bg-accent/90"
+            >
+              Crear continuación 12 meses →
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Summary */}
