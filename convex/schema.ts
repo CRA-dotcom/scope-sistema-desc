@@ -580,6 +580,5 @@ export default defineSchema({
     createdAt: v.number(),
     readAt: v.optional(v.number()),
   })
-    .index("by_orgId", ["orgId"])
-    .index("by_assignedTo", ["assignedTo"]),
+    .index("by_orgId", ["orgId"]),
 });

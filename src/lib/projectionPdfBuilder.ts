@@ -79,8 +79,9 @@ export function buildPeriodLabel(
 ): string {
   const start = `${MONTH_NAMES_FULL[startMonth - 1]} ${startYear}`;
   const end = `${MONTH_NAMES_FULL[endMonth - 1]} ${endYear}`;
+  const monthLabel = monthCount === 1 ? "mes" : "meses";
   const suffix = projectionMode === "fiscal" ? " · año fiscal" : "";
-  return `${start} – ${end} (${monthCount} meses${suffix})`;
+  return `${start} – ${end} (${monthCount} ${monthLabel}${suffix})`;
 }
 
 // ── Main builder ──────────────────────────────────────────────────────

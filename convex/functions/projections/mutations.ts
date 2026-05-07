@@ -111,6 +111,12 @@ export const create = mutation({
         commissionRate: args.commissionRate,
         services: serviceDetails,
         seasonalityData: seasonality,
+        // C2: pass projection period fields so the engine generates the correct
+        // month slice and uses effectiveBudget for fiscal projections
+        startMonth: args.startMonth,
+        projectionMode: args.projectionMode,
+        monthCount: args.monthCount,
+        effectiveBudget: args.effectiveBudget,
       },
       engineConfig
     );

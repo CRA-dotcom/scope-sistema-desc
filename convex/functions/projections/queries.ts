@@ -63,8 +63,11 @@ export const getMatrix = query({
 export const hasSuccessor = query({
   args: { projectionId: v.id("projections") },
   handler: async (ctx, { projectionId }) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return false;
     const candidate = await ctx.db
       .query("projections")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
       .filter((q) => q.eq(q.field("previousProjectionId"), projectionId))
       .first();
     return candidate !== null;

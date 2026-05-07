@@ -22,9 +22,9 @@ describe("buildPeriodLabel", () => {
     expect(label).toBe("Mayo 2026 – Diciembre 2026 (8 meses · año fiscal)");
   });
 
-  it("fiscal 1 month Dec→Dec same year", () => {
+  it("fiscal 1 month Dec→Dec same year uses singular mes", () => {
     const label = buildPeriodLabel(12, 12, 2026, 2026, 1, "fiscal");
-    expect(label).toBe("Diciembre 2026 – Diciembre 2026 (1 meses · año fiscal)");
+    expect(label).toBe("Diciembre 2026 – Diciembre 2026 (1 mes · año fiscal)");
   });
 });
 
