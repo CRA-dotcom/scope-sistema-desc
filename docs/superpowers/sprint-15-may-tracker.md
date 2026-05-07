@@ -21,20 +21,20 @@
 | 3 | Fase A — post-merge | Correr `qaCleanup` con `dryRun:true` en prod, validar matches | XS | Christian | ⏳ Pendiente | — |
 | 4 | Fase A — post-merge | Si dry-run sale bien, correr con `dryRun:false` | XS | Christian | ⏳ Pendiente | — |
 | 5 | Fase A — post-merge | `git rm convex/functions/quotations/qaCleanup.ts` | XS | Christian | ⏳ Pendiente | — |
-| 6 | Fase B | B1 — Widget acumulado wizard + lib/projection-allocation.ts | M | Code | 🔜 Próximo | Ejecución autónoma |
-| 7 | Fase B | B2 — Estacionalidad delta% (schema + UI + engine path) | L | Code | 🔜 Próximo | Ejecución autónoma |
-| 8 | Fase C | C1 — Schema startMonth/projectionMode/monthCount/effectiveBudget/previousProjectionId | S | Code | 🔜 Próximo | Foundational, va primero en Fase C |
-| 9 | Fase C | C2 — UI wizard "Periodo de la proyección" rolling vs fiscal | M | Code | 🔜 Próximo | Depende de C1 |
-| 10 | Fase C | C3 — Engine refactor (effectiveBudget + monthCount con defaults) | M | Code | 🔜 Próximo | Depende de C1 |
-| 11 | Fase C | C4 — Matriz detalle dinámica (N columnas + badge fiscal) | M | Code | 🔜 Próximo | Depende de C1, C3 |
-| 12 | Fase C | C5 — Cron evento corte y revaluación | S | Code | 🔜 Próximo | Independiente |
-| 13 | Fase C | C6 — PDFs leen monthCount/startMonth | S | Code | 🔜 Próximo | Depende de C3 |
-| 14 | Fase D | D1 — Schema cuestionario file_upload + templateVariableMappings | S | Code | 🔜 Próximo | Foundational Fase D |
-| 15 | Fase D | D2 — Componente FileUploadField | M | Code | 🔜 Próximo | Depende de D1 |
-| 16 | Fase D | D3 — YAML preguntas canónicas (30-50 preguntas, 6 áreas, mappings) | L | **Papá** | 🔴 Atrasado 16 días | Bloquea calidad de templates AI; seed temporal mientras |
-| 17 | Fase D | D4 — Mutation populateTemplateVariables con file URLs firmadas | M | Code | 🔜 Próximo | Depende de D1 |
-| 18 | Fase D | D5 — 5 templates react-pdf (Admin, RH, TI, Marketing, Legal) | L | Code | 🔜 Próximo | Paralelizable: 5 archivos independientes |
-| 19 | Fase D | D6 — Variables AI con prompts contextuales + smoke test | M | Code | 🔜 Próximo | Requiere ANTHROPIC_API_KEY para validación final |
+| 6 | Fase B | B1 — Widget acumulado wizard + lib/projection-allocation.ts | M | Code | ✅ Done | `d3e1e85` + polish `d44d2b3` |
+| 7 | Fase B | B2 — Estacionalidad delta% (schema + UI + engine path) | L | Code | ✅ Done | `713cb7a` + dedup `855b058` |
+| 8 | Fase C | C1 — Schema startMonth/projectionMode/monthCount/effectiveBudget/previousProjectionId | S | Code | ✅ Done | `e06e358` |
+| 9 | Fase C | C2 — UI wizard "Periodo de la proyección" rolling vs fiscal | M | Code | ✅ Done | `35cb046` |
+| 10 | Fase C | C3 — Engine refactor (effectiveBudget + monthCount con defaults) | M | Code | ✅ Done | `9801cf0` |
+| 11 | Fase C | C4 — Matriz detalle dinámica (N columnas + badge fiscal) | M | Code | ✅ Done | `c09d85a` + fix `a03372d` |
+| 12 | Fase C | C5 — Cron evento corte y revaluación | S | Code | ✅ Done | `d33ddd1` |
+| 13 | Fase C | C6 — PDFs leen monthCount/startMonth | S | Code | ✅ Done | `630938b` |
+| 14 | Fase D | D1 — Schema cuestionario file_upload + templateVariableMappings | S | Code | ✅ Done | `42088d4` |
+| 15 | Fase D | D2 — Componente FileUploadField | M | Code | ✅ Done | `544e5f4` (no-wired, espera D3) |
+| 16 | Fase D | D3 — YAML preguntas canónicas (30-50 preguntas, 6 áreas, mappings) | L | **Papá** | 🔴 Atrasado 17 días | Bloquea wiring de D2/D4 a flujo real |
+| 17 | Fase D | D4 — Mutation populateTemplateVariables con file URLs firmadas | M | Code | ✅ Done | `53fa34d` (no-wired a generateDeliverable) |
+| 18 | Fase D | D5 — 5 templates react-pdf (Admin, RH, TI, Marketing, Legal) | L | Code | ✅ Done | `ee86707` (HTML+AI prompts; corre `seedDefaultTemplates` post-deploy) |
+| 19 | Fase D | D6 — Variables AI con prompts contextuales + smoke test | M | Code | ⚠️ Parcial | Prompts en D5; wiring a `generateDeliverable` y smoke test E2E quedan post-launch |
 | 20 | Pre-prod blocker | `ANTHROPIC_API_KEY` agregada a `.env.local` y Vercel | XS | Christian | 🔴 Bloqueante | Sin esto Fase D no se puede testear E2E |
 | 21 | Pre-prod blocker | Reactivar crons en `convex/crons.ts` al deploy del 15-may | XS | Code | ⏳ Pendiente | Último paso pre-prod |
 | 22 | Pre-prod blocker | `CLERK_JWT_ISSUER_DOMAIN` hardcoded — limpiar antes de prod | XS | Code | ⏳ Pendiente | Polish |
