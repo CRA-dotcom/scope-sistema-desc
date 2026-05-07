@@ -1,6 +1,6 @@
 "use client";
 
-import { type SeasonalityDelta, seasonalityDeviation } from "@/lib/seasonality";
+import { type SeasonalityDelta, seasonalityDeviation } from "convex/lib/seasonality";
 import { formatCurrency } from "@/lib/utils";
 
 const MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];

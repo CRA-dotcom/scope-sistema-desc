@@ -18,7 +18,7 @@ import {
   type SeasonalityDelta,
   seasonalityDataFromDeltas,
   defaultDeltas,
-} from "@/lib/seasonality";
+} from "convex/lib/seasonality";
 import {
   TrendingUp,
   ArrowLeft,
