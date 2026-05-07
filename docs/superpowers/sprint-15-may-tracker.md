@@ -37,7 +37,7 @@
 | 19 | Fase D | D6 — Variables AI con prompts contextuales + smoke test | M | Code | ⚠️ Parcial | Prompts en D5; wiring a `generateDeliverable` y smoke test E2E quedan post-launch |
 | 20 | Pre-prod blocker | `ANTHROPIC_API_KEY` agregada a `.env.local` y Vercel | XS | Christian | 🔴 Bloqueante | Sin esto Fase D no se puede testear E2E |
 | 21 | Pre-prod blocker | Reactivar crons en `convex/crons.ts` al deploy del 15-may | XS | Code | ⏳ Pendiente | Último paso pre-prod |
-| 22 | Pre-prod blocker | `CLERK_JWT_ISSUER_DOMAIN` hardcoded — limpiar antes de prod | XS | Code | ⏳ Pendiente | Polish |
+| 22 | Pre-prod blocker | `CLERK_JWT_ISSUER_DOMAIN` hardcoded — limpiar antes de prod | XS | — | ✅ N/A | Audit 2026-05-07: ya es `process.env.CLERK_JWT_ISSUER_DOMAIN!` en `convex/auth.config.ts:6`. MOC stale. Solo necesitas setearlo en Vercel/Convex prod. |
 | 23 | Decisión producto | Confirmar `commissionMode = proportional` deprecate o coexiste | — | Christian | 💭 Pendiente | No bloqueante |
 | 24 | Decisión producto | Validar reframe UX (commit fa6e8cd) elimina confusión 31.2M | XS | Christian | ⏳ Pendiente | Demo 13-may |
 | 25 | Hito | **Demo intermedia 2026-05-13** — A+B+C funcionando | — | Christian | 🎯 Objetivo | — |

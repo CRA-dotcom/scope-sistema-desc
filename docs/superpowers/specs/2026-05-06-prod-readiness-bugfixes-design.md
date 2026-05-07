@@ -99,6 +99,8 @@ Aplicar el mismo patrón a queries de services, orgConfig, deliverableTemplates 
 
 **Test:** snapshot test con caso conocido (totalBudget=24M, annualSales=31.2M) que valida sumatoria mensual exacta = 24M y que ningún render muestra 31.2M como total contratado.
 
+**Resultado del audit (2026-05-07):** ver `docs/qa/audit-budget-paths.md` — 43 entradas analizadas, 0 ❌. El bug reportado no es cruce de variables en código; hipótesis alternativa documentada en el audit doc.
+
 ### A3. Residual de redondeo (23M en vez de 24M)
 
 **Fix:** en `convex/lib/projectionEngine.ts`, agregar reconciliación al final del loop:
