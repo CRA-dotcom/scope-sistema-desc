@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useParams } from "next/navigation";
@@ -48,6 +48,7 @@ export default function PublicQuestionnairePage() {
 
   const [localResponses, setLocalResponses] = useState<ResponseItem[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const hasUserEditedRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -60,17 +61,17 @@ export default function PublicQuestionnairePage() {
     }
   }, [questionnaire, initialized]);
 
-  const autosave = useDebouncedAutosave(
-    localResponses,
-    async (latest) => {
-      if (!initialized) return;
-      if (latest.length === 0) return;
+  const saveCallback = useCallback(
+    async (latest: ResponseItem[]) => {
+      if (!hasUserEditedRef.current) return;
       await updateResponses({ token, responses: latest });
     },
-    2000
+    [token, updateResponses]
   );
+  const autosave = useDebouncedAutosave(localResponses, saveCallback, 2000);
 
   const handleAnswerChange = (questionId: string, answer: string) => {
+    hasUserEditedRef.current = true;
     setLocalResponses((prev) =>
       prev.map((r) => (r.questionId === questionId ? { ...r, answer } : r))
     );
