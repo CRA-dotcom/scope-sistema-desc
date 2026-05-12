@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { useParams } from "next/navigation";
 import { ClipboardList, Save, Send, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QuestionField } from "@/components/questionnaires/QuestionField";
+import { SectionNav, type SectionNavItem } from "@/components/questionnaires/SectionNav";
+import { useDebouncedAutosave } from "@/hooks/useDebouncedAutosave";
 
 export default function ResponderCuestionarioPage() {
   const params = useParams();
@@ -24,18 +27,33 @@ export default function ResponderCuestionarioPage() {
     api.functions.questionnaires.mutations.submit
   );
 
-  const [localResponses, setLocalResponses] = useState<
-    Array<{
-      questionId: string;
-      questionText: string;
-      answer: string;
-      serviceNames: string[];
-    }>
-  >([]);
+  type ResponseItem = {
+    questionId: string;
+    questionText: string;
+    answer: string;
+    serviceNames: string[];
+    type?:
+      | "text"
+      | "textarea"
+      | "select"
+      | "number"
+      | "date"
+      | "file_upload";
+    options?: string[];
+    section?: string;
+    subsection?: string;
+    variableKey?: string;
+    fileConfig?: { acceptedMimeTypes: string[]; maxSizeMB: number; multiple: boolean };
+    templateVariableMappings?: { templateId: any; variableName: string }[];
+    filename?: string;
+  };
+
+  const [localResponses, setLocalResponses] = useState<ResponseItem[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const hasUserEditedRef = useRef(false);
 
   // Initialize local state from questionnaire data
   useEffect(() => {
@@ -49,6 +67,7 @@ export default function ResponderCuestionarioPage() {
   }, [questionnaire, initialized]);
 
   const handleAnswerChange = (questionId: string, answer: string) => {
+    hasUserEditedRef.current = true;
     setLocalResponses((prev) =>
       prev.map((r) => (r.questionId === questionId ? { ...r, answer } : r))
     );
@@ -93,6 +112,16 @@ export default function ResponderCuestionarioPage() {
     }
   };
 
+  const saveCallback = useCallback(
+    async (latest: ResponseItem[]) => {
+      if (!hasUserEditedRef.current) return;
+      if (!questionnaire) return;
+      await updateResponses({ id: questionnaire._id, responses: latest });
+    },
+    [questionnaire, updateResponses]
+  );
+  const autosave = useDebouncedAutosave(localResponses, saveCallback, 2000);
+
   if (questionnaire === undefined) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 py-8">
@@ -130,21 +159,24 @@ export default function ResponderCuestionarioPage() {
     );
   }
 
-  // Group responses by service
-  const serviceGroups = new Map<
-    string,
-    typeof localResponses
-  >();
+  // Group responses by section
+  const sectionGroups = new Map<string, ResponseItem[]>();
   for (const r of localResponses) {
-    const key =
-      r.serviceNames.length > 1 ? "General" : r.serviceNames[0] ?? "General";
-    const group = serviceGroups.get(key) ?? [];
-    group.push(r);
-    serviceGroups.set(key, group);
+    const key = r.section ?? "General";
+    if (!sectionGroups.has(key)) sectionGroups.set(key, []);
+    sectionGroups.get(key)!.push(r);
   }
 
+  const sectionEntries = Array.from(sectionGroups.entries());
+  const sectionItems: SectionNavItem[] = sectionEntries.map(([label, rs], idx) => ({
+    id: `sec-${idx + 1}`,
+    label,
+    answered: rs.filter((r) => r.answer && r.answer.trim().length > 0).length,
+    total: rs.length,
+  }));
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6 py-8">
+    <div className="mx-auto max-w-5xl space-y-6 py-8">
       {/* Header */}
       <div className="text-center">
         <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
@@ -171,42 +203,78 @@ export default function ResponderCuestionarioPage() {
         </div>
       )}
 
-      {/* Questions grouped by service */}
-      {Array.from(serviceGroups.entries()).map(([serviceName, questions]) => (
-        <div
-          key={serviceName}
-          className="rounded-lg border border-border bg-card"
-        >
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="text-sm font-semibold text-accent">
-              {serviceName}
-            </h2>
-          </div>
-          <div className="divide-y divide-border/50">
-            {questions.map((r) => (
-              <div key={r.questionId} className="px-4 py-4">
-                <label className="mb-2 block text-sm font-medium">
-                  {r.questionText}
-                </label>
-                {r.serviceNames.length > 1 && (
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Aplica a: {r.serviceNames.join(", ")}
-                  </p>
-                )}
-                <textarea
-                  value={r.answer}
-                  onChange={(e) =>
-                    handleAnswerChange(r.questionId, e.target.value)
-                  }
-                  rows={3}
-                  className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent resize-y"
-                  placeholder="Escribe tu respuesta..."
-                />
-              </div>
-            ))}
-          </div>
+      {/* Autosave status */}
+      <div className="text-xs text-muted-foreground text-center">
+        {autosave.status === "saving" && "Guardando..."}
+        {autosave.status === "saved" && "Guardado"}
+        {autosave.status === "pending" && "Cambios pendientes..."}
+        {autosave.status === "error" && "Error al guardar — usa el botón para reintentar"}
+        {autosave.status === "idle" && ""}
+      </div>
+
+      {/* Questions grouped by section */}
+      <div className="lg:flex lg:gap-8">
+        <SectionNav sections={sectionItems} />
+        <div className="flex-1 space-y-6">
+          {sectionEntries.map(([sectionLabel, rs], idx) => {
+            const sectionId = `sec-${idx + 1}`;
+
+            // Sub-group by subsection (preserving insertion order)
+            const subGroups = new Map<string, ResponseItem[]>();
+            for (const r of rs) {
+              const k = r.subsection ?? "";
+              if (!subGroups.has(k)) subGroups.set(k, []);
+              subGroups.get(k)!.push(r);
+            }
+
+            return (
+              <section
+                key={sectionLabel}
+                id={sectionId}
+                className="rounded-lg border border-border bg-card scroll-mt-24"
+              >
+                <div className="border-b border-border px-4 py-3">
+                  <h2 className="text-sm font-semibold text-accent">
+                    {sectionLabel}
+                  </h2>
+                </div>
+                <div className="divide-y divide-border/50">
+                  {Array.from(subGroups.entries()).map(([subLabel, srs]) => (
+                    <div key={subLabel} className="px-4 py-4">
+                      {subLabel && (
+                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                          {subLabel}
+                        </h3>
+                      )}
+                      <div className="space-y-4">
+                        {srs.map((r) => (
+                          <div key={r.questionId}>
+                            <label
+                              htmlFor={r.questionId}
+                              className="mb-2 block text-sm font-medium"
+                            >
+                              {r.questionText}
+                            </label>
+                            <QuestionField
+                              questionId={r.questionId}
+                              type={r.type}
+                              options={r.options}
+                              value={r.answer}
+                              onChange={(v) => handleAnswerChange(r.questionId, v)}
+                              disabled={saving}
+                              placeholder="Escribe tu respuesta..."
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
-      ))}
+      </div>
 
       {/* Action Buttons */}
       <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
