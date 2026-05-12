@@ -44,6 +44,7 @@ export default function ResponderCuestionarioPage() {
     subsection?: string;
     variableKey?: string;
     fileConfig?: { acceptedMimeTypes: string[]; maxSizeMB: number; multiple: boolean };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     templateVariableMappings?: { templateId: any; variableName: string }[];
     filename?: string;
   };
