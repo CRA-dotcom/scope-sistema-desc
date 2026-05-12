@@ -188,6 +188,11 @@ export default defineSchema({
         // D1: for file_upload answers, holds the original filename alongside the
         //     Convex _storage ID stored in `answer`
         filename: v.optional(v.string()),
+        // NEW (master questionnaire v1):
+        section: v.optional(v.string()),
+        subsection: v.optional(v.string()),
+        variableKey: v.optional(v.string()),
+        options: v.optional(v.array(v.string())),
       })
     ),
     status: v.union(
