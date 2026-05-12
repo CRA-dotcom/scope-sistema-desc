@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useParams } from "next/navigation";
+import { QuestionField } from "@/components/questionnaires/QuestionField";
+import { SectionNav, type SectionNavItem } from "@/components/questionnaires/SectionNav";
+import { useDebouncedAutosave } from "@/hooks/useDebouncedAutosave";
 
 export default function PublicQuestionnairePage() {
   const params = useParams();
@@ -21,14 +24,29 @@ export default function PublicQuestionnairePage() {
     api.functions.questionnaires.publicMutations.submitByToken
   );
 
-  const [localResponses, setLocalResponses] = useState<
-    Array<{
-      questionId: string;
-      questionText: string;
-      answer: string;
-      serviceNames: string[];
-    }>
-  >([]);
+  type ResponseItem = {
+    questionId: string;
+    questionText: string;
+    answer: string;
+    serviceNames: string[];
+    type?:
+      | "text"
+      | "textarea"
+      | "select"
+      | "number"
+      | "date"
+      | "file_upload";
+    options?: string[];
+    section?: string;
+    subsection?: string;
+    variableKey?: string;
+    fileConfig?: { acceptedMimeTypes: string[]; maxSizeMB: number; multiple: boolean };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    templateVariableMappings?: { templateId: any; variableName: string }[];
+    filename?: string;
+  };
+
+  const [localResponses, setLocalResponses] = useState<ResponseItem[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +59,16 @@ export default function PublicQuestionnairePage() {
       setInitialized(true);
     }
   }, [questionnaire, initialized]);
+
+  const autosave = useDebouncedAutosave(
+    localResponses,
+    async (latest) => {
+      if (!initialized) return;
+      if (latest.length === 0) return;
+      await updateResponses({ token, responses: latest });
+    },
+    2000
+  );
 
   const handleAnswerChange = (questionId: string, answer: string) => {
     setLocalResponses((prev) =>
@@ -188,15 +216,22 @@ export default function PublicQuestionnairePage() {
   const companyName = branding?.companyName ?? "Tu Consultor";
   const primaryColor = branding?.primaryColor ?? "#22C55E";
 
-  // Group responses by service
-  const serviceGroups = new Map<string, typeof localResponses>();
+  // Group by section (preserving insertion order)
+  const sectionGroups = new Map<string, ResponseItem[]>();
   for (const r of localResponses) {
-    const key =
-      r.serviceNames.length > 1 ? "General" : r.serviceNames[0] ?? "General";
-    const group = serviceGroups.get(key) ?? [];
-    group.push(r);
-    serviceGroups.set(key, group);
+    const key = r.section ?? "General";
+    if (!sectionGroups.has(key)) sectionGroups.set(key, []);
+    sectionGroups.get(key)!.push(r);
   }
+
+  const sectionItems: SectionNavItem[] = Array.from(sectionGroups.entries()).map(
+    ([label, rs], idx) => ({
+      id: `sec-${idx + 1}`,
+      label,
+      answered: rs.filter((r) => r.answer && r.answer.trim().length > 0).length,
+      total: rs.length,
+    })
+  );
 
   return (
     <div className="min-h-screen pb-16">
@@ -205,7 +240,7 @@ export default function PublicQuestionnairePage() {
         className="border-b border-border px-6 py-5"
         style={{ borderBottomColor: primaryColor + "40" }}
       >
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <p
             className="text-xs font-medium uppercase tracking-wider mb-1"
             style={{ color: primaryColor }}
@@ -223,57 +258,88 @@ export default function PublicQuestionnairePage() {
       </div>
 
       {/* Questions */}
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-        {Array.from(serviceGroups.entries()).map(([serviceName, questions]) => (
-          <div
-            key={serviceName}
-            className="rounded-lg border border-border bg-card"
-          >
-            <div
-              className="border-b border-border px-5 py-3"
-              style={{ borderBottomColor: primaryColor + "30" }}
-            >
-              <h2
-                className="text-sm font-semibold"
-                style={{ color: primaryColor }}
-              >
-                {serviceName}
-              </h2>
-            </div>
-            <div className="divide-y divide-border/50">
-              {questions.map((r) => (
-                <div key={r.questionId} className="px-5 py-4">
-                  <label className="mb-2 block text-sm font-medium">
-                    {r.questionText}
-                  </label>
-                  {r.serviceNames.length > 1 && (
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      Aplica a: {r.serviceNames.join(", ")}
-                    </p>
-                  )}
-                  <textarea
-                    value={r.answer}
-                    onChange={(e) =>
-                      handleAnswerChange(r.questionId, e.target.value)
-                    }
-                    rows={3}
-                    className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 resize-y"
-                    style={{
-                      borderColor: undefined,
-                    }}
-                    onFocus={(e) =>
-                      (e.target.style.borderColor = primaryColor)
-                    }
-                    onBlur={(e) => (e.target.style.borderColor = "")}
-                    placeholder="Escribe tu respuesta..."
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        <div className="lg:flex lg:gap-8">
+          <SectionNav sections={sectionItems} />
+          <div className="flex-1 space-y-10">
+            {Array.from(sectionGroups.entries()).map(([sectionLabel, rs], idx) => {
+              const sectionId = `sec-${idx + 1}`;
 
-        {/* Status message */}
+              // Sub-group by subsection (preserving insertion order)
+              const subGroups = new Map<string, ResponseItem[]>();
+              for (const r of rs) {
+                const k = r.subsection ?? "";
+                if (!subGroups.has(k)) subGroups.set(k, []);
+                subGroups.get(k)!.push(r);
+              }
+
+              return (
+                <section
+                  key={sectionLabel}
+                  id={sectionId}
+                  className="rounded-lg border border-border bg-card scroll-mt-24"
+                >
+                  <div
+                    className="border-b border-border px-5 py-3"
+                    style={{ borderBottomColor: primaryColor + "30" }}
+                  >
+                    <h2
+                      className="text-sm font-semibold"
+                      style={{ color: primaryColor }}
+                    >
+                      {sectionLabel}
+                    </h2>
+                  </div>
+                  <div className="divide-y divide-border/50">
+                    {Array.from(subGroups.entries()).map(([subLabel, srs]) => (
+                      <div key={subLabel} className="px-5 py-4">
+                        {subLabel && (
+                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                            {subLabel}
+                          </h3>
+                        )}
+                        <div className="space-y-4">
+                          {srs.map((r) => (
+                            <div key={r.questionId}>
+                              <label
+                                htmlFor={r.questionId}
+                                className="mb-2 block text-sm font-medium"
+                              >
+                                {r.questionText}
+                              </label>
+                              <QuestionField
+                                questionId={r.questionId}
+                                type={r.type}
+                                options={r.options}
+                                value={r.answer}
+                                onChange={(v) =>
+                                  handleAnswerChange(r.questionId, v)
+                                }
+                                disabled={submitting}
+                                placeholder="Escribe tu respuesta..."
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Autosave indicator */}
+        <div className="text-xs text-muted-foreground">
+          {autosave.status === "saving" && "Guardando..."}
+          {autosave.status === "saved" && "Guardado"}
+          {autosave.status === "pending" && "Cambios pendientes..."}
+          {autosave.status === "error" && "Error al guardar — usa el botón para reintentar"}
+          {autosave.status === "idle" && ""}
+        </div>
+
+        {/* Manual save / error message */}
         {saveMessage && (
           <div
             className={`rounded-md px-4 py-3 text-sm ${
