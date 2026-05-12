@@ -34,10 +34,14 @@ export function SectionNav({ sections }: { sections: SectionNavItem[] }) {
 
       {/* Mobile: jump <select> */}
       <div className="lg:hidden mb-4">
-        <label className="block text-xs font-medium text-slate-600 mb-1">
+        <label
+          htmlFor="section-jump"
+          className="block text-xs font-medium text-slate-600 mb-1"
+        >
           Saltar a sección
         </label>
         <select
+          id="section-jump"
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
           onChange={(e) => {
             const id = e.target.value;
