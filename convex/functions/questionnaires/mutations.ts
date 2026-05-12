@@ -2,22 +2,7 @@ import { mutation } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import { getOrgId } from "../../lib/authHelpers";
-
-// Default questions per service
-const DEFAULT_QUESTIONS = [
-  {
-    key: "info_general",
-    text: "Información general del servicio requerido",
-  },
-  {
-    key: "documentos",
-    text: "Documentos requeridos para este servicio",
-  },
-  {
-    key: "observaciones",
-    text: "Observaciones especiales o requerimientos adicionales",
-  },
-];
+import { MASTER_QUESTIONS } from "./masterQuestionnaire";
 
 export const generate = mutation({
   args: {
@@ -26,13 +11,11 @@ export const generate = mutation({
   handler: async (ctx, args) => {
     const orgId = await getOrgId(ctx);
 
-    // Verify projection belongs to org
     const projection = await ctx.db.get(args.projectionId);
     if (!projection || projection.orgId !== orgId) {
       throw new Error("Proyección no encontrada.");
     }
 
-    // Check if questionnaire already exists
     const existing = await ctx.db
       .query("questionnaireResponses")
       .withIndex("by_projectionId", (q) =>
@@ -43,7 +26,6 @@ export const generate = mutation({
       throw new Error("Ya existe un cuestionario para esta proyección.");
     }
 
-    // Get active projection services
     const projServices = await ctx.db
       .query("projectionServices")
       .withIndex("by_projectionId_active", (q) =>
@@ -55,30 +37,46 @@ export const generate = mutation({
       throw new Error("No hay servicios activos en esta proyección.");
     }
 
-    // Build questions: for each default question, aggregate all service names
-    // Since questions are generic and apply to all services, we deduplicate
-    // by question key, and list all service names on each question.
-    const allServiceNames = projServices.map((ps) => ps.serviceName);
+    const activeServiceNames = projServices.map((ps) => ps.serviceName);
 
-    // For deduplication: each generic question appears once with all service names
-    const responses = DEFAULT_QUESTIONS.map((q, idx) => ({
-      questionId: `q_${idx + 1}_${q.key}`,
-      questionText: q.text,
-      answer: "",
-      serviceNames: allServiceNames,
-    }));
+    // 1) Filter by serviceScope
+    const applicableQs = MASTER_QUESTIONS.filter((q) =>
+      !q.serviceScope ||
+      q.serviceScope.some((s) => activeServiceNames.includes(s))
+    );
 
-    // Also add per-service specific questions for differentiation
-    for (const ps of projServices) {
-      responses.push({
-        questionId: `q_svc_${ps._id}_detalle`,
-        questionText: `Detalle específico para el servicio: ${ps.serviceName}`,
+    // 2) Load active templates for this org+services to resolve variable keys
+    const orgTemplates = await ctx.db
+      .query("deliverableTemplates")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .collect();
+    const templatesForActiveServices = orgTemplates.filter(
+      (t) => t.isActive && activeServiceNames.includes(t.serviceName)
+    );
+
+    // 3) Build responses with resolved templateVariableMappings
+    const responses = applicableQs.map((q) => {
+      const mappings = q.variableKey
+        ? templatesForActiveServices
+            .filter((t) => t.variables.some((v) => v.key === q.variableKey))
+            .map((t) => ({ templateId: t._id, variableName: q.variableKey! }))
+        : undefined;
+
+      return {
+        questionId: q.key,
+        questionText: q.text,
         answer: "",
-        serviceNames: [ps.serviceName],
-      });
-    }
+        serviceNames: activeServiceNames,
+        section: q.section,
+        subsection: q.subsection,
+        type: q.type,
+        options: q.options,
+        fileConfig: q.fileConfig,
+        variableKey: q.variableKey,
+        templateVariableMappings: mappings,
+      };
+    });
 
-    // Generate unique access token for public link
     const accessToken =
       Math.random().toString(36).slice(2) +
       Date.now().toString(36) +
@@ -107,6 +105,37 @@ export const updateResponses = mutation({
         questionText: v.string(),
         answer: v.string(),
         serviceNames: v.array(v.string()),
+        // pass-through fields populated at generate-time:
+        type: v.optional(
+          v.union(
+            v.literal("text"),
+            v.literal("textarea"),
+            v.literal("select"),
+            v.literal("number"),
+            v.literal("date"),
+            v.literal("file_upload")
+          )
+        ),
+        fileConfig: v.optional(
+          v.object({
+            acceptedMimeTypes: v.array(v.string()),
+            maxSizeMB: v.number(),
+            multiple: v.boolean(),
+          })
+        ),
+        templateVariableMappings: v.optional(
+          v.array(
+            v.object({
+              templateId: v.id("deliverableTemplates"),
+              variableName: v.string(),
+            })
+          )
+        ),
+        filename: v.optional(v.string()),
+        section: v.optional(v.string()),
+        subsection: v.optional(v.string()),
+        variableKey: v.optional(v.string()),
+        options: v.optional(v.array(v.string())),
       })
     ),
   },
@@ -120,7 +149,6 @@ export const updateResponses = mutation({
       throw new Error("No se puede editar un cuestionario completado.");
     }
 
-    // Update status to in_progress if it was sent
     const newStatus =
       questionnaire.status === "sent" ? "in_progress" : questionnaire.status;
 
