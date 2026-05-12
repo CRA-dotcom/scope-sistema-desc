@@ -62,12 +62,12 @@ describe("useDebouncedAutosave — implementation contracts", () => {
 
   it("sets status to error on failure", () => {
     expect(source).toContain('setStatus("error")');
-    expect(source).toMatch(/catch\s*\([^)]*\)\s*{[^}]*setStatus\("error"\)/s);
+    expect(source).toMatch(/catch[^{]*{[^}]*setStatus\("error"\)/s);
   });
 
-  it("does not save on the initial render when value is unchanged", () => {
-    // The guard uses Object.is on the initial value ref + status === 'idle'
-    expect(source).toContain("Object.is(value, initialRef.current)");
+  it("uses a first-render ref to skip save on initial mount (works for any value type)", () => {
+    expect(source).toContain("isFirstRenderRef");
+    expect(source).toContain("isFirstRenderRef.current = false");
   });
 
   it("flushes/cleanup on unmount via useEffect return", () => {
