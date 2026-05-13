@@ -453,6 +453,11 @@ function NuevaProyeccionContent() {
                   min={0}
                   max={100}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Solo aplica a conceptos de comisión, intermediación mercantil
+                  o venta por comisión. NO aplica a servicios legales, marketing,
+                  RH, etc. (Ejemplo: el rubro inmobiliario suele cobrar 3-5%.)
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -467,6 +472,10 @@ function NuevaProyeccionContent() {
                   className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
                   placeholder="50,000,000"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Lo que factura el cliente al año (referencia para calcular el
+                  tope de mercado por servicio).
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">
@@ -479,6 +488,10 @@ function NuevaProyeccionContent() {
                   className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
                   placeholder="30,000,000"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Lo que el cliente nos contrata. Se distribuye entre los meses
+                  del contrato.
+                </p>
               </div>
             </div>
             {totalBudget > 0 && (
