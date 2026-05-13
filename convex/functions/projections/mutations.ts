@@ -42,7 +42,20 @@ export const create = mutation({
       )
     ),
     seasonalityMode: v.optional(
-      v.union(v.literal("legacy"), v.literal("delta_percent"))
+      v.union(
+        v.literal("legacy"),
+        v.literal("delta_percent"),
+        v.literal("outliers")
+      )
+    ),
+    seasonalityOutliers: v.optional(
+      v.array(
+        v.object({
+          month: v.number(),
+          value: v.number(),
+          unit: v.union(v.literal("percent"), v.literal("amount")),
+        })
+      )
     ),
     // C2: projection period fields
     startMonth: v.optional(v.number()),
@@ -133,7 +146,14 @@ export const create = mutation({
       commissionRate: args.commissionRate,
       seasonalityData: seasonality,
       seasonalityDeltas: args.seasonalityDeltas,
-      seasonalityMode: args.seasonalityMode ?? (args.seasonalityDeltas ? "delta_percent" : "legacy"),
+      seasonalityMode:
+        args.seasonalityMode ??
+        (args.seasonalityOutliers
+          ? "outliers"
+          : args.seasonalityDeltas
+            ? "delta_percent"
+            : "legacy"),
+      seasonalityOutliers: args.seasonalityOutliers,
       // C2: projection period fields
       startMonth: args.startMonth,
       projectionMode: args.projectionMode,

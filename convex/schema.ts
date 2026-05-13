@@ -66,7 +66,20 @@ export default defineSchema({
       )
     ),
     seasonalityMode: v.optional(
-      v.union(v.literal("legacy"), v.literal("delta_percent"))
+      v.union(
+        v.literal("legacy"),
+        v.literal("delta_percent"),
+        v.literal("outliers")
+      )
+    ),
+    seasonalityOutliers: v.optional(
+      v.array(
+        v.object({
+          month: v.number(),
+          value: v.number(),
+          unit: v.union(v.literal("percent"), v.literal("amount")),
+        })
+      )
     ),
     startMonth: v.optional(v.number()),
     projectionMode: v.optional(
@@ -108,6 +121,15 @@ export default defineSchema({
           v.object({
             month: v.number(),
             deltaPercent: v.number(),
+          })
+        )
+      ),
+      seasonalityOutliers: v.optional(
+        v.array(
+          v.object({
+            month: v.number(),
+            value: v.number(),
+            unit: v.union(v.literal("percent"), v.literal("amount")),
           })
         )
       ),

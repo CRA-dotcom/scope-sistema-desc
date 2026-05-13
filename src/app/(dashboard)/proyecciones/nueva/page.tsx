@@ -12,13 +12,15 @@ import {
 import { SeasonalityChart } from "@/components/projections/seasonality-chart";
 import { BudgetAllocationWidget } from "@/components/projections/budget-allocation-widget";
 import { ServiceRow } from "@/components/projections/service-row";
-import { SeasonalityDeltaGrid } from "@/components/projections/seasonality-delta-grid";
+import { SeasonalityOutliersGrid } from "@/components/projections/seasonality-outliers-grid";
 import { ProjectionPeriodSelector } from "@/components/projections/projection-period-selector";
 import { computeServiceAllocation } from "@/lib/projection-allocation";
 import { formatCurrency } from "@/lib/utils";
 import {
   type SeasonalityDelta,
+  type SeasonalityOutlier,
   seasonalityDataFromDeltas,
+  seasonalityFromOutliers,
   defaultDeltas,
 } from "convex/lib/seasonality";
 import {
@@ -91,8 +93,8 @@ function NuevaProyeccionContent() {
   // 2026-05-12: dropped proration. effectiveBudget = totalBudget in both modes.
   const effectiveBudget = totalBudget;
 
-  // Step 2: Seasonality deltas
-  const [seasonalityDeltas, setSeasonalityDeltas] = useState<SeasonalityDelta[]>(defaultDeltas());
+  // Step 2: Seasonality outliers (sub-proyecto C)
+  const [seasonalityOutliers, setSeasonalityOutliers] = useState<SeasonalityOutlier[]>([]);
   const [useSeasonality, setUseSeasonality] = useState(false);
 
   // Step 3: Services
@@ -155,7 +157,7 @@ function NuevaProyeccionContent() {
 
   // Calculate preview
   const seasonalityData = useSeasonality
-    ? seasonalityDataFromDeltas(annualSales, seasonalityDeltas)
+    ? seasonalityFromOutliers(annualSales, seasonalityOutliers)
     : generateEvenSeasonality(annualSales);
 
   const preview =
@@ -208,7 +210,21 @@ function NuevaProyeccionContent() {
     if (s.startMonth !== undefined) setStartMonth(s.startMonth);
     if (s.projectionMode !== undefined) setProjectionMode(s.projectionMode);
     if (s.useSeasonality !== undefined) setUseSeasonality(s.useSeasonality);
-    if (s.seasonalityDeltas !== undefined) setSeasonalityDeltas(s.seasonalityDeltas);
+    // Sub-proyecto C: prefer the new outliers field if present.
+    // For legacy drafts (only seasonalityDeltas present), derive outliers from
+    // months with |deltaPercent| > 0.5 (the same threshold used in the chip UI).
+    if (s.seasonalityOutliers !== undefined) {
+      setSeasonalityOutliers(s.seasonalityOutliers);
+    } else if (s.seasonalityDeltas !== undefined) {
+      const derived: SeasonalityOutlier[] = s.seasonalityDeltas
+        .filter((d) => Math.abs(d.deltaPercent) > 0.5)
+        .map((d) => ({
+          month: d.month,
+          value: d.deltaPercent,
+          unit: "percent" as const,
+        }));
+      setSeasonalityOutliers(derived);
+    }
     if (s.serviceStates !== undefined) {
       // serviceStates from the draft only carries chosenPct/isActive — merge
       // those onto the freshly-loaded service catalogue so name/min/max stay live.
@@ -245,7 +261,7 @@ function NuevaProyeccionContent() {
             startMonth,
             projectionMode,
             useSeasonality,
-            seasonalityDeltas,
+            seasonalityOutliers,
             serviceStates: serviceStates.map((s) => ({
               serviceId: s.serviceId,
               chosenPct: s.chosenPct,
@@ -274,7 +290,7 @@ function NuevaProyeccionContent() {
       startMonth,
       projectionMode,
       useSeasonality,
-      seasonalityDeltas,
+      seasonalityOutliers,
       serviceStates,
       previousProjectionId,
       upsertDraft,
@@ -293,8 +309,16 @@ function NuevaProyeccionContent() {
         totalBudget,
         commissionRate,
         seasonalityData,
-        seasonalityDeltas: useSeasonality ? seasonalityDeltas : undefined,
-        seasonalityMode: useSeasonality ? "delta_percent" : "legacy",
+        seasonalityOutliers: useSeasonality ? seasonalityOutliers : undefined,
+        // Derive the legacy 12-entry deltas from the computed seasonalityData so
+        // the engine and any non-outlier consumers see the same shape they always have.
+        seasonalityDeltas: useSeasonality
+          ? seasonalityData.map((m) => ({
+              month: m.month,
+              deltaPercent: (m.feFactor - 1) * 100,
+            }))
+          : undefined,
+        seasonalityMode: useSeasonality ? "outliers" : "legacy",
         serviceConfigs: serviceStates.map((s) => ({
           serviceId: s.serviceId as Id<"services">,
           chosenPct: s.chosenPct,
@@ -533,9 +557,9 @@ function NuevaProyeccionContent() {
                 </div>
 
                 {useSeasonality ? (
-                  <SeasonalityDeltaGrid
-                    value={seasonalityDeltas}
-                    onChange={setSeasonalityDeltas}
+                  <SeasonalityOutliersGrid
+                    value={seasonalityOutliers}
+                    onChange={setSeasonalityOutliers}
                     annualSales={annualSales}
                   />
                 ) : (

@@ -123,4 +123,44 @@ describe("projectionEngine — residual reconciliation", () => {
       expect(Math.abs(monthlySum - svc.annualAmount)).toBeLessThan(0.01);
     }
   });
+
+  it("sub-proyecto C: fiscal slice + seasonality outliers — sum(monthlyTotals) == remainingBudget", () => {
+    // Catimi-style: 60M sales, 10M budget, fiscal May-Dec, 4 outliers at +30%.
+    // sum(feFactor in fiscal slice) = 6×0.85 + 2×1.3 = 7.7, not 8.
+    // Per-service monthly drift = annualAmount × (1 - 7.7/8) = 0.0375×annualAmount.
+    // Reconciliation must apply PER SERVICE so sum(monthlyTotals) == remainingBudget exactly.
+    const annualSales = 60_000_000;
+    const totalBudget = 10_000_000;
+    const meanMonthly = annualSales / 12;
+    const outlierFE = 1.3;
+    const nonOutlierFE = 0.85;
+    const isOutlier = (m: number) => [2, 3, 8, 9].includes(m);
+    const seasonality = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const fe = isOutlier(month) ? outlierFE : nonOutlierFE;
+      return { month, monthlySales: meanMonthly * fe, feFactor: fe };
+    });
+
+    const result = calculateProjection({
+      annualSales,
+      totalBudget,
+      commissionRate: 0,
+      services: makeServices(3, [0.10, 0.20, 0.30]),
+      seasonalityData: seasonality,
+      startMonth: 5,
+      monthCount: 8,
+      projectionMode: "fiscal",
+    });
+
+    // Each service: sum of its monthly adjusted amounts equals its annualAmount.
+    for (const svc of result.services) {
+      if (svc.normalizedWeight === 0) continue;
+      const monthlySum = svc.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
+      expect(Math.abs(monthlySum - svc.annualAmount)).toBeLessThan(0.01);
+    }
+
+    // Aggregate: sum of monthlyTotals across the 8-month slice == remainingBudget.
+    const sumMonthlyTotals = result.monthlyTotals.reduce((a, m) => a + m.total, 0);
+    expect(Math.abs(sumMonthlyTotals - result.remainingBudget)).toBeLessThan(0.01);
+  });
 });

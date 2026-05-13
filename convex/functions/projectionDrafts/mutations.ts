@@ -21,6 +21,15 @@ const stateValidator = v.object({
       })
     )
   ),
+  seasonalityOutliers: v.optional(
+    v.array(
+      v.object({
+        month: v.number(),
+        value: v.number(),
+        unit: v.union(v.literal("percent"), v.literal("amount")),
+      })
+    )
+  ),
   serviceStates: v.optional(
     v.array(
       v.object({
