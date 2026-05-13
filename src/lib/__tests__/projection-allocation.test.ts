@@ -110,4 +110,99 @@ describe("computeServiceAllocation", () => {
 
     expect(Math.abs(helperResult.assigned - engineResult.grandTotal)).toBeLessThan(0.01);
   });
+
+  describe("market-range indicator fields (sub-proyecto B)", () => {
+    it("marketAmount = chosenPct * annualSales", () => {
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0, [
+        { serviceId: "a", serviceName: "Legal", isActive: true, isCommission: false, chosenPct: 0.025, minPct: 0.01, maxPct: 0.03 },
+      ]);
+      const a = r.perService.find((s) => s.serviceId === "a")!;
+      expect(a.marketAmount).toBeCloseTo(1_500_000, 2);
+    });
+
+    it("status 'within' when effectivePctOfSales is inside [minPct, maxPct]", () => {
+      // 10M budget split between Legal (10%) and Marketing (90%) of weights.
+      // Legal gets 10M × 0.1 = 1M; effective = 1M / 60M ≈ 1.67% which is in [1%, 3%] for Legal.
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0, [
+        { serviceId: "legal", serviceName: "Legal", isActive: true, isCommission: false, chosenPct: 0.1, minPct: 0.01, maxPct: 0.03 },
+        { serviceId: "mkt", serviceName: "Marketing", isActive: true, isCommission: false, chosenPct: 0.9, minPct: 0.05, maxPct: 0.15 },
+      ]);
+      const legal = r.perService.find((s) => s.serviceId === "legal")!;
+      expect(legal.marketStatus).toBe("within");
+      expect(legal.marketDelta).toBe(0);
+    });
+
+    it("status 'above' when effectivePctOfSales > maxPct", () => {
+      // Only Legal active → absorbs all 10M. 10M / 60M ≈ 16.67% > maxPct 3%.
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0, [
+        { serviceId: "legal", serviceName: "Legal", isActive: true, isCommission: false, chosenPct: 0.02, minPct: 0.01, maxPct: 0.03 },
+      ]);
+      const legal = r.perService.find((s) => s.serviceId === "legal")!;
+      expect(legal.marketStatus).toBe("above");
+      // delta = (10/60 - 0.03) × 100 ≈ 13.67 pp
+      expect(legal.marketDelta).toBeCloseTo(13.67, 1);
+    });
+
+    it("status 'below' when effectivePctOfSales < minPct", () => {
+      // Legal has tiny weight relative to Marketing → effective < minPct (1%)
+      // Legal 0.001, Marketing 0.999 → Legal gets 10M × 0.001/1 = 10K → 10K/60M ≈ 0.0167% < 1%
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0, [
+        { serviceId: "legal", serviceName: "Legal", isActive: true, isCommission: false, chosenPct: 0.001, minPct: 0.01, maxPct: 0.03 },
+        { serviceId: "mkt", serviceName: "Marketing", isActive: true, isCommission: false, chosenPct: 0.999, minPct: 0.05, maxPct: 0.15 },
+      ]);
+      const legal = r.perService.find((s) => s.serviceId === "legal")!;
+      expect(legal.marketStatus).toBe("below");
+      // delta = (0.01 - 10000/60_000_000) × 100 ≈ 0.983 pp
+      expect(legal.marketDelta).toBeCloseTo(0.983, 1);
+    });
+
+    it("status 'n/a' when annualSales = 0", () => {
+      const r = computeServiceAllocation(10_000_000, 0, 0, [
+        { serviceId: "legal", serviceName: "Legal", isActive: true, isCommission: false, chosenPct: 0.02, minPct: 0.01, maxPct: 0.03 },
+      ]);
+      const legal = r.perService.find((s) => s.serviceId === "legal")!;
+      expect(legal.marketStatus).toBe("n/a");
+      expect(legal.marketDelta).toBe(0);
+      expect(legal.marketAmount).toBe(0);
+    });
+
+    it("status 'n/a' when minPct/maxPct are not provided", () => {
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0, [
+        { serviceId: "legal", serviceName: "Legal", isActive: true, isCommission: false, chosenPct: 0.02 },
+      ]);
+      const legal = r.perService.find((s) => s.serviceId === "legal")!;
+      expect(legal.marketStatus).toBe("n/a");
+    });
+
+    it("inactive services have marketStatus 'n/a' and marketDelta 0", () => {
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0, [
+        { serviceId: "a", serviceName: "A", isActive: false, isCommission: false, chosenPct: 0.5, minPct: 0.01, maxPct: 0.03 },
+        { serviceId: "b", serviceName: "B", isActive: true, isCommission: false, chosenPct: 0.5, minPct: 0.05, maxPct: 0.15 },
+      ]);
+      const a = r.perService.find((s) => s.serviceId === "a")!;
+      expect(a.marketStatus).toBe("n/a");
+      expect(a.marketDelta).toBe(0);
+    });
+
+    it("marketDelta is always non-negative", () => {
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0, [
+        { serviceId: "a", serviceName: "A", isActive: true, isCommission: false, chosenPct: 0.5, minPct: 0.01, maxPct: 0.03 },
+        { serviceId: "b", serviceName: "B", isActive: true, isCommission: false, chosenPct: 0.5, minPct: 0.05, maxPct: 0.15 },
+      ]);
+      for (const s of r.perService) {
+        expect(s.marketDelta).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it("commissions only deduct when active commission service exists (engine-aligned)", () => {
+      // commissionRate=0.02, ventas=60M, budget=10M.
+      // Sub-proyecto A engine: no active commission service → commissions = 0 → full 10M distributes.
+      const r = computeServiceAllocation(10_000_000, 60_000_000, 0.02, [
+        { serviceId: "legal", serviceName: "Legal", isActive: true, isCommission: false, chosenPct: 1.0, minPct: 0.01, maxPct: 0.99 },
+      ]);
+      const legal = r.perService.find((s) => s.serviceId === "legal")!;
+      expect(legal.annualAmount).toBeCloseTo(10_000_000, 2);
+      expect(r.assigned).toBeCloseTo(10_000_000, 2);
+    });
+  });
 });

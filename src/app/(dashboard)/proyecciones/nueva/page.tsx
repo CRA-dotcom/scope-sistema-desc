@@ -11,6 +11,7 @@ import {
 } from "../../../../../convex/lib/projectionEngine";
 import { SeasonalityChart } from "@/components/projections/seasonality-chart";
 import { BudgetAllocationWidget } from "@/components/projections/budget-allocation-widget";
+import { ServiceRow } from "@/components/projections/service-row";
 import { SeasonalityDeltaGrid } from "@/components/projections/seasonality-delta-grid";
 import { ProjectionPeriodSelector } from "@/components/projections/projection-period-selector";
 import { computeServiceAllocation } from "@/lib/projection-allocation";
@@ -189,6 +190,8 @@ function NuevaProyeccionContent() {
           isActive: s.isActive,
           isCommission: s.isCommission,
           chosenPct: s.chosenPct,
+          minPct: s.minPct,
+          maxPct: s.maxPct,
         })),
         "proportional"
       ),
@@ -584,74 +587,39 @@ function NuevaProyeccionContent() {
                 Configura los servicios activos y sus porcentajes para esta
                 proyección.
               </p>
+              {allocation.perService.some((s) => s.marketStatus === "above") && (
+                <div className="rounded-lg border border-red-400/40 bg-red-400/5 p-3">
+                  <p className="text-sm">
+                    <span className="font-medium">Hay áreas sobre el rango de mercado.</span>{" "}
+                    Considera agregar o activar más servicios para distribuir
+                    mejor el presupuesto.
+                  </p>
+                </div>
+              )}
               <div className="space-y-3">
-                {serviceStates.map((svc, i) => (
-                  <div
-                    key={svc.serviceId}
-                    className={cn(
-                      "flex items-center gap-4 rounded-md border p-3 transition-colors",
-                      svc.isActive
-                        ? "border-accent/30 bg-accent/5"
-                        : "border-border opacity-50"
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={svc.isActive}
-                      onChange={(e) => {
+                {serviceStates.map((svc, i) => {
+                  const svcAllocation =
+                    allocation.perService.find((p) => p.serviceId === svc.serviceId) ?? null;
+                  return (
+                    <ServiceRow
+                      key={svc.serviceId}
+                      service={svc}
+                      allocation={svcAllocation}
+                      annualSales={annualSales}
+                      commissionRate={commissionRate}
+                      onToggleActive={(next) => {
                         const updated = [...serviceStates];
-                        updated[i] = {
-                          ...updated[i],
-                          isActive: e.target.checked,
-                        };
+                        updated[i] = { ...updated[i], isActive: next };
                         setServiceStates(updated);
                       }}
-                      className="accent-accent cursor-pointer"
-                      disabled={svc.isCommission}
+                      onChangePct={(next) => {
+                        const updated = [...serviceStates];
+                        updated[i] = { ...updated[i], chosenPct: next };
+                        setServiceStates(updated);
+                      }}
                     />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{svc.serviceName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {svc.type === "base" ? "Base" : "Comodín"} &middot;{" "}
-                        {svc.isCommission
-                          ? `= Tasa de comisión (${(commissionRate * 100).toFixed(1)}%)`
-                          : `Rango: ${(svc.minPct * 100).toFixed(1)}% - ${(svc.maxPct * 100).toFixed(1)}%`}
-                      </p>
-                    </div>
-                    {!svc.isCommission && svc.isActive && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min={svc.minPct * 100}
-                          max={svc.maxPct * 100}
-                          step={0.5}
-                          value={svc.chosenPct * 100}
-                          onChange={(e) => {
-                            const updated = [...serviceStates];
-                            updated[i] = {
-                              ...updated[i],
-                              chosenPct: Number(e.target.value) / 100,
-                            };
-                            setServiceStates(updated);
-                          }}
-                          className="w-24 accent-accent cursor-pointer"
-                        />
-                        <span className="w-12 text-right text-sm font-medium">
-                          {(svc.chosenPct * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    )}
-                    {preview && svc.isActive && (
-                      <span className="text-sm font-medium text-accent">
-                        {formatCurrency(
-                          preview.services.find(
-                            (s) => s.serviceId === svc.serviceId
-                          )?.annualAmount ?? 0
-                        )}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

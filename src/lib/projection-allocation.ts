@@ -16,6 +16,11 @@ export type AllocationServiceInput = {
   isActive: boolean;
   isCommission: boolean;
   chosenPct: number; // 0..1
+  // 2026-05-12 (sub-proyecto B): market range for the indicator.
+  // Both optional for back-compat; when both defined AND annualSales > 0,
+  // computed marketStatus is "below" | "within" | "above". Otherwise "n/a".
+  minPct?: number;
+  maxPct?: number;
 };
 
 export type AllocationResult = {
@@ -28,6 +33,11 @@ export type AllocationResult = {
     serviceName: string;
     chosenPct: number;
     annualAmount: number;
+    // NEW (sub-proyecto B):
+    marketAmount: number;          // chosenPct × annualSales (0 if sales=0)
+    effectivePctOfSales: number;   // annualAmount / annualSales (0 if sales=0)
+    marketStatus: "below" | "within" | "above" | "n/a";
+    marketDelta: number;           // magnitude in pp, always >= 0
   }>;
 };
 
@@ -38,11 +48,15 @@ export function computeServiceAllocation(
   services: AllocationServiceInput[],
   commissionMode: "proportional" | "fixed_monthly" = "proportional"
 ): AllocationResult {
-  // Step 1: Annual commissions (mirrors engine L130 / L167-208)
-  // proportional: annualSales × commissionRate
-  // fixed_monthly: commissionRate × totalBudget (monthly = rate×budget/12; annual = rate×budget)
-  const annualCommissions =
-    commissionMode === "fixed_monthly"
+  // Step 1: Annual commissions — engine-aligned post 2026-05-12 sub-proyecto A.
+  // Commissions only deduct when at least one isCommission && isActive service
+  // is contracted; otherwise the rate has no effect on the budget.
+  const hasActiveCommissionService = services.some(
+    (s) => s.isCommission === true && s.isActive
+  );
+  const annualCommissions = !hasActiveCommissionService
+    ? 0
+    : commissionMode === "fixed_monthly"
       ? commissionRate * budget
       : annualSales * commissionRate;
 
@@ -68,6 +82,10 @@ export function computeServiceAllocation(
         serviceName: service.serviceName,
         chosenPct: service.chosenPct,
         annualAmount: 0,
+        marketAmount: 0,
+        effectivePctOfSales: 0,
+        marketStatus: "n/a" as const,
+        marketDelta: 0,
       };
     }
 
@@ -75,11 +93,36 @@ export function computeServiceAllocation(
     const normalizedWeight = totalWeight > 0 ? service.chosenPct / totalWeight : 0;
     const annualAmount = remainingBudget * normalizedWeight;
 
+    const marketAmount = annualSales > 0 ? service.chosenPct * annualSales : 0;
+    const effectivePctOfSales = annualSales > 0 ? annualAmount / annualSales : 0;
+
+    let marketStatus: "below" | "within" | "above" | "n/a" = "n/a";
+    let marketDelta = 0;
+    if (
+      annualSales > 0 &&
+      service.minPct !== undefined &&
+      service.maxPct !== undefined
+    ) {
+      if (effectivePctOfSales > service.maxPct) {
+        marketStatus = "above";
+        marketDelta = (effectivePctOfSales - service.maxPct) * 100;
+      } else if (effectivePctOfSales < service.minPct) {
+        marketStatus = "below";
+        marketDelta = (service.minPct - effectivePctOfSales) * 100;
+      } else {
+        marketStatus = "within";
+      }
+    }
+
     return {
       serviceId: service.serviceId,
       serviceName: service.serviceName,
       chosenPct: service.chosenPct,
       annualAmount,
+      marketAmount,
+      effectivePctOfSales,
+      marketStatus,
+      marketDelta,
     };
   });
 
