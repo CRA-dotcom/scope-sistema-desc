@@ -165,6 +165,10 @@ function NuevaProyeccionContent() {
           commissionRate,
           services: serviceStates,
           seasonalityData,
+          startMonth,
+          projectionMode,
+          monthCount,
+          effectiveBudget,
         })
       : null;
 
