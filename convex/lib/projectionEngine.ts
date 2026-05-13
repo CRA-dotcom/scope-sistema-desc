@@ -173,7 +173,7 @@ export function calculateProjection(
   const annualCommissions = annualSales * commissionRate * (ctx.monthCount / 12);
 
   // Step 2: Remaining budget (excluding commissions).
-  // Uses effectiveBudget (prorated for fiscal), not totalBudget.
+  // ctx.effectiveBudget always equals totalBudget post-2026-05-12 (proration removed).
   const remainingBudget = ctx.effectiveBudget - annualCommissions;
 
   // Step 3: Get active non-commission services

@@ -107,7 +107,7 @@ export function ProjectionPeriodSelector({
             className="mt-1 accent-accent cursor-pointer"
           />
           <div className="flex-1 space-y-2">
-            <div className="text-sm font-medium">Prorrateo año fiscal</div>
+            <div className="text-sm font-medium">Contrato año fiscal (hasta diciembre)</div>
             <div className="flex items-center gap-2 text-sm flex-wrap">
               <span className="text-muted-foreground">Inicio:</span>
               <select
