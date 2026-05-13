@@ -309,16 +309,23 @@ export function calculateProjection(
   });
 
   // Step 5b: Defensive residual reconciliation.
-  // IEEE 754 drift in `remainingBudget * normalizedWeight` is sub-nanocent
-  // (~4.7e-10 max measured at $24M scale). This block exists as a guard so
-  // that sum(base annualAmount) === remainingBudget at exactly $0.01 tolerance
-  // regardless of how the engine evolves, and so monthly amounts sum exactly
-  // to each service's annualAmount.
+  //
+  // Two distinct drift sources to close:
+  //   (1) Annual drift: IEEE 754 drift in `remainingBudget * normalizedWeight`
+  //       is sub-nanocent (~4.7e-10 max measured at $24M scale). Guard so
+  //       sum(base annualAmount) === remainingBudget at exactly $0.01 tolerance.
+  //   (2) Monthly drift (2026-05-12, sub-proyecto C): when a fiscal slice's
+  //       feFactor sum != monthCount, each service has its own
+  //       monthly drift = annualAmount - sum(monthlyBase * feFactor in slice).
+  //       Reconcile this PER SERVICE on the highest-feFactor month so
+  //       sum(monthlyTotals) === remainingBudget regardless of seasonality
+  //       interacting with fiscal slicing.
   //
   // Filter `normalizedWeight > 0` excludes inactives (weight=0), commissions
   // (weight=0), and fixed-mode services.
   const baseAllocations = serviceAllocations.filter((s) => s.normalizedWeight > 0);
   if (baseAllocations.length > 0) {
+    // (1) Annual drift: adjust the heaviest service only.
     const sumBase = baseAllocations.reduce((acc, s) => acc + s.annualAmount, 0);
     const drift = remainingBudget - sumBase;
     if (Math.abs(drift) > 0) {
@@ -326,13 +333,15 @@ export function calculateProjection(
         s.normalizedWeight > max.normalizedWeight ? s : max
       );
       heaviest.annualAmount += drift;
-      // Only `heaviest` had its annualAmount adjusted, so only its monthly amounts
-      // can have drift relative to the new annualAmount. Close that drift on the
-      // month with the highest feFactor.
-      const monthlySum = heaviest.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
-      const monthlyDrift = heaviest.annualAmount - monthlySum;
-      if (Math.abs(monthlyDrift) > 0 && heaviest.monthlyAmounts.length > 0) {
-        const heaviestMonth = heaviest.monthlyAmounts.reduce((max, m) =>
+    }
+
+    // (2) Monthly drift: reconcile EACH active service on its highest-feFactor month.
+    for (const svc of baseAllocations) {
+      if (svc.monthlyAmounts.length === 0) continue;
+      const monthlySum = svc.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
+      const monthlyDrift = svc.annualAmount - monthlySum;
+      if (Math.abs(monthlyDrift) > 0) {
+        const heaviestMonth = svc.monthlyAmounts.reduce((max, m) =>
           m.feFactor > max.feFactor ? m : max
         );
         heaviestMonth.adjustedAmount += monthlyDrift;
