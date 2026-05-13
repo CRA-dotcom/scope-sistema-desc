@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useConvex } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import {
@@ -71,6 +71,7 @@ function NuevaProyeccionContent() {
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Step 1: Basic data
   const [clientId, setClientId] = useState(preselectedClientId ?? "");
@@ -98,6 +99,7 @@ function NuevaProyeccionContent() {
 
   const { flags } = useOrgConfig();
   const { isLoaded, orgId } = useAuth();
+  const convex = useConvex();
   const authReady = isLoaded && !!orgId;
 
   const clients = useQuery(
@@ -174,6 +176,7 @@ function NuevaProyeccionContent() {
   async function handleSubmit() {
     if (!clientId) return;
     setLoading(true);
+    setSubmitError(null);
     try {
       const projId = await createProjection({
         clientId: clientId as Id<"clients">,
@@ -199,12 +202,26 @@ function NuevaProyeccionContent() {
           ? (previousProjectionId as Id<"projections">)
           : undefined,
       });
+
       if (process.env.NODE_ENV !== "production") {
         console.log("[wizard.submit] created", { projId });
       }
+
+      // Defensive: verify the row is readable by this user/org before redirecting.
+      const verify = await convex.query(
+        api.functions.projections.queries.getById,
+        { id: projId }
+      );
+      if (!verify) {
+        setSubmitError(
+          "Proyección creada pero no aparece en tu organización. Refresca la página o contacta soporte."
+        );
+        return; // Do NOT redirect.
+      }
+
       router.push(`/proyecciones/${projId}`);
     } catch (err) {
-      alert((err as Error).message || "Error al crear la proyección");
+      setSubmitError((err as Error).message || "Error al crear la proyección");
     } finally {
       setLoading(false);
     }
@@ -606,14 +623,21 @@ function NuevaProyeccionContent() {
             )}
           </div>
         ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex items-center gap-2 rounded-md bg-accent px-6 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            {loading ? "Creando..." : "Crear Proyección"}
-            <Check size={14} />
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center gap-2 rounded-md bg-accent px-6 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? "Creando..." : "Crear Proyección"}
+              <Check size={14} />
+            </button>
+            {submitError && (
+              <p className="max-w-sm text-right text-xs text-red-400">
+                {submitError}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>
