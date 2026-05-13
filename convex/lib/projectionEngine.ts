@@ -167,10 +167,17 @@ export function calculateProjection(
     ? filteredSeasonality
     : filteredSeasonality.map((m) => ({ ...m, feFactor: 1 }));
 
-  // Step 1: Annual commissions — prorated to monthCount.
-  // For rolling 12-month: same as annualSales * commissionRate (monthCount/12 = 1).
-  // For fiscal N-month: proportionally reduced.
-  const annualCommissions = annualSales * commissionRate * (ctx.monthCount / 12);
+  // Step 1: Annual commissions — only deducted when a commission service is
+  // actively contracted. Per 2026-05-12 partner clarification: "tasa de comisión
+  // solo aplica para conceptos de comisión, intermediación mercantil"; if no
+  // commission service is active, the rate has no effect on the budget.
+  // Prorated to monthCount (rolling: monthCount/12=1; fiscal: <1).
+  const hasActiveCommissionService = services.some(
+    (s) => s.isCommission === true && s.isActive
+  );
+  const annualCommissions = hasActiveCommissionService
+    ? annualSales * commissionRate * (ctx.monthCount / 12)
+    : 0;
 
   // Step 2: Remaining budget (excluding commissions).
   // ctx.effectiveBudget always equals totalBudget post-2026-05-12 (proration removed).
