@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useMemo } from "react";
+import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useConvex } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
@@ -223,6 +223,57 @@ function NuevaProyeccionContent() {
     setDraftDismissed(true);
   }
 
+  const saveDraft = useCallback(
+    async (nextStep: number, options?: { clearPreClientDraft?: boolean }) => {
+      if (!authReady) return;
+      try {
+        await upsertDraft({
+          clientId: draftClientId,
+          state: {
+            step: nextStep,
+            year,
+            annualSales,
+            totalBudget,
+            commissionRate,
+            startMonth,
+            projectionMode,
+            useSeasonality,
+            seasonalityDeltas,
+            serviceStates: serviceStates.map((s) => ({
+              serviceId: s.serviceId,
+              chosenPct: s.chosenPct,
+              isActive: s.isActive,
+            })),
+            previousProjectionId: previousProjectionId
+              ? (previousProjectionId as Id<"projections">)
+              : undefined,
+          },
+          clearPreClientDraft: options?.clearPreClientDraft,
+        });
+      } catch (err) {
+        // Silent — autosave is best-effort. The user can still submit.
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[wizard.autosave] failed", err);
+        }
+      }
+    },
+    [
+      authReady,
+      draftClientId,
+      year,
+      annualSales,
+      totalBudget,
+      commissionRate,
+      startMonth,
+      projectionMode,
+      useSeasonality,
+      seasonalityDeltas,
+      serviceStates,
+      previousProjectionId,
+      upsertDraft,
+    ]
+  );
+
   async function handleSubmit() {
     if (!clientId) return;
     setLoading(true);
@@ -321,7 +372,12 @@ function NuevaProyeccionContent() {
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-2">
             <button
-              onClick={() => i < step && setStep(i)}
+              onClick={async () => {
+                if (i < step) {
+                  await saveDraft(i);
+                  setStep(i);
+                }
+              }}
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors",
                 i === step
@@ -664,7 +720,11 @@ function NuevaProyeccionContent() {
       {/* Navigation Buttons */}
       <div className="flex justify-between">
         <button
-          onClick={() => setStep(Math.max(0, step - 1))}
+          onClick={async () => {
+            const prev = Math.max(0, step - 1);
+            await saveDraft(prev);
+            setStep(prev);
+          }}
           disabled={step === 0}
           className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-30 cursor-pointer"
         >
@@ -675,7 +735,15 @@ function NuevaProyeccionContent() {
         {step < 3 ? (
           <div className="flex flex-col items-end gap-1">
             <button
-              onClick={() => setStep(step + 1)}
+              onClick={async () => {
+                const next = step + 1;
+                // If we're leaving Step 0 with a real client picked AND a prior null-slot draft existed,
+                // promote it cleanly via clearPreClientDraft.
+                const promotingClient =
+                  step === 0 && draftClientId !== undefined && !!existingDraft && existingDraft.clientId === undefined;
+                await saveDraft(next, promotingClient ? { clearPreClientDraft: true } : undefined);
+                setStep(next);
+              }}
               disabled={
                 (step === 0 && (!clientId || annualSales <= 0 || totalBudget <= 0)) ||
                 (step === 2 && Math.abs(allocation.remaining) > 0.01)
