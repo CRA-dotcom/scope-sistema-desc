@@ -204,6 +204,15 @@ export const previewDeliverable = action({
     );
     if (!questionnaire) throw new Error("Cuestionario no encontrado.");
 
+    // Cross-org safety: a super-admin querying across orgs could otherwise
+    // pair a template from org A with a questionnaire from org B. Block it.
+    // Global templates (orgId === undefined) are allowed against any questionnaire.
+    if (template.orgId !== undefined && template.orgId !== questionnaire.orgId) {
+      throw new Error(
+        "Template y cuestionario pertenecen a organizaciones distintas."
+      );
+    }
+
     const [client, projection] = await Promise.all([
       ctx.runQuery(
         internal.functions.deliverables.internalQueries.getClientData,
@@ -383,7 +392,8 @@ Test cases:
 | Template missing AI key | `ANTHROPIC_API_KEY` unset; template has AI variables | Throws `"ANTHROPIC_API_KEY no configurada..."` |
 | Template not found | Pass bogus `templateId` | Throws `"Template no encontrado."` |
 | Questionnaire not found | Pass bogus `questionnaireId` | Throws `"Cuestionario no encontrado."` |
-| Multi-tenant isolation | Seed template + questionnaire in org A; call from org B | Throws — either of the two `_not found_` errors (because the cross-org doc isn't visible via `getOrgIdSafe`) |
+| Cross-org template + questionnaire | Seed org-scoped template (orgId=A) and questionnaire (orgId=B); call action | Throws `"Template y cuestionario pertenecen a organizaciones distintas."` |
+| Global template + any-org questionnaire | Seed template with `orgId === undefined`; questionnaire in org A | Succeeds — global templates are universal defaults |
 
 The Anthropic-calling path is mocked or skipped — the tests verify routing and error paths, not the actual Claude HTTP calls. Use the same pattern as `convex/functions/deliverables/` tests if they exist; if none exist, follow the `questionnaires` test patterns and seed required tables (`organizations`, `clients`, `projections`, `questionnaireResponses`, `deliverableTemplates`).
 
@@ -400,7 +410,7 @@ The Anthropic-calling path is mocked or skipped — the tests verify routing and
 
 - **R1 — Cost runaway**: a misconfigured template (e.g. 30 AI variables) could cost dollars per click. The metrics row surfaces this AFTER the run. Mitigation: future enhancement can add a confirm dialog when `aiVariables.length > 10`. Out of scope for v1.
 - **R2 — `getAnthropicClient` lacks a key**: throws inside the action, surfaced as error banner in the modal. Operator must add the key to `.env.local` and restart Convex dev. Documented in the error message.
-- **R3 — Cross-org leakage in `previewDeliverable`**: the action does not currently enforce that `template.orgId` matches `questionnaire.orgId`. Add a check: throw if they differ (and orgIds are non-null). Without it, a super-admin could accidentally cross-pollinate.
+- **R3 — Cross-org pairing**: the action enforces `template.orgId === questionnaire.orgId` when the template is org-scoped (i.e. `template.orgId !== undefined`). Global templates (`orgId === undefined`, which exist as defaults seeded for all orgs) are usable against any org's questionnaire. Test case "multi-tenant isolation" verifies this.
 - **R4 — Template without `serviceId`**: handled gracefully (projService is null and `{{service.*}}` AI prompts omit the service line). Tested in case "Template without AI variables".
 - **R5 — Questionnaire `responses` is empty**: the questionnaire context becomes "Sin respuestas de cuestionario disponibles." — AI generation continues but the output is generic. The metrics row + visible iframe make this obvious to the operator.
 
