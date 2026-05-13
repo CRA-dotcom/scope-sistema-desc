@@ -1,5 +1,8 @@
 "use client";
 
+// TODO: component tests deferred — pill + tooltip behavior is verified manually
+// in QA (see plan B Task 5). Re-enable once React Testing Library is configured.
+
 import { cn, formatCurrency } from "@/lib/utils";
 import type { AllocationResult } from "@/lib/projection-allocation";
 
@@ -26,6 +29,7 @@ type ServiceRowProps = {
 export function ServiceRow({
   service,
   allocation,
+  // Reserved for a future "% of sales" reference column; not rendered today.
   annualSales: _annualSales,
   commissionRate,
   onToggleActive,
