@@ -27,9 +27,12 @@ export function resolveProjectionContext(p: Pick<Doc<"projections">,
   const computedMonthCount =
     projectionMode === "fiscal" ? Math.max(1, 13 - startMonth) : 12;
   const monthCount = p.monthCount ?? computedMonthCount;
-  const computedEffective =
-    projectionMode === "fiscal" ? p.totalBudget * (monthCount / 12) : p.totalBudget;
-  const effectiveBudget = p.effectiveBudget ?? computedEffective;
+  // 2026-05-12: dropped proration. `totalBudget` is the contracted amount to
+  // distribute across `monthCount` months in both rolling and fiscal modes.
+  // `effectiveBudget` is kept in the type for back-compat with stored rows
+  // (prior rows may still have a prorated value) but is no longer load-bearing;
+  // callers should treat it as equal to `totalBudget`.
+  const effectiveBudget = p.totalBudget;
 
   // Compute end month/year. Rolling can wrap into next year; fiscal stays in same year.
   const endIndex = startMonth - 1 + (monthCount - 1); // 0-indexed
