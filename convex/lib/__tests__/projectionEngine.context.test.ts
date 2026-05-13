@@ -35,8 +35,8 @@ describe("calculateProjection — fiscal/rolling mode", () => {
     expect(r.monthlyTotals).toHaveLength(8);
     expect(r.monthlyTotals[0].month).toBe(5);  // May
     expect(r.monthlyTotals[7].month).toBe(12); // Dec
-    // grandTotal should equal effectiveBudget (16M), not totalBudget (24M)
-    expect(Math.abs(r.grandTotal - 16_000_000)).toBeLessThan(0.01);
+    // grandTotal should equal totalBudget (24M) — effectiveBudget is no longer load-bearing
+    expect(Math.abs(r.grandTotal - 24_000_000)).toBeLessThan(0.01);
   });
 
   it("rolling mode May (startMonth=5, monthCount=12) — produces 12 monthly entries May→Apr", () => {
@@ -94,10 +94,10 @@ describe("calculateProjection — fiscal/rolling mode", () => {
       ],
       seasonalityData: generateEvenSeasonality(31_200_000),
     });
-    // annualCommissions (prorated) = 31.2M × 0.02 × 8/12 = 416,000
-    // remainingBudget = 16M - 416K = 15,584,000 → all to S0
-    // grandTotal = 16M
-    expect(Math.abs(r.grandTotal - 16_000_000)).toBeLessThan(0.01);
+    // annualCommissions (prorated by monthCount) = 31.2M × 0.02 × 8/12 = 416,000
+    // remainingBudget = 24M (totalBudget) - 416K = 23,584,000 → all to S0
+    // grandTotal = 24M
+    expect(Math.abs(r.grandTotal - 24_000_000)).toBeLessThan(0.01);
     expect(Math.abs(r.annualCommissions - 416_000)).toBeLessThan(0.01);
   });
 
@@ -123,5 +123,57 @@ describe("calculateProjection — fiscal/rolling mode", () => {
     expect(r.monthlyTotals).toHaveLength(6);
     expect(r.monthlyTotals[0].month).toBe(7);
     expect(r.monthlyTotals[5].month).toBe(12);
+  });
+
+  it("Bug 1 repro: 10M contract in 8 fiscal months distributes as 1.25M/month", () => {
+    const result = calculateProjection({
+      annualSales: 60_000_000,
+      totalBudget: 10_000_000,
+      commissionRate: 0,
+      services: [],
+      seasonalityData: generateEvenSeasonality(60_000_000),
+      startMonth: 5,
+      monthCount: 8,
+      effectiveBudget: undefined,
+      projectionMode: "fiscal",
+    });
+
+    // 8 months covered, each receiving 10M / 8 = 1.25M (no services so commission=0 and remaining=10M is unallocated, but monthlyTotals reflects the budget shape).
+    expect(result.remainingBudget).toBe(10_000_000);
+    expect(result.monthlyTotals).toHaveLength(8);
+    // No active services → all monthly totals must be 0 (remainingBudget is unallocated).
+    for (const m of result.monthlyTotals) {
+      expect(m.total).toBe(0);
+    }
+  });
+
+  it("Bug 1 repro with single service: 10M / 8 months distributed as 1.25M/month", () => {
+    const result = calculateProjection({
+      annualSales: 60_000_000,
+      totalBudget: 10_000_000,
+      commissionRate: 0,
+      services: [
+        {
+          serviceId: "svc1",
+          serviceName: "Legal",
+          type: "base",
+          minPct: 0.01,
+          maxPct: 0.99,
+          chosenPct: 1.0,
+          isActive: true,
+          isCommission: false,
+        },
+      ],
+      seasonalityData: generateEvenSeasonality(60_000_000),
+      startMonth: 5,
+      monthCount: 8,
+      projectionMode: "fiscal",
+    });
+    // Single active service → it absorbs the full remainingBudget = 10M (chosenPct is the relative weight, which becomes 100% when alone).
+    expect(result.services[0].annualAmount).toBe(10_000_000);
+    expect(result.monthlyTotals).toHaveLength(8);
+    for (const m of result.monthlyTotals) {
+      expect(m.total).toBeCloseTo(1_250_000, 2);
+    }
   });
 });

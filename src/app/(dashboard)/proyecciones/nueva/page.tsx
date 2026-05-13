@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useMemo } from "react";
+import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useConvex } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import {
@@ -71,6 +71,7 @@ function NuevaProyeccionContent() {
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Step 1: Basic data
   const [clientId, setClientId] = useState(preselectedClientId ?? "");
@@ -86,9 +87,8 @@ function NuevaProyeccionContent() {
 
   // Derive monthCount and effectiveBudget live
   const monthCount = projectionMode === "fiscal" ? Math.max(1, 13 - startMonth) : 12;
-  const effectiveBudget = projectionMode === "fiscal"
-    ? totalBudget * (monthCount / 12)
-    : totalBudget;
+  // 2026-05-12: dropped proration. effectiveBudget = totalBudget in both modes.
+  const effectiveBudget = totalBudget;
 
   // Step 2: Seasonality deltas
   const [seasonalityDeltas, setSeasonalityDeltas] = useState<SeasonalityDelta[]>(defaultDeltas());
@@ -99,6 +99,7 @@ function NuevaProyeccionContent() {
 
   const { flags } = useOrgConfig();
   const { isLoaded, orgId } = useAuth();
+  const convex = useConvex();
   const authReady = isLoaded && !!orgId;
 
   const clients = useQuery(
@@ -112,6 +113,24 @@ function NuevaProyeccionContent() {
   const createProjection = useMutation(
     api.functions.projections.mutations.create
   );
+
+  const draftClientId = clientId
+    ? (clientId as Id<"clients">)
+    : undefined;
+  const existingDraft = useQuery(
+    api.functions.projectionDrafts.queries.getMyDraft,
+    authReady ? { clientId: draftClientId } : "skip"
+  );
+
+  const upsertDraft = useMutation(
+    api.functions.projectionDrafts.mutations.upsertDraft
+  );
+  const deleteDraft = useMutation(
+    api.functions.projectionDrafts.mutations.deleteMyDraft
+  );
+
+  const [draftDismissed, setDraftDismissed] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
 
   // Initialize services when loaded
   const initialized = useRef(false);
@@ -172,9 +191,93 @@ function NuevaProyeccionContent() {
     [effectiveBudget, annualSales, commissionRate, serviceStates]
   );
 
+  function hydrateFromDraft() {
+    if (!existingDraft) return;
+    const s = existingDraft.state;
+    if (s.year !== undefined) setYear(s.year);
+    if (s.annualSales !== undefined) setAnnualSales(s.annualSales);
+    if (s.totalBudget !== undefined) setTotalBudget(s.totalBudget);
+    if (s.commissionRate !== undefined) setCommissionRate(s.commissionRate);
+    if (s.startMonth !== undefined) setStartMonth(s.startMonth);
+    if (s.projectionMode !== undefined) setProjectionMode(s.projectionMode);
+    if (s.useSeasonality !== undefined) setUseSeasonality(s.useSeasonality);
+    if (s.seasonalityDeltas !== undefined) setSeasonalityDeltas(s.seasonalityDeltas);
+    if (s.serviceStates !== undefined) {
+      // serviceStates from the draft only carries chosenPct/isActive — merge
+      // those onto the freshly-loaded service catalogue so name/min/max stay live.
+      setServiceStates((prev) =>
+        prev.map((p) => {
+          const draftRow = s.serviceStates!.find((d) => d.serviceId === p.serviceId);
+          return draftRow
+            ? { ...p, chosenPct: draftRow.chosenPct, isActive: draftRow.isActive }
+            : p;
+        })
+      );
+    }
+    setStep(s.step);
+    setDraftHydrated(true);
+  }
+
+  async function discardDraft() {
+    await deleteDraft({ clientId: draftClientId });
+    setDraftDismissed(true);
+  }
+
+  const saveDraft = useCallback(
+    async (nextStep: number, options?: { clearPreClientDraft?: boolean }) => {
+      if (!authReady) return;
+      try {
+        await upsertDraft({
+          clientId: draftClientId,
+          state: {
+            step: nextStep,
+            year,
+            annualSales,
+            totalBudget,
+            commissionRate,
+            startMonth,
+            projectionMode,
+            useSeasonality,
+            seasonalityDeltas,
+            serviceStates: serviceStates.map((s) => ({
+              serviceId: s.serviceId,
+              chosenPct: s.chosenPct,
+              isActive: s.isActive,
+            })),
+            previousProjectionId: previousProjectionId
+              ? (previousProjectionId as Id<"projections">)
+              : undefined,
+          },
+          clearPreClientDraft: options?.clearPreClientDraft,
+        });
+      } catch (err) {
+        // Silent — autosave is best-effort. The user can still submit.
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[wizard.autosave] failed", err);
+        }
+      }
+    },
+    [
+      authReady,
+      draftClientId,
+      year,
+      annualSales,
+      totalBudget,
+      commissionRate,
+      startMonth,
+      projectionMode,
+      useSeasonality,
+      seasonalityDeltas,
+      serviceStates,
+      previousProjectionId,
+      upsertDraft,
+    ]
+  );
+
   async function handleSubmit() {
     if (!clientId) return;
     setLoading(true);
+    setSubmitError(null);
     try {
       const projId = await createProjection({
         clientId: clientId as Id<"clients">,
@@ -200,9 +303,33 @@ function NuevaProyeccionContent() {
           ? (previousProjectionId as Id<"projections">)
           : undefined,
       });
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[wizard.submit] created", { projId });
+      }
+
+      // Defensive: verify the row is readable by this user/org before redirecting.
+      const verify = await convex.query(
+        api.functions.projections.queries.getById,
+        { id: projId }
+      );
+      if (!verify) {
+        setSubmitError(
+          "Proyección creada pero no aparece en tu organización. Refresca la página o contacta soporte."
+        );
+        return; // Do NOT redirect.
+      }
+
+      // Clean up the draft now that the projection is real.
+      try {
+        await deleteDraft({ clientId: draftClientId });
+      } catch (_) {
+        // Best-effort; if the delete fails the cron / next session can clean it.
+      }
+
       router.push(`/proyecciones/${projId}`);
     } catch (err) {
-      alert((err as Error).message || "Error al crear la proyección");
+      setSubmitError((err as Error).message || "Error al crear la proyección");
     } finally {
       setLoading(false);
     }
@@ -223,12 +350,41 @@ function NuevaProyeccionContent() {
         <h1 className="text-2xl font-bold">Nueva Proyección</h1>
       </div>
 
+      {existingDraft && !draftHydrated && !draftDismissed && (
+        <div className="rounded-lg border border-accent/40 bg-accent/5 p-4">
+          <p className="text-sm">
+            Tienes un borrador en curso (último guardado:{" "}
+            {new Date(existingDraft.updatedAt).toLocaleString()}). ¿Quieres
+            continuar donde lo dejaste o empezar de nuevo?
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={hydrateFromDraft}
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-primary hover:bg-accent/90 cursor-pointer"
+            >
+              Continuar borrador
+            </button>
+            <button
+              onClick={discardDraft}
+              className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary cursor-pointer"
+            >
+              Empezar de nuevo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Step Indicator */}
       <div className="flex items-center gap-2">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-2">
             <button
-              onClick={() => i < step && setStep(i)}
+              onClick={async () => {
+                if (i < step) {
+                  await saveDraft(i);
+                  setStep(i);
+                }
+              }}
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors",
                 i === step
@@ -297,6 +453,11 @@ function NuevaProyeccionContent() {
                   min={0}
                   max={100}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Solo aplica a conceptos de comisión, intermediación mercantil
+                  o venta por comisión. NO aplica a servicios legales, marketing,
+                  RH, etc. (Ejemplo: el rubro inmobiliario suele cobrar 3-5%.)
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -311,6 +472,10 @@ function NuevaProyeccionContent() {
                   className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
                   placeholder="50,000,000"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Lo que factura el cliente al año (referencia para calcular el
+                  tope de mercado por servicio).
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">
@@ -323,6 +488,10 @@ function NuevaProyeccionContent() {
                   className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
                   placeholder="30,000,000"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Lo que el cliente nos contrata. Se distribuye entre los meses
+                  del contrato.
+                </p>
               </div>
             </div>
             {totalBudget > 0 && (
@@ -363,11 +532,17 @@ function NuevaProyeccionContent() {
                     annualSales={annualSales}
                   />
                 ) : (
-                  <div className="rounded-md bg-secondary/50 p-4 text-center">
+                  <div className="rounded-md bg-secondary/50 p-4 space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      Sin estacionalidad: la venta anual del cliente se reparte
-                      uniformemente como {formatCurrency(annualSales / 12)}/mes
-                      (referencia para FE — no es la distribución del presupuesto).
+                      <span className="font-medium text-foreground">Sin estacionalidad personalizada.</span>{" "}
+                      Tomamos la facturación del cliente ({formatCurrency(annualSales)}) y la repartimos en 12 meses
+                      (~{formatCurrency(annualSales / 12)}/mes){" "}
+                      <span className="font-medium">solo para calcular los factores de estacionalidad (FE).</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Esto NO es el monto que se cobra — eso lo define el presupuesto contratado{" "}
+                      ({formatCurrency(totalBudget)}) ÷ {monthCount} meses{" "}
+                      = ~{formatCurrency(monthCount > 0 ? totalBudget / monthCount : 0)}/mes.
                     </p>
                   </div>
                 )}
@@ -377,13 +552,20 @@ function NuevaProyeccionContent() {
                 )}
               </>
             ) : (
-              <div className="rounded-md bg-secondary/50 p-4 text-center">
+              <div className="rounded-md bg-secondary/50 p-4 space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Sin estacionalidad: las ventas se distribuirán uniformemente
-                  ({formatCurrency(annualSales / 12)}/mes).
+                  <span className="font-medium text-foreground">Sin estacionalidad.</span>{" "}
+                  Tomamos la facturación del cliente ({formatCurrency(annualSales)}) y la repartimos en 12 meses
+                  (~{formatCurrency(annualSales / 12)}/mes){" "}
+                  <span className="font-medium">solo para calcular los factores de estacionalidad (FE).</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-2 italic">
-                  La estacionalidad está configurada por el administrador
+                <p className="text-sm text-muted-foreground">
+                  Esto NO es el monto que se cobra — eso lo define el presupuesto contratado{" "}
+                  ({formatCurrency(totalBudget)}) ÷ {monthCount} meses{" "}
+                  = ~{formatCurrency(monthCount > 0 ? totalBudget / monthCount : 0)}/mes.
+                </p>
+                <p className="text-xs text-muted-foreground italic">
+                  La estacionalidad está configurada por el administrador.
                 </p>
               </div>
             )}
@@ -571,7 +753,11 @@ function NuevaProyeccionContent() {
       {/* Navigation Buttons */}
       <div className="flex justify-between">
         <button
-          onClick={() => setStep(Math.max(0, step - 1))}
+          onClick={async () => {
+            const prev = Math.max(0, step - 1);
+            await saveDraft(prev);
+            setStep(prev);
+          }}
           disabled={step === 0}
           className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-30 cursor-pointer"
         >
@@ -582,7 +768,15 @@ function NuevaProyeccionContent() {
         {step < 3 ? (
           <div className="flex flex-col items-end gap-1">
             <button
-              onClick={() => setStep(step + 1)}
+              onClick={async () => {
+                const next = step + 1;
+                // If we're leaving Step 0 with a real client picked AND a prior null-slot draft existed,
+                // promote it cleanly via clearPreClientDraft.
+                const promotingClient =
+                  step === 0 && draftClientId !== undefined && !!existingDraft && existingDraft.clientId === undefined;
+                await saveDraft(next, promotingClient ? { clearPreClientDraft: true } : undefined);
+                setStep(next);
+              }}
               disabled={
                 (step === 0 && (!clientId || annualSales <= 0 || totalBudget <= 0)) ||
                 (step === 2 && Math.abs(allocation.remaining) > 0.01)
@@ -604,14 +798,21 @@ function NuevaProyeccionContent() {
             )}
           </div>
         ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex items-center gap-2 rounded-md bg-accent px-6 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            {loading ? "Creando..." : "Crear Proyección"}
-            <Check size={14} />
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center gap-2 rounded-md bg-accent px-6 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? "Creando..." : "Crear Proyección"}
+              <Check size={14} />
+            </button>
+            {submitError && (
+              <p className="max-w-sm text-right text-xs text-red-400">
+                {submitError}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

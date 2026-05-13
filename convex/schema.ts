@@ -88,6 +88,46 @@ export default defineSchema({
     .index("by_orgId_year", ["orgId", "year"])
     .index("by_clientId_year", ["clientId", "year"]),
 
+  projectionDrafts: defineTable({
+    orgId: v.string(),
+    userId: v.string(),
+    clientId: v.optional(v.id("clients")),
+    state: v.object({
+      step: v.number(),
+      year: v.optional(v.number()),
+      annualSales: v.optional(v.number()),
+      totalBudget: v.optional(v.number()),
+      commissionRate: v.optional(v.number()),
+      startMonth: v.optional(v.number()),
+      projectionMode: v.optional(
+        v.union(v.literal("rolling"), v.literal("fiscal"))
+      ),
+      useSeasonality: v.optional(v.boolean()),
+      seasonalityDeltas: v.optional(
+        v.array(
+          v.object({
+            month: v.number(),
+            deltaPercent: v.number(),
+          })
+        )
+      ),
+      serviceStates: v.optional(
+        v.array(
+          v.object({
+            serviceId: v.string(),
+            chosenPct: v.number(),
+            isActive: v.boolean(),
+          })
+        )
+      ),
+      previousProjectionId: v.optional(v.id("projections")),
+    }),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_orgId_userId_clientId", ["orgId", "userId", "clientId"]),
+
   services: defineTable({
     orgId: v.optional(v.string()),
     name: v.string(),

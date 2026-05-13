@@ -145,6 +145,15 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    console.log("[projections.create] inserted", {
+      projectionId,
+      orgId,
+      clientId: args.clientId,
+      status: "draft",
+      hasMonthCount: args.monthCount !== undefined,
+      hasProjectionMode: args.projectionMode !== undefined,
+    });
+
     // Create projection services and monthly assignments
     for (const svc of result.services) {
       const serviceConfig = args.serviceConfigs.find(
@@ -230,10 +239,8 @@ export const recalculate = mutation({
     // totalBudget changes. For rolling projections effectiveBudget === totalBudget.
     const monthCount = projection.monthCount ?? 12;
     const projectionMode = projection.projectionMode ?? "rolling";
-    const effectiveBudget =
-      projectionMode === "fiscal"
-        ? totalBudget * (monthCount / 12)
-        : totalBudget;
+    // 2026-05-12: dropped proration. See projectionContext.ts for rationale.
+    const effectiveBudget = totalBudget;
 
     // Get existing projection services
     const existingProjServices = await ctx.db

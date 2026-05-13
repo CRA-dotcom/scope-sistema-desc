@@ -35,8 +35,8 @@ export function ProjectionPeriodSelector({
   totalBudget,
 }: Props) {
   const monthCount = mode === "fiscal" ? Math.max(1, 13 - startMonth) : 12;
-  const effectiveBudget =
-    mode === "fiscal" ? totalBudget * (monthCount / 12) : totalBudget;
+  const effectiveBudget = totalBudget;
+  const monthlyDistribution = monthCount > 0 ? totalBudget / monthCount : 0;
 
   // Compute end month/year for display
   const endIndex = startMonth - 1 + monthCount - 1;
@@ -85,8 +85,13 @@ export function ProjectionPeriodSelector({
               <p className="text-xs">
                 Presupuesto contratado:{" "}
                 <span className="font-medium">
-                  {formatCurrency(effectiveBudget)}
+                  {formatCurrency(totalBudget)}
                 </span>
+                {" distribuido en 12 meses (~"}
+                <span className="font-medium">
+                  {formatCurrency(monthlyDistribution)}
+                </span>
+                {"/mes)"}
               </p>
             )}
           </div>
@@ -102,7 +107,7 @@ export function ProjectionPeriodSelector({
             className="mt-1 accent-accent cursor-pointer"
           />
           <div className="flex-1 space-y-2">
-            <div className="text-sm font-medium">Prorrateo año fiscal</div>
+            <div className="text-sm font-medium">Contrato año fiscal (hasta diciembre)</div>
             <div className="flex items-center gap-2 text-sm flex-wrap">
               <span className="text-muted-foreground">Inicio:</span>
               <select
@@ -126,15 +131,17 @@ export function ProjectionPeriodSelector({
             {mode === "fiscal" && (
               <>
                 <p className="text-xs">
-                  Presupuesto prorrateado:{" "}
+                  Presupuesto contratado:{" "}
                   <span className="font-medium">
                     {formatCurrency(totalBudget)}
                   </span>
-                  {" × "}
-                  {monthCount}/12 ={" "}
+                  {" distribuido en "}
+                  <span className="font-medium">{monthCount} meses</span>
+                  {" (~"}
                   <span className="font-medium">
-                    {formatCurrency(effectiveBudget)}
+                    {formatCurrency(monthlyDistribution)}
                   </span>
+                  {"/mes)"}
                 </p>
                 {endMonth === 12 && (
                   <p className="text-xs text-muted-foreground italic">

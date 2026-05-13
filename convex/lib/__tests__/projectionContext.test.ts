@@ -25,7 +25,7 @@ describe("resolveProjectionContext", () => {
     expect(r.endYear).toBe(2027);
   });
 
-  it("fiscal with startMonth=5 → 8 months May-Dec same year, prorated 8/12", () => {
+  it("fiscal with startMonth=5 → 8 months May-Dec same year, full budget distributed", () => {
     const r = resolveProjectionContext({
       totalBudget: 24_000_000,
       year: 2026,
@@ -33,7 +33,7 @@ describe("resolveProjectionContext", () => {
       startMonth: 5,
     });
     expect(r.monthCount).toBe(8);
-    expect(r.effectiveBudget).toBeCloseTo(24_000_000 * 8 / 12, 2); // = 16M
+    expect(r.effectiveBudget).toBe(24_000_000); // full contract, distributed across 8 months
     expect(r.endMonth).toBe(12);
     expect(r.endYear).toBe(2026);
   });
@@ -51,17 +51,17 @@ describe("resolveProjectionContext", () => {
     expect(r.endYear).toBe(2026);
   });
 
-  it("explicit values override defaults", () => {
+  it("explicit monthCount overrides computed default, but effectiveBudget is always totalBudget", () => {
     const r = resolveProjectionContext({
       totalBudget: 24_000_000,
       year: 2026,
       projectionMode: "fiscal",
       startMonth: 5,
       monthCount: 6,           // explicit (not the default 8)
-      effectiveBudget: 12_000_000, // explicit
+      effectiveBudget: 12_000_000, // explicit value is ignored; engine always uses totalBudget
     });
     expect(r.monthCount).toBe(6);
-    expect(r.effectiveBudget).toBe(12_000_000);
+    expect(r.effectiveBudget).toBe(24_000_000); // always equals totalBudget, not the explicit arg
   });
 });
 
