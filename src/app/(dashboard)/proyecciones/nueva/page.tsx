@@ -114,6 +114,24 @@ function NuevaProyeccionContent() {
     api.functions.projections.mutations.create
   );
 
+  const draftClientId = clientId
+    ? (clientId as Id<"clients">)
+    : undefined;
+  const existingDraft = useQuery(
+    api.functions.projectionDrafts.queries.getMyDraft,
+    authReady ? { clientId: draftClientId } : "skip"
+  );
+
+  const upsertDraft = useMutation(
+    api.functions.projectionDrafts.mutations.upsertDraft
+  );
+  const deleteDraft = useMutation(
+    api.functions.projectionDrafts.mutations.deleteMyDraft
+  );
+
+  const [draftDismissed, setDraftDismissed] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+
   // Initialize services when loaded
   const initialized = useRef(false);
   useEffect(() => {
@@ -172,6 +190,38 @@ function NuevaProyeccionContent() {
       ),
     [effectiveBudget, annualSales, commissionRate, serviceStates]
   );
+
+  function hydrateFromDraft() {
+    if (!existingDraft) return;
+    const s = existingDraft.state;
+    if (s.year !== undefined) setYear(s.year);
+    if (s.annualSales !== undefined) setAnnualSales(s.annualSales);
+    if (s.totalBudget !== undefined) setTotalBudget(s.totalBudget);
+    if (s.commissionRate !== undefined) setCommissionRate(s.commissionRate);
+    if (s.startMonth !== undefined) setStartMonth(s.startMonth);
+    if (s.projectionMode !== undefined) setProjectionMode(s.projectionMode);
+    if (s.useSeasonality !== undefined) setUseSeasonality(s.useSeasonality);
+    if (s.seasonalityDeltas !== undefined) setSeasonalityDeltas(s.seasonalityDeltas);
+    if (s.serviceStates !== undefined) {
+      // serviceStates from the draft only carries chosenPct/isActive — merge
+      // those onto the freshly-loaded service catalogue so name/min/max stay live.
+      setServiceStates((prev) =>
+        prev.map((p) => {
+          const draftRow = s.serviceStates!.find((d) => d.serviceId === p.serviceId);
+          return draftRow
+            ? { ...p, chosenPct: draftRow.chosenPct, isActive: draftRow.isActive }
+            : p;
+        })
+      );
+    }
+    setStep(s.step);
+    setDraftHydrated(true);
+  }
+
+  async function discardDraft() {
+    await deleteDraft({ clientId: draftClientId });
+    setDraftDismissed(true);
+  }
 
   async function handleSubmit() {
     if (!clientId) return;
@@ -241,6 +291,30 @@ function NuevaProyeccionContent() {
         <TrendingUp className="text-accent" size={28} />
         <h1 className="text-2xl font-bold">Nueva Proyección</h1>
       </div>
+
+      {existingDraft && !draftHydrated && !draftDismissed && (
+        <div className="rounded-lg border border-accent/40 bg-accent/5 p-4">
+          <p className="text-sm">
+            Tienes un borrador en curso (último guardado:{" "}
+            {new Date(existingDraft.updatedAt).toLocaleString()}). ¿Quieres
+            continuar donde lo dejaste o empezar de nuevo?
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={hydrateFromDraft}
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-primary hover:bg-accent/90 cursor-pointer"
+            >
+              Continuar borrador
+            </button>
+            <button
+              onClick={discardDraft}
+              className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary cursor-pointer"
+            >
+              Empezar de nuevo
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Step Indicator */}
       <div className="flex items-center gap-2">
