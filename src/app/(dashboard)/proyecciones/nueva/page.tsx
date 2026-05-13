@@ -86,9 +86,8 @@ function NuevaProyeccionContent() {
 
   // Derive monthCount and effectiveBudget live
   const monthCount = projectionMode === "fiscal" ? Math.max(1, 13 - startMonth) : 12;
-  const effectiveBudget = projectionMode === "fiscal"
-    ? totalBudget * (monthCount / 12)
-    : totalBudget;
+  // 2026-05-12: dropped proration. effectiveBudget = totalBudget in both modes.
+  const effectiveBudget = totalBudget;
 
   // Step 2: Seasonality deltas
   const [seasonalityDeltas, setSeasonalityDeltas] = useState<SeasonalityDelta[]>(defaultDeltas());
