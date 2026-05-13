@@ -532,11 +532,17 @@ function NuevaProyeccionContent() {
                     annualSales={annualSales}
                   />
                 ) : (
-                  <div className="rounded-md bg-secondary/50 p-4 text-center">
+                  <div className="rounded-md bg-secondary/50 p-4 space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      Sin estacionalidad: la venta anual del cliente se reparte
-                      uniformemente como {formatCurrency(annualSales / 12)}/mes
-                      (referencia para FE — no es la distribución del presupuesto).
+                      <span className="font-medium text-foreground">Sin estacionalidad personalizada.</span>{" "}
+                      Tomamos la facturación del cliente ({formatCurrency(annualSales)}) y la repartimos en 12 meses
+                      (~{formatCurrency(annualSales / 12)}/mes){" "}
+                      <span className="font-medium">solo para calcular los factores de estacionalidad (FE).</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Esto NO es el monto que se cobra — eso lo define el presupuesto contratado{" "}
+                      ({formatCurrency(totalBudget)}) ÷ {monthCount} meses{" "}
+                      = ~{formatCurrency(monthCount > 0 ? totalBudget / monthCount : 0)}/mes.
                     </p>
                   </div>
                 )}
@@ -546,13 +552,20 @@ function NuevaProyeccionContent() {
                 )}
               </>
             ) : (
-              <div className="rounded-md bg-secondary/50 p-4 text-center">
+              <div className="rounded-md bg-secondary/50 p-4 space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Sin estacionalidad: las ventas se distribuirán uniformemente
-                  ({formatCurrency(annualSales / 12)}/mes).
+                  <span className="font-medium text-foreground">Sin estacionalidad.</span>{" "}
+                  Tomamos la facturación del cliente ({formatCurrency(annualSales)}) y la repartimos en 12 meses
+                  (~{formatCurrency(annualSales / 12)}/mes){" "}
+                  <span className="font-medium">solo para calcular los factores de estacionalidad (FE).</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-2 italic">
-                  La estacionalidad está configurada por el administrador
+                <p className="text-sm text-muted-foreground">
+                  Esto NO es el monto que se cobra — eso lo define el presupuesto contratado{" "}
+                  ({formatCurrency(totalBudget)}) ÷ {monthCount} meses{" "}
+                  = ~{formatCurrency(monthCount > 0 ? totalBudget / monthCount : 0)}/mes.
+                </p>
+                <p className="text-xs text-muted-foreground italic">
+                  La estacionalidad está configurada por el administrador.
                 </p>
               </div>
             )}
