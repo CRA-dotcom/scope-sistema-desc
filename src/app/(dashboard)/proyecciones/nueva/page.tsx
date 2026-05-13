@@ -320,6 +320,13 @@ function NuevaProyeccionContent() {
         return; // Do NOT redirect.
       }
 
+      // Clean up the draft now that the projection is real.
+      try {
+        await deleteDraft({ clientId: draftClientId });
+      } catch (_) {
+        // Best-effort; if the delete fails the cron / next session can clean it.
+      }
+
       router.push(`/proyecciones/${projId}`);
     } catch (err) {
       setSubmitError((err as Error).message || "Error al crear la proyección");
