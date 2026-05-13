@@ -47,7 +47,14 @@ export default function ProjectionDetailPage() {
     api.functions.questionnaires.mutations.generate
   );
   const [isGeneratingQ, setIsGeneratingQ] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState<Doc<"monthlyAssignments"> | null>(null);
+  // Track only the id, then look up the live doc from matrix.assignments on each
+  // render. Caching the full Doc here made the status pills appear "stuck" after
+  // an updateStatus mutation: Convex persisted the change but this stale snapshot
+  // kept rendering the old status until the panel was closed and reopened.
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<Id<"monthlyAssignments"> | null>(null);
+  const selectedAssignment: Doc<"monthlyAssignments"> | null = selectedAssignmentId
+    ? (matrix?.assignments.find((a) => a._id === selectedAssignmentId) ?? null)
+    : null;
 
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
   const { download: downloadPdf, state: pdfState } = usePdfGenerator();
@@ -301,7 +308,7 @@ export default function ProjectionDetailPage() {
                           "px-2 py-2 text-center",
                           ma && "cursor-pointer hover:bg-accent/5 transition-colors"
                         )}
-                        onClick={() => ma && setSelectedAssignment(ma)}
+                        onClick={() => ma && setSelectedAssignmentId(ma._id)}
                       >
                         {ma ? (
                           <div className="space-y-1">
@@ -364,7 +371,7 @@ export default function ProjectionDetailPage() {
       {selectedAssignment && (
         <MatrixCellDetail
           assignment={selectedAssignment}
-          onClose={() => setSelectedAssignment(null)}
+          onClose={() => setSelectedAssignmentId(null)}
         />
       )}
     </div>
