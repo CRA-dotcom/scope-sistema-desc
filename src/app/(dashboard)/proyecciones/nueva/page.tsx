@@ -199,6 +199,9 @@ function NuevaProyeccionContent() {
           ? (previousProjectionId as Id<"projections">)
           : undefined,
       });
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[wizard.submit] created", { projId });
+      }
       router.push(`/proyecciones/${projId}`);
     } catch (err) {
       alert((err as Error).message || "Error al crear la proyección");

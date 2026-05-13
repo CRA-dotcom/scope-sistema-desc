@@ -145,6 +145,15 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    console.log("[projections.create] inserted", {
+      projectionId,
+      orgId,
+      clientId: args.clientId,
+      status: "draft",
+      hasMonthCount: args.monthCount !== undefined,
+      hasProjectionMode: args.projectionMode !== undefined,
+    });
+
     // Create projection services and monthly assignments
     for (const svc of result.services) {
       const serviceConfig = args.serviceConfigs.find(
