@@ -164,6 +164,11 @@ const aiLogValidator = v.array(
 
 /**
  * Internal: save a generated deliverable from the AI pipeline.
+ *
+ * `unfilledKeys` (D1): when non-empty, the deliverable is saved with
+ * `auditStatus: "rejected"` and `auditFeedback` set to a JSON string
+ * `{"reason":"incomplete_render","unfilledKeys":[...],"costUsd":N}` so the
+ * audit UI can surface the partial-render warning.
  */
 export const saveGenerated = internalMutation({
   args: {
@@ -177,8 +182,22 @@ export const saveGenerated = internalMutation({
     shortContent: v.string(),
     longContent: v.string(),
     aiLog: aiLogValidator,
+    unfilledKeys: v.optional(v.array(v.string())),
+    costUsd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const unfilledKeys = args.unfilledKeys ?? [];
+    const auditStatus =
+      unfilledKeys.length > 0 ? ("rejected" as const) : ("pending" as const);
+    const auditFeedback =
+      unfilledKeys.length > 0
+        ? JSON.stringify({
+            reason: "incomplete_render",
+            unfilledKeys,
+            costUsd: args.costUsd ?? null,
+          })
+        : undefined;
+
     return await ctx.db.insert("deliverables", {
       orgId: args.orgId,
       assignmentId: args.assignmentId,
@@ -189,7 +208,8 @@ export const saveGenerated = internalMutation({
       year: args.year,
       shortContent: args.shortContent,
       longContent: args.longContent,
-      auditStatus: "pending",
+      auditStatus,
+      auditFeedback,
       retryCount: 0,
       aiLog: args.aiLog,
       createdAt: Date.now(),
