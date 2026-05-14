@@ -83,6 +83,10 @@ import type * as functions_storage_mutations from "../functions/storage/mutation
 import type * as functions_storage_upload from "../functions/storage/upload.js";
 import type * as http from "../http.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
+import type * as lib_deliverableEngine_aiBatchFill from "../lib/deliverableEngine/aiBatchFill.js";
+import type * as lib_deliverableEngine_errors from "../lib/deliverableEngine/errors.js";
+import type * as lib_deliverableEngine_placeholders from "../lib/deliverableEngine/placeholders.js";
+import type * as lib_deliverableEngine_staticResolver from "../lib/deliverableEngine/staticResolver.js";
 import type * as lib_projectionContext from "../lib/projectionContext.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
 import type * as lib_questionnaireMappings from "../lib/questionnaireMappings.js";
@@ -172,6 +176,10 @@ declare const fullApi: ApiFromModules<{
   "functions/storage/upload": typeof functions_storage_upload;
   http: typeof http;
   "lib/authHelpers": typeof lib_authHelpers;
+  "lib/deliverableEngine/aiBatchFill": typeof lib_deliverableEngine_aiBatchFill;
+  "lib/deliverableEngine/errors": typeof lib_deliverableEngine_errors;
+  "lib/deliverableEngine/placeholders": typeof lib_deliverableEngine_placeholders;
+  "lib/deliverableEngine/staticResolver": typeof lib_deliverableEngine_staticResolver;
   "lib/projectionContext": typeof lib_projectionContext;
   "lib/projectionEngine": typeof lib_projectionEngine;
   "lib/questionnaireMappings": typeof lib_questionnaireMappings;
