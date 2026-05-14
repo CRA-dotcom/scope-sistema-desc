@@ -79,3 +79,14 @@ export const getDeliverableData = internalQuery({
     return await ctx.db.get(args.deliverableId);
   },
 });
+
+export const getOrgBranding = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const branding = await ctx.db
+      .query("orgBranding")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .first();
+    return branding;
+  },
+});

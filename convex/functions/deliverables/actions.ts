@@ -4,6 +4,16 @@ import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import Anthropic from "@anthropic-ai/sdk";
+import { extractPlaceholders } from "../../lib/deliverableEngine/placeholders";
+import {
+  resolveStatic,
+  type StaticResolutionContext,
+} from "../../lib/deliverableEngine/staticResolver";
+import { batchFillWithClaude } from "../../lib/deliverableEngine/aiBatchFill";
+import {
+  CreditExhaustedError,
+  CostCapExceededError,
+} from "../../lib/deliverableEngine/errors";
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -26,13 +36,6 @@ type AiLogEntry = {
   timestamp: number;
 };
 
-type TemplateVariable = {
-  key: string;
-  label: string;
-  source: string;
-  required: boolean;
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 function getAnthropicClient(): Anthropic | null {
@@ -46,46 +49,62 @@ function getAnthropicClient(): Anthropic | null {
   return new Anthropic({ apiKey });
 }
 
-function resolveNonAiVariables(
-  html: string,
-  variables: TemplateVariable[],
-  context: {
-    client?: Record<string, unknown>;
-    projection?: Record<string, unknown>;
-    service?: Record<string, unknown>;
-  }
-): { html: string; aiVariables: TemplateVariable[] } {
-  const aiVariables: TemplateVariable[] = [];
-  let result = html;
+/**
+ * Build the cacheable context block sent to Claude per chunk. Mirrors the
+ * shape from scripts/generate-demo-deliverables.mjs so output is comparable
+ * when validating the refactor against the reference PDFs.
+ */
+function buildContextBlock(args: {
+  client: { name: string; rfc: string; industry: string; annualRevenue: number };
+  projection:
+    | { year: number; annualSales: number; totalBudget: number; effectiveBudget?: number }
+    | null;
+  projService: { serviceName: string; chosenPct: number; annualAmount: number } | null;
+  questionnaire:
+    | { responses?: Array<{ section?: string; questionText: string; answer: string | unknown }> }
+    | null;
+}): string {
+  const { client, projection, projService, questionnaire } = args;
 
-  for (const variable of variables) {
-    const { key, source } = variable;
-    const placeholder = `{{${key}}}`;
+  const responses = questionnaire?.responses ?? [];
+  const questionnaireText = responses
+    .map((r) => {
+      const a = typeof r.answer === "string" ? r.answer : JSON.stringify(r.answer);
+      return `[${r.section ?? "General"}] ${r.questionText}\n→ ${a}`;
+    })
+    .join("\n\n");
 
-    if (source === "ai") {
-      aiVariables.push(variable);
-      continue;
-    }
+  const projServiceAmount = projService
+    ? projService.annualAmount > 0
+      ? projService.annualAmount
+      : Math.round(
+          (projService.chosenPct ?? 0) *
+            (projection?.effectiveBudget ?? projection?.totalBudget ?? 0)
+        )
+    : 0;
 
-    let value: string | undefined;
+  const projServiceLine = projService
+    ? `${projService.serviceName} — ${(projService.chosenPct * 100).toFixed(2)}% del presupuesto, monto anual $${projServiceAmount.toLocaleString("es-MX")} MXN`
+    : "Servicio no contratado en la proyección actual";
 
-    if (source === "client" && context.client && key in context.client) {
-      const raw = context.client[key];
-      value = typeof raw === "number" ? raw.toLocaleString("es-MX") : String(raw ?? "");
-    } else if (source === "projection" && context.projection && key in context.projection) {
-      const raw = context.projection[key];
-      value = typeof raw === "number" ? raw.toLocaleString("es-MX") : String(raw ?? "");
-    } else if (source === "service" && context.service && key in context.service) {
-      const raw = context.service[key];
-      value = typeof raw === "number" ? raw.toLocaleString("es-MX") : String(raw ?? "");
-    }
+  const projLine = projection
+    ? `PROYECCIÓN ${projection.year}: ventas $${projection.annualSales.toLocaleString("es-MX")} MXN, presupuesto total $${projection.totalBudget.toLocaleString("es-MX")} MXN`
+    : "PROYECCIÓN: sin datos";
 
-    if (value !== undefined) {
-      result = result.replace(new RegExp(escapeRegex(placeholder), "g"), value);
-    }
-  }
+  return `CLIENTE: ${client.name} (${client.industry}, RFC ${client.rfc}, facturación anual $${client.annualRevenue.toLocaleString("es-MX")} MXN)
+${projLine}
+SERVICIO (${projService?.serviceName ?? "n/a"}): ${projServiceLine}
 
-  return { html: result, aiVariables };
+RESPUESTAS DEL CUESTIONARIO:
+${questionnaireText || "Sin respuestas de cuestionario disponibles."}`;
+}
+
+function formatToday(): string {
+  return new Date().toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function escapeRegex(str: string): string {
@@ -181,8 +200,7 @@ export const generateDeliverable = action({
     if (!client) throw new Error("Cliente no encontrado.");
     if (!projService) throw new Error("Servicio de proyeccion no encontrado.");
 
-    // Fetch projection and questionnaire
-    const [projection, questionnaire] = await Promise.all([
+    const [projection, questionnaire, orgBranding, template] = await Promise.all([
       ctx.runQuery(
         internal.functions.deliverables.internalQueries.getProjectionByProjService,
         { projectionId: projService.projectionId }
@@ -191,101 +209,135 @@ export const generateDeliverable = action({
         internal.functions.deliverables.internalQueries.getQuestionnaireForClient,
         { clientId: args.clientId, projectionId: projService.projectionId }
       ),
-    ]);
-
-    // Find template
-    const template = await ctx.runQuery(
-      internal.functions.deliverables.internalQueries.findTemplate,
-      {
+      ctx.runQuery(internal.functions.deliverables.internalQueries.getOrgBranding, {
+        orgId: assignment.orgId,
+      }),
+      ctx.runQuery(internal.functions.deliverables.internalQueries.findTemplate, {
         serviceName: projService.serviceName,
         type: args.templateType,
         orgId: assignment.orgId,
-      }
-    );
+      }),
+    ]);
 
     const aiLogs: AiLogEntry[] = [];
+    let unfilledKeys: string[] = [];
+    let totalCost = 0;
     let finalContent: string;
 
     if (template) {
-      // 2. Resolve non-AI variables
-      const context = {
-        client: client as unknown as Record<string, unknown>,
-        projection: projection as unknown as Record<string, unknown>,
-        service: projService as unknown as Record<string, unknown>,
+      // 2. Discover placeholders directly from the HTML (template.variables ignored).
+      const placeholders = extractPlaceholders(template.htmlTemplate);
+
+      // 3. Resolve static placeholders, collect AI keys.
+      const staticCtx: StaticResolutionContext = {
+        client: {
+          name: client.name,
+          rfc: client.rfc,
+          industry: client.industry,
+          annualRevenue: client.annualRevenue,
+          billingFrequency: client.billingFrequency,
+          contactName: client.contactName,
+          contactEmail: client.contactEmail,
+        },
+        projection: projection
+          ? {
+              year: projection.year,
+              annualSales: projection.annualSales,
+              totalBudget: projection.totalBudget,
+              effectiveBudget: projection.effectiveBudget,
+            }
+          : null,
+        projService: {
+          serviceName: projService.serviceName,
+          chosenPct: projService.chosenPct,
+          annualAmount: projService.annualAmount,
+        },
+        orgBranding: orgBranding
+          ? {
+              companyName: orgBranding.companyName,
+              primaryColor: orgBranding.primaryColor,
+              secondaryColor: orgBranding.secondaryColor,
+              accentColor: orgBranding.accentColor,
+              fontFamily: orgBranding.fontFamily,
+              footerText: orgBranding.footerText,
+            }
+          : null,
+        today: formatToday(),
       };
 
-      const { html, aiVariables } = resolveNonAiVariables(
-        template.htmlTemplate,
-        template.variables,
-        context
-      );
-
-      // 3. Fill AI variables using Claude
-      const anthropic = getAnthropicClient();
-      let resolvedHtml = html;
-
-      if (aiVariables.length > 0 && anthropic) {
-        const questionnaireContext = questionnaire?.responses
-          ? questionnaire.responses
-              .map((r: { questionText: string; answer: string }) => `P: ${r.questionText}\nR: ${r.answer}`)
-              .join("\n\n")
-          : "Sin respuestas de cuestionario disponibles.";
-
-        const projectionContext = projection
-          ? `Ventas anuales: $${projection.annualSales.toLocaleString("es-MX")}, Presupuesto total: $${projection.totalBudget.toLocaleString("es-MX")}, Comision: ${projection.commissionRate}%`
-          : "Sin datos de proyeccion.";
-
-        for (const aiVar of aiVariables) {
-          try {
-            const result = await callClaudeWithRetry(
-              anthropic,
-              `Eres un consultor profesional de ${projService.serviceName}. Genera contenido para un ${args.templateType === "deliverable_short" ? "resumen ejecutivo" : "informe detallado"} empresarial.`,
-              `Variable: ${aiVar.label}.\n\nContexto del cliente: ${client.name}, industria: ${client.industry}.\n\nDatos financieros: ${projectionContext}\n\nServicio: ${projService.serviceName} (${projService.chosenPct}% del presupuesto, monto anual: $${projService.annualAmount.toLocaleString("es-MX")})\n\nRespuestas del cuestionario:\n${questionnaireContext}\n\nGenera el contenido en espanol profesional. Responde unicamente con el contenido solicitado, sin encabezados ni explicaciones adicionales.`
-            );
-
-            resolvedHtml = resolvedHtml.replace(
-              new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
-              result.text
-            );
-            // Also replace the [AI_PENDIENTE] placeholder if present
-            resolvedHtml = resolvedHtml.replace(
-              new RegExp(escapeRegex("[AI_PENDIENTE]"), "g"),
-              ""
-            );
-            aiLogs.push(result.log);
-          } catch (err) {
-            console.error(
-              `[AI Pipeline] Failed to generate AI variable "${aiVar.key}":`,
-              err
-            );
-            resolvedHtml = resolvedHtml.replace(
-              new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
-              AI_UNAVAILABLE_PLACEHOLDER
-            );
-          }
-        }
-      } else if (aiVariables.length > 0 && !anthropic) {
-        // No API key: replace all AI placeholders
-        for (const aiVar of aiVariables) {
-          resolvedHtml = resolvedHtml.replace(
-            new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
-            AI_UNAVAILABLE_PLACEHOLDER
-          );
-        }
+      const resolved: Record<string, string> = {};
+      const needsAi: string[] = [];
+      for (const k of placeholders) {
+        const v = resolveStatic(k, staticCtx);
+        if (v !== null) resolved[k] = v;
+        else needsAi.push(k);
       }
 
-      finalContent = resolvedHtml;
-    } else {
-      // No template found: generate content directly with AI
+      // 4. Batched AI fill (only if we have an Anthropic key + AI keys to fill).
       const anthropic = getAnthropicClient();
+      if (anthropic && needsAi.length > 0) {
+        const contextBlock = buildContextBlock({
+          client,
+          projection,
+          projService,
+          questionnaire,
+        });
+        try {
+          const result = await batchFillWithClaude(
+            anthropic,
+            projService.serviceName,
+            contextBlock,
+            needsAi
+          );
+          Object.assign(resolved, result.resolved);
+          aiLogs.push(...result.log);
+          unfilledKeys = result.unfilled;
+          totalCost = result.totalCost;
+        } catch (err) {
+          if (err instanceof CreditExhaustedError) {
+            console.warn("[deliverableEngine] credit exhausted; saving partial.");
+            unfilledKeys = needsAi.filter((k) => !(k in resolved));
+          } else if (err instanceof CostCapExceededError) {
+            console.warn(
+              `[deliverableEngine] cost cap exceeded at $${err.costUsd.toFixed(4)}; saving partial.`
+            );
+            unfilledKeys = needsAi.filter((k) => !(k in resolved));
+            totalCost = err.costUsd;
+          } else {
+            throw err;
+          }
+        }
+      } else if (!anthropic && needsAi.length > 0) {
+        // No API key — leave AI keys unfilled (they get the visible marker below).
+        unfilledKeys = needsAi;
+      }
 
-      if (anthropic) {
+      // 5. Stuff visible markers for unfilled keys (D1).
+      for (const k of unfilledKeys) {
+        resolved[k] = `<em style="color:#94a3b8">[${k}]</em>`;
+      }
+
+      // 6. Replace all placeholders in the HTML.
+      let html = template.htmlTemplate;
+      for (const [k, v] of Object.entries(resolved)) {
+        const safe = String(v ?? "").replace(/\$/g, "$$$$");
+        html = html.replace(new RegExp(escapeRegex(`{{${k}}}`), "g"), safe);
+      }
+      finalContent = html;
+    } else {
+      // No template: fall back to direct generation (legacy behavior, rare path).
+      const anthropic = getAnthropicClient();
+      if (!anthropic) {
+        finalContent = `<p>${AI_UNAVAILABLE_PLACEHOLDER}</p>`;
+      } else {
         const questionnaireContext = questionnaire?.responses
           ? questionnaire.responses
-              .map((r: { questionText: string; answer: string }) => `P: ${r.questionText}\nR: ${r.answer}`)
+              .map(
+                (r: { questionText: string; answer: string }) =>
+                  `P: ${r.questionText}\nR: ${r.answer}`
+              )
               .join("\n\n")
           : "Sin respuestas de cuestionario disponibles.";
-
         try {
           const isShort = args.templateType === "deliverable_short";
           const result = await callClaudeWithRetry(
@@ -293,19 +345,16 @@ export const generateDeliverable = action({
             `Eres un consultor profesional de ${projService.serviceName}. Genera un ${isShort ? "resumen ejecutivo breve" : "informe detallado completo"} empresarial en formato HTML.`,
             `Cliente: ${client.name}\nIndustria: ${client.industry}\nRFC: ${client.rfc}\nServicio: ${projService.serviceName}\nMes: ${assignment.month}/${assignment.year}\nMonto mensual: $${assignment.amount.toLocaleString("es-MX")}\n\nRespuestas del cuestionario:\n${questionnaireContext}\n\nGenera un ${isShort ? "resumen ejecutivo (1-2 parrafos)" : "informe detallado con secciones: Resumen Ejecutivo, Analisis, Hallazgos, Recomendaciones, Proximos Pasos"} en espanol profesional. Responde en formato HTML.`
           );
-
           finalContent = result.text;
           aiLogs.push(result.log);
         } catch (err) {
-          console.error("[AI Pipeline] Failed to generate content:", err);
+          console.error("[deliverableEngine] Failed to generate content:", err);
           finalContent = `<p>${AI_UNAVAILABLE_PLACEHOLDER}</p>`;
         }
-      } else {
-        finalContent = `<p>${AI_UNAVAILABLE_PLACEHOLDER}</p>`;
       }
     }
 
-    // 4. Save deliverable
+    // 7. Save deliverable (with unfilledKeys → rejected status per D1).
     const isShort = args.templateType === "deliverable_short";
     const deliverableId = await ctx.runMutation(
       internal.functions.deliverables.mutations.saveGenerated,
@@ -320,11 +369,20 @@ export const generateDeliverable = action({
         shortContent: isShort ? finalContent : "",
         longContent: isShort ? "" : finalContent,
         aiLog: aiLogs,
+        unfilledKeys: unfilledKeys.length > 0 ? unfilledKeys : undefined,
+        costUsd: totalCost > 0 ? totalCost : undefined,
       }
     );
 
+    // 8. Auto-queue audit (D5).
+    await ctx.scheduler.runAfter(
+      5000,
+      internal.functions.deliverables.actions.auditDeliverable,
+      { deliverableId }
+    );
+
     console.log(
-      `[AI Pipeline] Deliverable generated: ${deliverableId}, type: ${args.templateType}, AI calls: ${aiLogs.length}, total cost: $${aiLogs.reduce((sum, l) => sum + l.costUsd, 0).toFixed(6)}`
+      `[deliverableEngine] Generated ${deliverableId}: type=${args.templateType}, AI calls=${aiLogs.length}, unfilled=${unfilledKeys.length}, cost=$${totalCost.toFixed(6)}`
     );
 
     return deliverableId;
@@ -334,8 +392,11 @@ export const generateDeliverable = action({
 /**
  * Audit a deliverable using AI.
  * Validates completeness, professional tone, and accuracy against questionnaire data.
+ *
+ * Internal: only invoked by the scheduler at the end of generateDeliverable
+ * (D5) or by regenerateDeliverable. Not exposed to the frontend.
  */
-export const auditDeliverable = action({
+export const auditDeliverable = internalAction({
   args: { deliverableId: v.id("deliverables") },
   handler: async (ctx, args) => {
     const deliverable = await ctx.runQuery(
