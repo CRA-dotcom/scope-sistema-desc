@@ -27,6 +27,7 @@ import type * as functions_deliverables_actions from "../functions/deliverables/
 import type * as functions_deliverables_internalQueries from "../functions/deliverables/internalQueries.js";
 import type * as functions_deliverables_mutations from "../functions/deliverables/mutations.js";
 import type * as functions_deliverables_queries from "../functions/deliverables/queries.js";
+import type * as functions_devtools_dumpDemoContext from "../functions/devtools/dumpDemoContext.js";
 import type * as functions_email_internalMutations from "../functions/email/internalMutations.js";
 import type * as functions_email_internalQueries from "../functions/email/internalQueries.js";
 import type * as functions_email_mutations from "../functions/email/mutations.js";
@@ -115,6 +116,7 @@ declare const fullApi: ApiFromModules<{
   "functions/deliverables/internalQueries": typeof functions_deliverables_internalQueries;
   "functions/deliverables/mutations": typeof functions_deliverables_mutations;
   "functions/deliverables/queries": typeof functions_deliverables_queries;
+  "functions/devtools/dumpDemoContext": typeof functions_devtools_dumpDemoContext;
   "functions/email/internalMutations": typeof functions_email_internalMutations;
   "functions/email/internalQueries": typeof functions_email_internalQueries;
   "functions/email/mutations": typeof functions_email_mutations;
