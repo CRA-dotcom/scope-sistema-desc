@@ -2,13 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship an ephemeral "Probar con datos reales" modal on `/platform/templates` that pairs a saved template with an already-answered questionnaire, runs the full Claude AI pipeline server-side via a new `previewDeliverable` action, and renders the resulting HTML in an iframe with token/cost/latency metrics. No persistence.
+**Goal:** Ship an ephemeral "Probar con datos reales" modal on `/platform/templates` that pairs a saved template with an already-answered questionnaire, runs the post-refactor batched Claude pipeline server-side via a new `previewDeliverable` action, and renders the resulting HTML in an iframe with token/cost/latency metrics and unfilled-key surfacing. No persistence.
 
-**Architecture:** Three thin layers. (1) Three new internal queries that fetch `template`, `questionnaire`, and the matching `projectionService` by ids; (2) a new public `previewDeliverable` action that reuses the existing `resolveNonAiVariables` + `callClaudeWithRetry` helpers from `generateDeliverable` but returns `{ html, aiLog, tokensUsed, costUsd, elapsedMs }` without writing to the `deliverables` table; (3) a modal component triggered from the template card.
+**Architecture:** Three thin layers. (1) Three new internal queries that fetch `template`, `questionnaire`, and the matching `projectionService` by ids; (2) a new public `previewDeliverable` action that reuses the post-refactor `convex/lib/deliverableEngine/` helpers (`extractPlaceholders` + `resolveStatic` + `batchFillWithClaude`) plus the file-local `buildContextBlock` / `formatToday` from `generateDeliverable`, but returns `{ html, aiLog, tokensUsed, costUsd, elapsedMs, unfilledKeys }` without writing to the `deliverables` table; (3) a modal component triggered from the template card.
 
 **Tech Stack:** Convex (action + queries), Next.js App Router, React 19, vitest + convex-test, Anthropic SDK (already wired). No new dependencies.
 
 **Spec:** `docs/superpowers/specs/2026-05-12-deliverables-test-generator-F-design.md`
+
+**Branch state at plan author time:** `feature/deliverable-engine-refactor` (13 commits ahead of `main`, includes the engine refactor that introduced `extractPlaceholders` / `resolveStatic` / `batchFillWithClaude` / sentinel errors). This plan targets that engine; do NOT use the legacy per-variable `callClaudeWithRetry` path that still exists in `actions.ts` for backwards compatibility.
 
 ---
 
@@ -16,14 +18,14 @@
 
 **Files modified:**
 - `convex/functions/deliverables/internalQueries.ts` — add `getTemplateById`, `getQuestionnaireById`, `findProjServiceByServiceAndProjection`.
-- `convex/functions/deliverables/actions.ts` — add `previewDeliverable` action at the end (reusing existing helpers).
+- `convex/functions/deliverables/actions.ts` — add `previewDeliverable` action at the end (reusing the existing engine + file-local helpers).
 - `convex/functions/questionnaires/queries.ts` — add `listTestable` public query.
 - `src/app/platform/templates/page.tsx` — add "🧪 Probar con datos reales" button per template + modal mount state.
 
 **Files created:**
 - `convex/functions/deliverables/__tests__/previewDeliverable.test.ts` — TDD tests for the action.
 - `convex/functions/questionnaires/__tests__/listTestable.test.ts` — tests for the dropdown query.
-- `src/components/templates/test-deliverable-modal.tsx` — modal with dropdown + iframe + metrics row.
+- `src/components/templates/test-deliverable-modal.tsx` — modal with dropdown + iframe + metrics + unfilled-key list.
 
 ---
 
@@ -87,7 +89,7 @@ Expected: no new errors.
 - [ ] **Step 4: Run full test suite**
 
 Run: `npm test`
-Expected: 334+ tests PASS (no behavior changes yet).
+Expected: existing tests still PASS (no behavior changes yet).
 
 - [ ] **Step 5: Commit**
 
@@ -330,7 +332,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Phase 3 — `previewDeliverable` action (TDD)
+## Phase 3 — `previewDeliverable` action (TDD against the refactored engine)
 
 ### Task 4: Write failing tests for `previewDeliverable`
 
@@ -341,7 +343,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 Run: `head -90 convex/functions/deliverables/__tests__/generateDeliverable.refactor.test.ts`
 
-Note: mocks `@anthropic-ai/sdk`, seeds clients/projections/templates, calls actions via `t.action(...)`.
+Note: mocks `@anthropic-ai/sdk` returning a JSON object with all AI keys at once (because `batchFillWithClaude` requests JSON via cache_control). The mock pattern is non-trivial — copy it verbatim.
 
 - [ ] **Step 2: Write the test file**
 
@@ -351,13 +353,25 @@ import { setupTest } from "../../../../tests/harness";
 import { api } from "../../../_generated/api";
 import type { Id } from "../../../_generated/dataModel";
 
+// Mock Anthropic SDK. `batchFillWithClaude` expects ONE JSON object per
+// chunk call with all requested keys. The default mock returns the AI
+// keys used by TEMPLATE_HTML_WITH_AI below; the cross-org / not-found
+// tests don't reach Claude so the mock returning a generic placeholder
+// is fine.
 vi.mock("@anthropic-ai/sdk", () => {
   const defaultCreate = vi.fn(async () => ({
-    content: [{ type: "text", text: "Mocked AI content." }],
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          ai_summary: "Resumen ejecutivo generado por la IA de prueba.",
+        }),
+      },
+    ],
     usage: {
-      input_tokens: 500,
-      output_tokens: 100,
-      cache_creation_input_tokens: 0,
+      input_tokens: 800,
+      output_tokens: 150,
+      cache_creation_input_tokens: 200,
       cache_read_input_tokens: 0,
     },
   }));
@@ -371,8 +385,10 @@ vi.mock("@anthropic-ai/sdk", () => {
 const ORG_A = "org_preview_a";
 const ORG_B = "org_preview_b";
 
-const TEMPLATE_HTML_NON_AI = `<p>Cliente: {{client_name}}, ventas: {{projection_annual_sales}}</p>`;
+// Static-only template: every placeholder maps via resolveStatic.
+const TEMPLATE_HTML_NON_AI = `<p>Cliente: {{client_name}}, ventas: {{projection_annual_sales}}, año: {{projection_year}}</p>`;
 
+// Template with one AI placeholder.
 const TEMPLATE_HTML_WITH_AI = `<p>Cliente: {{client_name}}</p><p>Resumen: {{ai_summary}}</p>`;
 
 type SeededIds = {
@@ -453,10 +469,9 @@ async function seedFixture(
       type: "deliverable_long" as const,
       name: "Marketing — Non-AI",
       htmlTemplate: TEMPLATE_HTML_NON_AI,
-      variables: [
-        { key: "client_name", label: "Nombre del cliente", source: "client" as const, required: true },
-        { key: "projection_annual_sales", label: "Ventas anuales", source: "projection" as const, required: true },
-      ],
+      // Note: template.variables is unused post-refactor (extractPlaceholders
+      // discovers from HTML), but the schema still requires the array.
+      variables: [],
       version: 1,
       isActive: true,
       createdAt: Date.now(),
@@ -469,10 +484,7 @@ async function seedFixture(
       type: "deliverable_long" as const,
       name: "Marketing — With AI",
       htmlTemplate: TEMPLATE_HTML_WITH_AI,
-      variables: [
-        { key: "client_name", label: "Nombre del cliente", source: "client" as const, required: true },
-        { key: "ai_summary", label: "Resumen ejecutivo", source: "ai" as const, required: true },
-      ],
+      variables: [],
       version: 1,
       isActive: true,
       createdAt: Date.now(),
@@ -487,7 +499,7 @@ beforeEach(() => {
 });
 
 describe("previewDeliverable action", () => {
-  it("template without AI variables: html contains substitutions, aiLog empty, no DB writes", async () => {
+  it("static-only template: html resolves all keys, aiLog empty, no DB writes", async () => {
     const t = setupTest();
     const { questionnaireId, templateNonAiId } = await seedFixture(t, ORG_A);
 
@@ -500,11 +512,16 @@ describe("previewDeliverable action", () => {
       { templateId: templateNonAiId, questionnaireId }
     );
 
+    // Static fills from resolveStatic: client_name, projection_annual_sales, projection_year.
     expect(result.html).toContain("Catimi");
     expect(result.html).toContain("60,000,000");
+    expect(result.html).toContain("2026");
+    // No raw placeholders left:
+    expect(/\{\{[a-zA-Z0-9_]+\}\}/.test(result.html)).toBe(false);
     expect(result.aiLog).toEqual([]);
     expect(result.tokensUsed).toBe(0);
     expect(result.costUsd).toBe(0);
+    expect(result.unfilledKeys).toEqual([]);
     expect(result.elapsedMs).toBeGreaterThanOrEqual(0);
 
     const after = await t.run(async (ctx) =>
@@ -513,7 +530,7 @@ describe("previewDeliverable action", () => {
     expect(after).toBe(before);
   });
 
-  it("template with AI variables: calls Claude, returns aiLog and metrics", async () => {
+  it("AI template: calls batchFillWithClaude, returns aiLog + metrics + zero unfilled", async () => {
     const t = setupTest();
     const { questionnaireId, templateWithAiId } = await seedFixture(t, ORG_A);
 
@@ -523,10 +540,11 @@ describe("previewDeliverable action", () => {
     );
 
     expect(result.html).toContain("Catimi");
-    expect(result.html).toContain("Mocked AI content.");
-    expect(result.aiLog.length).toBeGreaterThan(0);
+    expect(result.html).toContain("Resumen ejecutivo generado por la IA de prueba.");
+    expect(result.aiLog.length).toBe(1); // one batch call
     expect(result.tokensUsed).toBeGreaterThan(0);
     expect(result.costUsd).toBeGreaterThan(0);
+    expect(result.unfilledKeys).toEqual([]);
     expect(result.elapsedMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -630,9 +648,7 @@ describe("previewDeliverable action", () => {
         type: "deliverable_long" as const,
         name: "Default Marketing",
         htmlTemplate: `<p>{{client_name}}</p>`,
-        variables: [
-          { key: "client_name", label: "Cliente", source: "client" as const, required: true },
-        ],
+        variables: [],
         version: 1,
         isActive: true,
         createdAt: Date.now(),
@@ -647,13 +663,36 @@ describe("previewDeliverable action", () => {
 
     expect(result.html).toContain("Catimi");
   });
+
+  it("missing API key leaves AI keys unfilled with visible markers", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    const t = setupTest();
+    const { questionnaireId, templateWithAiId } = await seedFixture(t, ORG_A);
+
+    const result = await t.action(
+      api.functions.deliverables.actions.previewDeliverable,
+      { templateId: templateWithAiId, questionnaireId }
+    );
+
+    // Static portion still renders:
+    expect(result.html).toContain("Catimi");
+    // AI key surfaced as marker (matches generateDeliverable's behavior):
+    expect(result.unfilledKeys).toEqual(["ai_summary"]);
+    expect(result.html).toContain("[ai_summary]");
+    expect(result.aiLog).toEqual([]);
+    expect(result.tokensUsed).toBe(0);
+    expect(result.costUsd).toBe(0);
+
+    // Re-set so other tests aren't affected.
+    process.env.ANTHROPIC_API_KEY = "test-key";
+  });
 });
 ```
 
 - [ ] **Step 3: Run to confirm FAIL**
 
 Run: `npx vitest run convex/functions/deliverables/__tests__/previewDeliverable.test.ts`
-Expected: all 6 tests FAIL with "previewDeliverable is not a function" or "Could not find module".
+Expected: all 7 tests FAIL with "previewDeliverable is not a function" or "Could not find module".
 
 - [ ] **Step 4: Do NOT commit yet** (Task 5 implements + commits Phase 3 together)
 
@@ -662,19 +701,43 @@ Expected: all 6 tests FAIL with "previewDeliverable is not a function" or "Could
 ### Task 5: Implement `previewDeliverable`
 
 **Files:**
-- Modify: `convex/functions/deliverables/actions.ts` (append after `auditDeliverable` action, before any closing barriers)
+- Modify: `convex/functions/deliverables/actions.ts` (append after `auditDeliverable` action's closing `});`)
 
-- [ ] **Step 1: Locate the end of the existing action exports**
+- [ ] **Step 1: Locate the end of `auditDeliverable`**
 
 Run: `grep -n "^export const\|^export async" convex/functions/deliverables/actions.ts`
 
-Expected outputs include `generateDeliverable` (line 156), `auditDeliverable` (line 338), `regenerateDeliverable` (line 468). Find the line AFTER the closing `});` of `auditDeliverable`'s handler. Append the new export there. (`regenerateDeliverable` is an `internalAction` — keep it where it is.)
+Expected: shows `generateDeliverable` (around line 175), `auditDeliverable` (around line 399), `regenerateDeliverable` (around line 529). Append `previewDeliverable` AFTER `auditDeliverable` and BEFORE `regenerateDeliverable` (since `regenerateDeliverable` is an `internalAction` block).
 
-- [ ] **Step 2: Append the action**
+- [ ] **Step 2: Verify the imports already present**
 
-Insert this code in `convex/functions/deliverables/actions.ts` after `auditDeliverable`:
+The top of `actions.ts` should already import these (post-refactor):
 
 ```ts
+import { extractPlaceholders } from "../../lib/deliverableEngine/placeholders";
+import { resolveStatic, type StaticResolutionContext } from "../../lib/deliverableEngine/staticResolver";
+import { batchFillWithClaude } from "../../lib/deliverableEngine/aiBatchFill";
+import { CreditExhaustedError, CostCapExceededError } from "../../lib/deliverableEngine/errors";
+```
+
+If any are missing, add them (paste them next to the existing `internal` / `v` / `Anthropic` imports).
+
+- [ ] **Step 3: Append the action**
+
+Insert at the line after `auditDeliverable`'s closing `});` (and before `regenerateDeliverable`):
+
+```ts
+/**
+ * Preview a deliverable for a given template + questionnaire pair, WITHOUT
+ * persisting. Used by the "Probar con datos reales" modal on /platform/templates
+ * to validate AI output quality before going live. Reuses the same engine
+ * (extractPlaceholders + resolveStatic + batchFillWithClaude) as
+ * generateDeliverable so the preview is faithful to production output.
+ *
+ * Returns { html, aiLog, tokensUsed, costUsd, elapsedMs, unfilledKeys }.
+ * Operator-visible: unfilledKeys lets the UI flag broken templates or
+ * exhausted credits without scanning the HTML.
+ */
 export const previewDeliverable = action({
   args: {
     templateId: v.id("deliverableTemplates"),
@@ -689,6 +752,7 @@ export const previewDeliverable = action({
     tokensUsed: number;
     costUsd: number;
     elapsedMs: number;
+    unfilledKeys: string[];
   }> => {
     const t0 = Date.now();
 
@@ -712,7 +776,7 @@ export const previewDeliverable = action({
       );
     }
 
-    const [client, projection] = await Promise.all([
+    const [client, projection, orgBranding] = await Promise.all([
       ctx.runQuery(
         internal.functions.deliverables.internalQueries.getClientData,
         { clientId: questionnaire.clientId }
@@ -721,110 +785,163 @@ export const previewDeliverable = action({
         internal.functions.deliverables.internalQueries.getProjectionByProjService,
         { projectionId: questionnaire.projectionId }
       ),
+      ctx.runQuery(
+        internal.functions.deliverables.internalQueries.getOrgBranding,
+        { orgId: questionnaire.orgId }
+      ),
     ]);
     if (!client) throw new Error("Cliente del cuestionario no encontrado.");
     if (!projection) throw new Error("Proyección del cuestionario no encontrada.");
 
+    // Optional projService when the template is service-scoped.
     let projService: {
-      serviceName?: string;
-      chosenPct?: number;
-      annualAmount?: number;
+      serviceName: string;
+      chosenPct: number;
+      annualAmount: number;
     } | null = null;
     if (template.serviceId) {
-      projService = await ctx.runQuery(
+      const ps = await ctx.runQuery(
         internal.functions.deliverables.internalQueries.findProjServiceByServiceAndProjection,
         { projectionId: questionnaire.projectionId, serviceId: template.serviceId }
       );
+      if (ps) {
+        projService = {
+          serviceName: ps.serviceName,
+          chosenPct: ps.chosenPct,
+          annualAmount: ps.annualAmount,
+        };
+      }
     }
 
-    const context = {
-      client: client as unknown as Record<string, unknown>,
-      projection: projection as unknown as Record<string, unknown>,
-      service: (projService ?? {}) as unknown as Record<string, unknown>,
+    // 1. Discover placeholders from HTML.
+    const placeholders = extractPlaceholders(template.htmlTemplate);
+
+    // 2. Build the static resolution context.
+    const staticCtx: StaticResolutionContext = {
+      client: {
+        name: client.name,
+        rfc: client.rfc,
+        industry: client.industry,
+        annualRevenue: client.annualRevenue,
+        billingFrequency: client.billingFrequency,
+        contactName: client.contactName,
+        contactEmail: client.contactEmail,
+      },
+      projection: {
+        year: projection.year,
+        annualSales: projection.annualSales,
+        totalBudget: projection.totalBudget,
+        effectiveBudget: projection.effectiveBudget,
+      },
+      projService,
+      orgBranding: orgBranding
+        ? {
+            companyName: orgBranding.companyName,
+            primaryColor: orgBranding.primaryColor,
+            secondaryColor: orgBranding.secondaryColor,
+            accentColor: orgBranding.accentColor,
+            fontFamily: orgBranding.fontFamily,
+            footerText: orgBranding.footerText,
+          }
+        : null,
+      today: formatToday(),
     };
-    const { html: htmlAfterNonAi, aiVariables } = resolveNonAiVariables(
-      template.htmlTemplate,
-      template.variables,
-      context
-    );
+
+    // 3. Resolve static placeholders, collect AI keys.
+    const resolved: Record<string, string> = {};
+    const needsAi: string[] = [];
+    for (const k of placeholders) {
+      const v = resolveStatic(k, staticCtx);
+      if (v !== null) resolved[k] = v;
+      else needsAi.push(k);
+    }
+
+    // 4. Batched AI fill.
+    const aiLogs: AiLogEntry[] = [];
+    let totalCost = 0;
+    let unfilledKeys: string[] = [];
 
     const anthropic = getAnthropicClient();
-    if (aiVariables.length > 0 && !anthropic) {
-      throw new Error(
-        "ANTHROPIC_API_KEY no configurada. Agrega la key en .env.local para correr generaciones AI."
-      );
+    if (anthropic && needsAi.length > 0) {
+      const contextBlock = buildContextBlock({
+        client,
+        projection,
+        projService,
+        questionnaire,
+      });
+      try {
+        const result = await batchFillWithClaude(
+          anthropic,
+          projService?.serviceName ?? "Consultoría",
+          contextBlock,
+          needsAi
+        );
+        Object.assign(resolved, result.resolved);
+        aiLogs.push(...result.log);
+        unfilledKeys = result.unfilled;
+        totalCost = result.totalCost;
+      } catch (err) {
+        if (err instanceof CreditExhaustedError) {
+          console.warn("[previewDeliverable] credit exhausted; returning partial.");
+          unfilledKeys = needsAi.filter((k) => !(k in resolved));
+        } else if (err instanceof CostCapExceededError) {
+          console.warn(
+            `[previewDeliverable] cost cap exceeded at $${err.costUsd.toFixed(4)}; returning partial.`
+          );
+          unfilledKeys = needsAi.filter((k) => !(k in resolved));
+          totalCost = err.costUsd;
+        } else {
+          throw err;
+        }
+      }
+    } else if (!anthropic && needsAi.length > 0) {
+      // No API key: leave AI keys unfilled. Modal surfaces these as markers.
+      unfilledKeys = needsAi;
     }
 
-    const questionnaireContext = questionnaire.responses
-      ? questionnaire.responses
-          .map(
-            (r: { questionText: string; answer: string }) =>
-              `P: ${r.questionText}\nR: ${r.answer}`
-          )
-          .join("\n\n")
-      : "Sin respuestas de cuestionario disponibles.";
-
-    const projectionContext = `Ventas anuales: $${projection.annualSales.toLocaleString(
-      "es-MX"
-    )}, Presupuesto total: $${projection.totalBudget.toLocaleString(
-      "es-MX"
-    )}, Comision: ${projection.commissionRate * 100}%`;
-
-    let resolvedHtml = htmlAfterNonAi;
-    const aiLogs: AiLogEntry[] = [];
-
-    for (const aiVar of aiVariables) {
-      const result = await callClaudeWithRetry(
-        anthropic!,
-        `Eres un consultor profesional${
-          projService?.serviceName ? ` de ${projService.serviceName}` : ""
-        }. Genera contenido para un entregable empresarial.`,
-        `Variable: ${aiVar.label}.\n\nContexto del cliente: ${client.name}, industria: ${client.industry}.\n\nDatos financieros: ${projectionContext}\n\n${
-          projService?.serviceName
-            ? `Servicio: ${projService.serviceName} (${projService.chosenPct}% del presupuesto, monto anual: $${(projService.annualAmount ?? 0).toLocaleString("es-MX")})\n\n`
-            : ""
-        }Respuestas del cuestionario:\n${questionnaireContext}\n\nGenera el contenido en español profesional. Responde únicamente con el contenido solicitado, sin encabezados ni explicaciones adicionales.`
-      );
-
-      resolvedHtml = resolvedHtml.replace(
-        new RegExp(escapeRegex(`{{${aiVar.key}}}`), "g"),
-        result.text
-      );
-      resolvedHtml = resolvedHtml.replace(
-        new RegExp(escapeRegex("[AI_PENDIENTE]"), "g"),
-        ""
-      );
-      aiLogs.push(result.log);
+    // 5. Visible markers for unfilled keys (matches generateDeliverable behavior).
+    for (const k of unfilledKeys) {
+      resolved[k] = `<em style="color:#94a3b8">[${k}]</em>`;
     }
 
+    // 6. Replace placeholders in HTML.
+    let html = template.htmlTemplate;
+    for (const [k, val] of Object.entries(resolved)) {
+      const safe = String(val ?? "").replace(/\$/g, "$$$$");
+      html = html.replace(new RegExp(escapeRegex(`{{${k}}}`), "g"), safe);
+    }
+
+    // 7. Metrics. `costUsd` prefers the batchFill total (which includes
+    //    chunk costs not yet reflected in aiLogs when the cost cap throws).
     const tokensUsed = aiLogs.reduce(
       (acc, l) => acc + l.inputTokens + l.outputTokens,
       0
     );
-    const costUsd = aiLogs.reduce((acc, l) => acc + l.costUsd, 0);
+    const costUsd =
+      totalCost > 0 ? totalCost : aiLogs.reduce((acc, l) => acc + l.costUsd, 0);
     const elapsedMs = Date.now() - t0;
 
-    return { html: resolvedHtml, aiLog: aiLogs, tokensUsed, costUsd, elapsedMs };
+    return { html, aiLog: aiLogs, tokensUsed, costUsd, elapsedMs, unfilledKeys };
   },
 });
 ```
 
-- [ ] **Step 3: Regenerate types**
+- [ ] **Step 4: Regenerate Convex types**
 
 Run: `npx convex dev --once`
 Expected: success.
 
-- [ ] **Step 4: Run the test file**
+- [ ] **Step 5: Run the test file**
 
 Run: `npx vitest run convex/functions/deliverables/__tests__/previewDeliverable.test.ts`
-Expected: all 6 tests PASS.
+Expected: all 7 tests PASS.
 
-- [ ] **Step 5: Run full suite**
+- [ ] **Step 6: Run full suite**
 
 Run: `npm test`
 Expected: all green.
 
-- [ ] **Step 6: Commit Phase 3**
+- [ ] **Step 7: Commit Phase 3**
 
 ```bash
 git add convex/functions/deliverables/actions.ts convex/functions/deliverables/__tests__/previewDeliverable.test.ts convex/_generated/
@@ -832,13 +949,14 @@ git commit -m "$(cat <<'EOF'
 feat(deliverables): previewDeliverable action for real-data test runs
 
 Pairs a saved template with an already-answered questionnaire, runs the
-full Claude pipeline (reusing resolveNonAiVariables + callClaudeWithRetry
-from generateDeliverable), and returns the resolved HTML plus token/cost
-/latency metrics. No persistence — output is intended for an ephemeral
-preview modal.
+post-refactor batched Claude pipeline (extractPlaceholders + resolveStatic
++ batchFillWithClaude), and returns the resolved HTML plus token/cost
+/latency metrics and the unfilledKeys list. No persistence — intended
+for an ephemeral preview modal.
 
-Enforces cross-org safety: org-scoped templates must match the
-questionnaire's org; global templates (orgId undefined) work everywhere.
+Cross-org safety: org-scoped templates must match the questionnaire's
+org; global templates (orgId undefined) work everywhere. Missing API
+key leaves AI keys as visible [key] markers instead of throwing.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -875,6 +993,7 @@ type PreviewOutput = {
   tokensUsed: number;
   costUsd: number;
   elapsedMs: number;
+  unfilledKeys: string[];
 };
 
 type Props = {
@@ -1003,10 +1122,9 @@ export function TestDeliverableModal({ templateId, onClose }: Props) {
                 sandbox="allow-same-origin"
                 className="h-[55vh] w-full rounded-md border border-border bg-white"
               />
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>
-                  Variables AI: {output.aiLog.length} · Tokens:{" "}
-                  {output.tokensUsed.toLocaleString("es-MX")} · ~$
+                  Tokens: {output.tokensUsed.toLocaleString("es-MX")} · ~$
                   {output.costUsd.toFixed(4)} USD · {output.elapsedMs}ms
                 </span>
                 <button
@@ -1017,6 +1135,12 @@ export function TestDeliverableModal({ templateId, onClose }: Props) {
                   {copied ? "Copiado" : "Copiar HTML"}
                 </button>
               </div>
+              {output.unfilledKeys.length > 0 && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-600">
+                  ⚠ {output.unfilledKeys.length} variable(s) sin llenar:{" "}
+                  <code>{output.unfilledKeys.join(", ")}</code>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1053,7 +1177,7 @@ Expected: no new errors.
 **Files:**
 - Modify: `src/app/platform/templates/page.tsx`
 
-- [ ] **Step 1: Add the import + state**
+- [ ] **Step 1: Add the import**
 
 Find the existing imports at the top. Add:
 
@@ -1061,17 +1185,19 @@ Find the existing imports at the top. Add:
 import { TestDeliverableModal } from "@/components/templates/test-deliverable-modal";
 ```
 
-Find the existing component-level `useState` declarations (search for `useState<` near the top of the default-exported component). Add alongside them:
+- [ ] **Step 2: Add state**
+
+Find the existing component-level `useState` declarations near the top of the default-exported component. Add:
 
 ```ts
 const [testTemplateId, setTestTemplateId] = useState<Id<"deliverableTemplates"> | null>(null);
 ```
 
-(`Id` should already be imported from the dataModel since other state already uses it; if not, add `import { Id } from "../../../../convex/_generated/api"` style import that the file already uses.)
+(The file already imports `Id` from the dataModel for other state — verify and reuse.)
 
-- [ ] **Step 2: Add the trigger button next to the existing "Vista Previa"**
+- [ ] **Step 3: Add the trigger button next to the existing "Vista Previa"**
 
-Find the existing `handlePreview` invocation. The button is rendered around line 566 inside a template card. Add a sibling button right after it:
+Find the existing `handlePreview` button (search for `onClick={handlePreview}` around line 566). Add a sibling button:
 
 ```tsx
 <button
@@ -1082,11 +1208,11 @@ Find the existing `handlePreview` invocation. The button is rendered around line
 </button>
 ```
 
-(Inspect the existing "Vista Previa" button to copy its container/layout class — match indentation and surrounding flex container.)
+(Match the indentation and surrounding flex container of the existing "Vista Previa" button.)
 
-- [ ] **Step 3: Mount the modal at the end of the JSX**
+- [ ] **Step 4: Mount the modal at the end of the JSX**
 
-At the very end of the component's return statement, before the closing tag, add:
+At the very end of the component's return statement, before the closing tag of the outermost JSX wrapper, add:
 
 ```tsx
 {testTemplateId && (
@@ -1097,15 +1223,15 @@ At the very end of the component's return statement, before the closing tag, add
 )}
 ```
 
-- [ ] **Step 4: Verify TypeScript + tests**
+- [ ] **Step 5: Verify TypeScript + tests**
 
 Run: `npx tsc --noEmit 2>&1 | grep -v useDebouncedAutosave | head -10`
 Expected: no new errors.
 
 Run: `npm test`
-Expected: all tests PASS (no behavior change in test surface).
+Expected: all green.
 
-- [ ] **Step 5: Commit Phase 4**
+- [ ] **Step 6: Commit Phase 4**
 
 ```bash
 git add src/components/templates/test-deliverable-modal.tsx src/app/platform/templates/page.tsx
@@ -1115,9 +1241,10 @@ feat(templates): Probar con datos reales modal
 Adds a per-template '🧪 Probar con datos reales' button alongside the
 existing 'Vista Previa' (which uses synthetic sample data). The new
 button opens a modal that lets the operator pick an already-answered
-questionnaire, runs the full AI pipeline via previewDeliverable, and
-renders the resolved HTML in a sandboxed iframe with token/cost/latency
-metrics. Output is ephemeral; closing discards.
+questionnaire, runs the full batched AI pipeline via previewDeliverable,
+and renders the resolved HTML in a sandboxed iframe with token/cost
+/latency metrics. An amber warning row lists any unfilled placeholders.
+Output is ephemeral; closing discards.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1135,27 +1262,19 @@ EOF
 - [ ] **Step 1: Ensure dev servers + agent-browser Chrome are running**
 
 ```bash
-# Confirm Next.js on 3001
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001
-# Should print 200 or 404 (not connection refused).
-
-# Convex dev
 ps aux | grep "convex dev" | grep -v grep | head -1
-# Should show the process.
-
-# Agent-browser profile
 ps aux | grep "projex-e2e-chrome" | grep -v grep | head -1
-# Should show the headed Chrome process.
 ```
 
-If any is missing, restart per sub-proyecto A's QA pattern.
+If any is missing, restart per the sub-proyecto A's E2E pattern.
 
 - [ ] **Step 2: Verify ANTHROPIC_API_KEY is set in `.env.local`**
 
 Run: `grep -c ANTHROPIC_API_KEY .env.local || echo 0`
-Expected: `1` (key present). If `0`, ask the operator to add it before continuing — the AI path needs a real key (the tests use a mock; the browser uses the real client).
+Expected: `1`. If `0`, ask the operator to add it before continuing.
 
-- [ ] **Step 3: Navigate to the platform templates page**
+- [ ] **Step 3: Open the templates page**
 
 ```bash
 npx agent-browser open http://localhost:3001/platform/templates
@@ -1163,9 +1282,9 @@ sleep 2
 npx agent-browser snapshot -i | head -40
 ```
 
-Verify the page loaded with template cards. If redirected to `/sign-in`, the Chrome session expired — re-authenticate per sub-proyecto A's pattern.
+Verify the page loaded with template cards. If redirected to `/sign-in`, re-authenticate.
 
-- [ ] **Step 4: Click the "🧪 Probar con datos reales" button on the first template**
+- [ ] **Step 4: Click the "🧪 Probar con datos reales" button on a template**
 
 ```bash
 npx agent-browser eval "(() => {
@@ -1174,10 +1293,10 @@ npx agent-browser eval "(() => {
   return btn ? 'clicked' : 'not-found';
 })()"
 sleep 1
-npx agent-browser snapshot -i | grep -B1 -A2 'Probar\|Cuestionario\|Selecciona' | head -20
+npx agent-browser eval "(() => /Probar con datos reales/.test(document.body.textContent || '') && /Cuestionario de origen/.test(document.body.textContent || '') ? 'modal-open' : 'no-modal')()"
 ```
 
-Expected: modal appears with the title "Probar con datos reales", template name, and a dropdown labeled "Cuestionario de origen".
+Expected: `modal-open`.
 
 - [ ] **Step 5: Pick a questionnaire and generate**
 
@@ -1188,7 +1307,7 @@ npx agent-browser eval "(() => {
     p.call(el, val);
     el.dispatchEvent(new Event('change', { bubbles: true }));
   };
-  const sel = Array.from(document.querySelectorAll('select')).find(s => s.options.length > 1);
+  const sel = Array.from(document.querySelectorAll('select')).find(s => s.options.length > 1 && /Cuestionario|—/.test(s.options[0].textContent || ''));
   if (sel) setSelect(sel, sel.options[1].value);
   return sel ? 'picked' : 'no-options';
 })()"
@@ -1198,14 +1317,20 @@ npx agent-browser eval "(() => {
   if (btn) btn.click();
   return btn ? 'generating' : 'no-button';
 })()"
-# Wait up to 60s for AI generation
 sleep 30
-npx agent-browser snapshot -i | head -30
+npx agent-browser eval "(() => {
+  const text = document.body.textContent || '';
+  return JSON.stringify({
+    hasMetrics: /Tokens:.*USD.*ms/.test(text),
+    hasIframe: !!document.querySelector('iframe[title=\"Preview del entregable\"]'),
+    hasUnfilledWarning: /variable\\(s\\) sin llenar/.test(text),
+  });
+})()"
 ```
 
-Expected: an iframe with rendered HTML appears. Below it, a metrics row showing `Variables AI: N · Tokens: ...K · ~$0.... USD · ...ms`.
+Expected: `hasMetrics: true`, `hasIframe: true`, `hasUnfilledWarning: false` (if all keys filled) or `true` (if some unfilled — operator decides whether the template is bad or AI failed).
 
-- [ ] **Step 6: Regenerate and verify it re-runs**
+- [ ] **Step 6: Regenerate and verify second run**
 
 ```bash
 npx agent-browser eval "(() => {
@@ -1215,14 +1340,12 @@ npx agent-browser eval "(() => {
 })()"
 sleep 30
 npx agent-browser eval "(() => {
-  // Capture the metrics row text
-  const ps = Array.from(document.querySelectorAll('span,p,div'));
-  const metrics = ps.find(p => /Variables AI:.*Tokens:.*USD.*ms/.test(p.textContent || ''));
+  const metrics = Array.from(document.querySelectorAll('span')).find(s => /Tokens:.*USD.*ms/.test(s.textContent || ''));
   return metrics?.textContent?.trim() || 'metrics-not-found';
 })()"
 ```
 
-Expected: a second `Variables AI: ... · Tokens: ... · ~$... USD · ...ms` line appears (metrics may differ slightly due to Claude sampling).
+Expected: a metrics line shows; values may differ slightly between runs due to Claude sampling.
 
 - [ ] **Step 7: Copy HTML and confirm clipboard pickup**
 
@@ -1233,12 +1356,10 @@ npx agent-browser eval "(() => {
   return btn ? 'copied' : 'not-found';
 })()"
 sleep 1
-npx agent-browser eval "(() => {
-  return Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Copiado') ? 'feedback-shown' : 'no-feedback';
-})()"
+npx agent-browser eval "(() => Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Copiado') ? 'feedback-shown' : 'no-feedback')()"
 ```
 
-Expected: button briefly flips to "Copiado".
+Expected: `feedback-shown`.
 
 - [ ] **Step 8: Verify NO deliverable rows were created**
 
@@ -1247,7 +1368,7 @@ COUNT=$(npx convex data deliverables --limit 1 2>&1 | grep -c '"_id"')
 echo "Deliverable count: $COUNT"
 ```
 
-The count should be the same as before Step 4. (If a row was created, the action is leaking persistence — bug.)
+The count should be the same as before Step 4. If a row was created, the action is leaking persistence — bug.
 
 - [ ] **Step 9: Close the modal and confirm clean state**
 
@@ -1276,22 +1397,23 @@ If any step failed, capture browser console errors and the failing step. File a 
 **Spec coverage:**
 - § 1 (trigger UI) → Task 7.
 - § 2 (modal) → Task 6.
-- § 3 (`previewDeliverable` action) → Task 5.
+- § 3 (`previewDeliverable` action) → Tasks 4 + 5 (now targets the post-refactor engine: `extractPlaceholders` + `resolveStatic` + `batchFillWithClaude`).
 - § 4 (3 new internal queries) → Task 1.
-- § 5 (`listTestable` public query) → Tasks 2, 3.
-- § 6 (tests) → Tasks 4 (action tests), 2 (query tests).
-- R1 (cost runaway): metrics row in Task 6 surfaces the cost AFTER the run; no confirm dialog v1 (spec deferred).
-- R2 (missing API key): action throws (`"ANTHROPIC_API_KEY no configurada..."`), modal shows in error banner (Task 6 handles this generically via the `error` state).
-- R3 (cross-org): explicit guard in Task 5's action code; covered by test "cross-org pairing throws" and "global template works" in Task 4.
-- R4 (no `serviceId`): Task 5's action treats `projService` as null and the AI prompts omit the service line.
-- R5 (empty `responses`): the `questionnaireContext` falls back to `"Sin respuestas de cuestionario disponibles."` — visible to the operator via the rendered output.
+- § 5 (`listTestable` public query) → Tasks 2 + 3.
+- § 6 (tests) → Tasks 4 (action tests) + 2 (query tests).
+- R1 (cost runaway) — surfaced via metrics row AFTER the run; the engine's hard cap of $2 USD per call already protects against catastrophic runaway via `batchFillWithClaude`. No confirm dialog v1.
+- R2 (missing API key) — handled by leaving AI keys as visible `[key]` markers (matches `generateDeliverable`'s behavior); the modal's amber warning row surfaces this to the operator.
+- R3 (cross-org) — explicit guard in Task 5's action; tests in Task 4 cover the fail and the global-template allow.
+- R4 (no `serviceId`) — Task 5 sets `projService = null` and the prompt context omits the service line.
+- R5 (empty `responses`) — `buildContextBlock` writes "Sin respuestas de cuestionario disponibles."; AI may produce generic output; metrics row and the rendered iframe make the gap obvious.
 
-**Placeholder scan:** No `TBD`/`TODO`/"implement later"/"add appropriate error handling" patterns. The single `// TODO: component tests deferred` comment in `test-deliverable-modal.tsx` is a documented deferral matching the precedent from sub-proyecto B Task 3 and C Task 3.
+**Placeholder scan:** No `TBD`/`TODO`/"implement later"/"add appropriate error handling" patterns. One `// TODO: component tests deferred` comment in `test-deliverable-modal.tsx` is the documented deferral matching the precedent from sub-proyectos B and C.
 
 **Type consistency:**
-- `previewDeliverable` return type `{ html, aiLog, tokensUsed, costUsd, elapsedMs }` → consistent across Task 4 test expectations, Task 5 action signature, Task 6 modal's `PreviewOutput` type.
+- `previewDeliverable` return type `{ html, aiLog, tokensUsed, costUsd, elapsedMs, unfilledKeys }` → consistent across Task 4 test expectations, Task 5 action signature, Task 6 modal's `PreviewOutput` type.
 - `listTestable` return shape `{ _id, clientName, projectionYear, status, responseCount }` → consistent across Task 2 tests, Task 3 implementation, Task 6 dropdown rendering.
 - Argument shapes `{ templateId, questionnaireId }` → consistent in action signature (Task 5), test calls (Task 4), and modal action call (Task 6).
 - Internal query names `getTemplateById`, `getQuestionnaireById`, `findProjServiceByServiceAndProjection` → consistent between definition (Task 1) and consumption (Task 5).
+- `AiLogEntry` reused from the existing module-level type in `actions.ts` (not duplicated).
 
 No inconsistencies found.

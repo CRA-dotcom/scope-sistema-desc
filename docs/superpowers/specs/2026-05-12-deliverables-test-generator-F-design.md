@@ -18,8 +18,8 @@ The templates page (`/platform/templates`) already exposes a "Vista Previa" butt
 ## Goals
 
 1. Add a "Probar con datos reales" button per template in `/platform/templates` that triggers a modal where the operator picks an already-answered questionnaire and runs full AI generation.
-2. The action `previewDeliverable` reuses the existing variable-resolution + Claude pipeline from `generateDeliverable`, but does NOT persist anything to the `deliverables` table.
-3. Surface the AI cost/latency metrics (tokens, USD, ms) per generation so the partner can spot expensive prompts before they go to production.
+2. The action `previewDeliverable` reuses the post-refactor `convex/lib/deliverableEngine/` helpers (`extractPlaceholders` + `resolveStatic` + `batchFillWithClaude`) plus the file-local `buildContextBlock` / `formatToday` from `generateDeliverable`, but does NOT persist anything to the `deliverables` table.
+3. Surface the AI cost/latency metrics (tokens, USD, ms) and **unfilled keys** per generation so the partner can spot expensive prompts and broken templates before they go to production.
 4. Allow regenerating with the same inputs (different Claude sampling) without reopening the modal.
 
 ## Non-Goals
