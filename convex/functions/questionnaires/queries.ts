@@ -82,3 +82,38 @@ export const listByOrg = query({
     return questionnaires.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
+
+export const listTestable = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
+
+    const responses = await ctx.db
+      .query("questionnaireResponses")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .collect();
+
+    const filtered = responses.filter(
+      (r) => r.status === "completed" || r.status === "in_progress"
+    );
+
+    const enriched = await Promise.all(
+      filtered.map(async (r) => {
+        const client = await ctx.db.get(r.clientId);
+        const projection = await ctx.db.get(r.projectionId);
+        return {
+          _id: r._id,
+          clientName: client?.name ?? "Cliente",
+          projectionYear: projection?.year ?? null,
+          status: r.status,
+          responseCount: r.responses.length,
+        };
+      })
+    );
+
+    return enriched.sort((a, b) =>
+      (a.clientName ?? "").localeCompare(b.clientName ?? "")
+    );
+  },
+});
