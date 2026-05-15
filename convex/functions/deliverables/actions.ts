@@ -524,6 +524,199 @@ export const auditDeliverable = internalAction({
 });
 
 /**
+ * Preview a deliverable for a given template + questionnaire pair, WITHOUT
+ * persisting. Used by the "Probar con datos reales" modal on /platform/templates
+ * to validate AI output quality before going live. Reuses the same engine
+ * (extractPlaceholders + resolveStatic + batchFillWithClaude) as
+ * generateDeliverable so the preview is faithful to production output.
+ *
+ * Returns { html, aiLog, tokensUsed, costUsd, elapsedMs, unfilledKeys }.
+ */
+export const previewDeliverable = action({
+  args: {
+    templateId: v.id("deliverableTemplates"),
+    questionnaireId: v.id("questionnaireResponses"),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    html: string;
+    aiLog: AiLogEntry[];
+    tokensUsed: number;
+    costUsd: number;
+    elapsedMs: number;
+    unfilledKeys: string[];
+  }> => {
+    const t0 = Date.now();
+
+    const template = await ctx.runQuery(
+      internal.functions.deliverables.internalQueries.getTemplateById,
+      { templateId: args.templateId }
+    );
+    if (!template) throw new Error("Template no encontrado.");
+
+    const questionnaire = await ctx.runQuery(
+      internal.functions.deliverables.internalQueries.getQuestionnaireById,
+      { questionnaireId: args.questionnaireId }
+    );
+    if (!questionnaire) throw new Error("Cuestionario no encontrado.");
+
+    // Cross-org safety: org-scoped templates must match the questionnaire's org.
+    // Global templates (template.orgId === undefined) are usable against any org.
+    if (template.orgId !== undefined && template.orgId !== questionnaire.orgId) {
+      throw new Error(
+        "Template y cuestionario pertenecen a organizaciones distintas."
+      );
+    }
+
+    const [client, projection, orgBranding] = await Promise.all([
+      ctx.runQuery(
+        internal.functions.deliverables.internalQueries.getClientData,
+        { clientId: questionnaire.clientId }
+      ),
+      ctx.runQuery(
+        internal.functions.deliverables.internalQueries.getProjectionByProjService,
+        { projectionId: questionnaire.projectionId }
+      ),
+      ctx.runQuery(
+        internal.functions.deliverables.internalQueries.getOrgBranding,
+        { orgId: questionnaire.orgId }
+      ),
+    ]);
+    if (!client) throw new Error("Cliente del cuestionario no encontrado.");
+    if (!projection) throw new Error("Proyección del cuestionario no encontrada.");
+
+    let projService: {
+      serviceName: string;
+      chosenPct: number;
+      annualAmount: number;
+    } | null = null;
+    if (template.serviceId) {
+      const ps = await ctx.runQuery(
+        internal.functions.deliverables.internalQueries.findProjServiceByServiceAndProjection,
+        { projectionId: questionnaire.projectionId, serviceId: template.serviceId }
+      );
+      if (ps) {
+        projService = {
+          serviceName: ps.serviceName,
+          chosenPct: ps.chosenPct,
+          annualAmount: ps.annualAmount,
+        };
+      }
+    }
+
+    // 1. Discover placeholders from HTML.
+    const placeholders = extractPlaceholders(template.htmlTemplate);
+
+    // 2. Build the static resolution context.
+    const staticCtx: StaticResolutionContext = {
+      client: {
+        name: client.name,
+        rfc: client.rfc,
+        industry: client.industry,
+        annualRevenue: client.annualRevenue,
+        billingFrequency: client.billingFrequency,
+        contactName: client.contactName,
+        contactEmail: client.contactEmail,
+      },
+      projection: {
+        year: projection.year,
+        annualSales: projection.annualSales,
+        totalBudget: projection.totalBudget,
+        effectiveBudget: projection.effectiveBudget,
+      },
+      projService,
+      orgBranding: orgBranding
+        ? {
+            companyName: orgBranding.companyName,
+            primaryColor: orgBranding.primaryColor,
+            secondaryColor: orgBranding.secondaryColor,
+            accentColor: orgBranding.accentColor,
+            fontFamily: orgBranding.fontFamily,
+            footerText: orgBranding.footerText,
+          }
+        : null,
+      today: formatToday(),
+    };
+
+    // 3. Resolve static placeholders, collect AI keys.
+    const resolved: Record<string, string> = {};
+    const needsAi: string[] = [];
+    for (const k of placeholders) {
+      const val = resolveStatic(k, staticCtx);
+      if (val !== null) resolved[k] = val;
+      else needsAi.push(k);
+    }
+
+    // 4. Batched AI fill.
+    const aiLogs: AiLogEntry[] = [];
+    let totalCost = 0;
+    let unfilledKeys: string[] = [];
+
+    const anthropic = getAnthropicClient();
+    if (anthropic && needsAi.length > 0) {
+      const contextBlock = buildContextBlock({
+        client,
+        projection,
+        projService,
+        questionnaire,
+      });
+      try {
+        const result = await batchFillWithClaude(
+          anthropic,
+          projService?.serviceName ?? "Consultoría",
+          contextBlock,
+          needsAi
+        );
+        Object.assign(resolved, result.resolved);
+        aiLogs.push(...result.log);
+        unfilledKeys = result.unfilled;
+        totalCost = result.totalCost;
+      } catch (err) {
+        if (err instanceof CreditExhaustedError) {
+          console.warn("[previewDeliverable] credit exhausted; returning partial.");
+          unfilledKeys = needsAi.filter((k) => !(k in resolved));
+        } else if (err instanceof CostCapExceededError) {
+          console.warn(
+            `[previewDeliverable] cost cap exceeded at $${err.costUsd.toFixed(4)}; returning partial.`
+          );
+          unfilledKeys = needsAi.filter((k) => !(k in resolved));
+          totalCost = err.costUsd;
+        } else {
+          throw err;
+        }
+      }
+    } else if (!anthropic && needsAi.length > 0) {
+      unfilledKeys = needsAi;
+    }
+
+    // 5. Visible markers for unfilled keys.
+    for (const k of unfilledKeys) {
+      resolved[k] = `<em style="color:#94a3b8">[${k}]</em>`;
+    }
+
+    // 6. Replace placeholders in HTML.
+    let html = template.htmlTemplate;
+    for (const [k, val] of Object.entries(resolved)) {
+      const safe = String(val ?? "").replace(/\$/g, "$$$$");
+      html = html.replace(new RegExp(escapeRegex(`{{${k}}}`), "g"), safe);
+    }
+
+    // 7. Metrics.
+    const tokensUsed = aiLogs.reduce(
+      (acc, l) => acc + l.inputTokens + l.outputTokens,
+      0
+    );
+    const costUsd =
+      totalCost > 0 ? totalCost : aiLogs.reduce((acc, l) => acc + l.costUsd, 0);
+    const elapsedMs = Date.now() - t0;
+
+    return { html, aiLog: aiLogs, tokensUsed, costUsd, elapsedMs, unfilledKeys };
+  },
+});
+
+/**
  * Internal action: Regenerate a rejected deliverable with feedback context.
  */
 export const regenerateDeliverable = internalAction({
