@@ -19,6 +19,7 @@ import {
   generateSampleContext,
   type TemplateVariable,
 } from "@/lib/templateResolver";
+import { TestDeliverableModal } from "@/components/templates/test-deliverable-modal";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -121,6 +122,7 @@ export default function TemplatesPage() {
   const [filterType, setFilterType] = useState<TemplateType | "">("");
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewMissing, setPreviewMissing] = useState<string[]>([]);
+  const [testTemplateId, setTestTemplateId] = useState<Id<"deliverableTemplates"> | null>(null);
 
   /* ---------- Handlers ---------- */
 
@@ -562,14 +564,24 @@ export default function TemplatesPage() {
 
           {/* Actions */}
           <div className="flex justify-between pt-2">
-            <button
-              onClick={handlePreview}
-              disabled={!form.htmlTemplate.trim()}
-              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40"
-            >
-              <Eye size={14} />
-              Vista Previa
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePreview}
+                disabled={!form.htmlTemplate.trim()}
+                className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40"
+              >
+                <Eye size={14} />
+                Vista Previa
+              </button>
+              {editingId && (
+                <button
+                  onClick={() => setTestTemplateId(editingId as Id<"deliverableTemplates">)}
+                  className="inline-flex items-center gap-2 rounded-md border border-accent/40 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/5 cursor-pointer"
+                >
+                  🧪 Probar con datos reales
+                </button>
+              )}
+            </div>
 
             <div className="flex gap-3">
               <button
@@ -747,6 +759,13 @@ export default function TemplatesPage() {
           </table>
         )}
       </div>
+
+      {testTemplateId && (
+        <TestDeliverableModal
+          templateId={testTemplateId}
+          onClose={() => setTestTemplateId(null)}
+        />
+      )}
     </div>
   );
 }
