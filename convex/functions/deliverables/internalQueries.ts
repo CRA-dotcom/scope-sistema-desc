@@ -90,3 +90,31 @@ export const getOrgBranding = internalQuery({
     return branding;
   },
 });
+
+export const getTemplateById = internalQuery({
+  args: { templateId: v.id("deliverableTemplates") },
+  handler: async (ctx, { templateId }) => {
+    return await ctx.db.get(templateId);
+  },
+});
+
+export const getQuestionnaireById = internalQuery({
+  args: { questionnaireId: v.id("questionnaireResponses") },
+  handler: async (ctx, { questionnaireId }) => {
+    return await ctx.db.get(questionnaireId);
+  },
+});
+
+export const findProjServiceByServiceAndProjection = internalQuery({
+  args: {
+    projectionId: v.id("projections"),
+    serviceId: v.id("services"),
+  },
+  handler: async (ctx, { projectionId, serviceId }) => {
+    return await ctx.db
+      .query("projectionServices")
+      .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
+      .filter((q) => q.eq(q.field("serviceId"), serviceId))
+      .first();
+  },
+});
