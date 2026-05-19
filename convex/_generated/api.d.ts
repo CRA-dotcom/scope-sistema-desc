@@ -33,6 +33,7 @@ import type * as functions_email_internalQueries from "../functions/email/intern
 import type * as functions_email_mutations from "../functions/email/mutations.js";
 import type * as functions_email_queries from "../functions/email/queries.js";
 import type * as functions_email_resolveConfig from "../functions/email/resolveConfig.js";
+import type * as functions_email_resolveRecipients from "../functions/email/resolveRecipients.js";
 import type * as functions_email_send from "../functions/email/send.js";
 import type * as functions_issuingCompanies_helpers from "../functions/issuingCompanies/helpers.js";
 import type * as functions_issuingCompanies_mutations from "../functions/issuingCompanies/mutations.js";
@@ -126,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   "functions/email/mutations": typeof functions_email_mutations;
   "functions/email/queries": typeof functions_email_queries;
   "functions/email/resolveConfig": typeof functions_email_resolveConfig;
+  "functions/email/resolveRecipients": typeof functions_email_resolveRecipients;
   "functions/email/send": typeof functions_email_send;
   "functions/issuingCompanies/helpers": typeof functions_issuingCompanies_helpers;
   "functions/issuingCompanies/mutations": typeof functions_issuingCompanies_mutations;
