@@ -113,6 +113,8 @@ export const run: ReturnType<typeof internalAction> = internalAction({
           )
           .join("");
 
+        // One indexed lookup per org with overdue items (not batched). Linear
+        // in the number of affected orgs — fine for a cron at tenant scale.
         const opsTo = await ctx.runQuery(
           internal.functions.email.resolveRecipients
             .resolveOrgNotificationEmail,
