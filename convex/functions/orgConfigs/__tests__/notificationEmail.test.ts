@@ -74,4 +74,20 @@ describe("orgConfigs.upsert notificationEmail", () => {
     );
     expect(stored?.notificationEmail).toBeUndefined();
   });
+
+  it("clears notificationEmail when omitted on update", async () => {
+    const t = setupTest();
+    const id = await t
+      .withIdentity(SUPER_ADMIN)
+      .mutation(api.functions.orgConfigs.mutations.upsert, {
+        ...baseArgs,
+        notificationEmail: "x@empresa.com",
+      });
+    await t
+      .withIdentity(SUPER_ADMIN)
+      .mutation(api.functions.orgConfigs.mutations.upsert, baseArgs);
+
+    const stored = await t.run(async (ctx) => ctx.db.get(id));
+    expect(stored?.notificationEmail).toBeUndefined();
+  });
 });
