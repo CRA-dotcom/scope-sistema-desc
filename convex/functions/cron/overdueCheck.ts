@@ -113,14 +113,16 @@ export const run: ReturnType<typeof internalAction> = internalAction({
           )
           .join("");
 
-        // TODO(feature): resolver el email del admin de la org desde Clerk.
-        // Hasta entonces se usa el buzón de ops; si no está configurado se
-        // omite el envío (no se manda a un dominio placeholder ajeno).
-        const opsTo = process.env.OPS_NOTIFICATION_EMAIL;
+        const opsTo = await ctx.runQuery(
+          internal.functions.email.resolveRecipients
+            .resolveOrgNotificationEmail,
+          { orgId }
+        );
         if (!opsTo) {
           console.warn(
-            `[overdueCheck] OPS_NOTIFICATION_EMAIL no configurado; ` +
-              `omitiendo alerta de ${items.length} vencidos para org ${orgId}.`
+            `[overdueCheck] Sin email de notificación para org ${orgId} ` +
+              `(orgConfigs.notificationEmail / OPS_NOTIFICATION_EMAIL); ` +
+              `omitiendo alerta de ${items.length} vencidos.`
           );
           continue;
         }
