@@ -32,6 +32,7 @@ async function seedOrgAndEmail(
       config: {
         apiKeySecretRef: "re_test",
         webhookSecretRef: WEBHOOK_SECRET,
+        fromEmail: "noreply@businessinteligencehub.com",
       },
       status: "active",
       createdAt: Date.now(),

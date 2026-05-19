@@ -47,6 +47,7 @@ describe("resolveResendCredentials", () => {
 
   it("falls back to platform_env when orgIntegrations status=inactive", async () => {
     process.env.RESEND_API_KEY = "re_platform_fallback";
+    process.env.RESEND_FROM_EMAIL = "noreply@businessinteligencehub.com";
     const t = setupTest();
     await t.run(async (ctx) => {
       await ctx.db.insert("orgIntegrations", {
@@ -64,10 +65,12 @@ describe("resolveResendCredentials", () => {
     );
     expect(result.source).toBe("platform_env");
     expect(result.apiKey).toBe("re_platform_fallback");
+    expect(result.fromEmail).toBe("noreply@businessinteligencehub.com");
   });
 
   it("uses platform_env when no orgIntegrations exist", async () => {
     process.env.RESEND_API_KEY = "re_platform_only";
+    process.env.RESEND_FROM_EMAIL = "noreply@businessinteligencehub.com";
     const t = setupTest();
     const result = await t.query(
       internal.functions.email.resolveConfig.resolveResendCredentialsQuery,
@@ -75,6 +78,7 @@ describe("resolveResendCredentials", () => {
     );
     expect(result.source).toBe("platform_env");
     expect(result.apiKey).toBe("re_platform_only");
+    expect(result.fromEmail).toBe("noreply@businessinteligencehub.com");
   });
 
   it("throws ResendNotConfiguredError when no org config AND no env", async () => {
