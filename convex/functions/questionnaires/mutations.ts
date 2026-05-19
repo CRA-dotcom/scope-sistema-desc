@@ -209,7 +209,10 @@ export const submit = mutation({
     const client = await ctx.db.get(questionnaire.clientId);
     const clientName = client?.name ?? "Cliente";
 
-    // Get the assigned ejecutivo email
+    // Notification gate: only notify if the client has an assigned ejecutivo.
+    // We do NOT email the ejecutivo directly (would require a Clerk lookup);
+    // instead we notify the org responsable (orgConfigs.notificationEmail),
+    // resolved via getOrgNotificationEmail. See ClickUp 86ahjaqzc.
     const assignedTo = client?.assignedTo;
     if (assignedTo) {
       const notifyTo = await getOrgNotificationEmail(ctx, questionnaire.orgId);
