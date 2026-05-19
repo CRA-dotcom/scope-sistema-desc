@@ -19,6 +19,7 @@ export const upsert = mutation({
     }),
     currency: v.optional(v.string()),
     fiscalYearStartMonth: v.optional(v.number()),
+    notificationEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireSuperAdmin(ctx);
@@ -38,6 +39,7 @@ export const upsert = mutation({
         featureFlags: args.featureFlags,
         currency: args.currency,
         fiscalYearStartMonth: args.fiscalYearStartMonth,
+        notificationEmail: args.notificationEmail,
         updatedAt: now,
       });
       return existing._id;
@@ -51,6 +53,7 @@ export const upsert = mutation({
       featureFlags: args.featureFlags,
       currency: args.currency,
       fiscalYearStartMonth: args.fiscalYearStartMonth,
+      notificationEmail: args.notificationEmail,
       updatedAt: now,
     });
   },

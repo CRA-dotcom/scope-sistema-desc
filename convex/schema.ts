@@ -385,6 +385,7 @@ export default defineSchema({
     }),
     currency: v.optional(v.string()),
     fiscalYearStartMonth: v.optional(v.number()),
+    notificationEmail: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_orgId", ["orgId"]),
