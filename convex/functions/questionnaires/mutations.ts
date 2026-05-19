@@ -3,6 +3,7 @@ import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import { getOrgId } from "../../lib/authHelpers";
 import { MASTER_QUESTIONS } from "./masterQuestionnaire";
+import { getOrgNotificationEmail } from "../email/resolveRecipients";
 
 export const generate = mutation({
   args: {
@@ -211,14 +212,12 @@ export const submit = mutation({
     // Get the assigned ejecutivo email
     const assignedTo = client?.assignedTo;
     if (assignedTo) {
-      // TODO(feature): resolver el email del ejecutivo asignado desde Clerk.
-      // Hasta entonces se notifica al buzón de ops; si no está configurado
-      // se omite (antes iba a un dominio placeholder ajeno).
-      const notifyTo = process.env.OPS_NOTIFICATION_EMAIL;
+      const notifyTo = await getOrgNotificationEmail(ctx, questionnaire.orgId);
       if (!notifyTo) {
         console.warn(
-          "[questionnaire] OPS_NOTIFICATION_EMAIL no configurado; " +
-            "omitiendo notificación de cuestionario completado."
+          "[questionnaire] Sin email de notificación para org " +
+            `${questionnaire.orgId}; omitiendo notificación de ` +
+            "cuestionario completado."
         );
       } else {
         await ctx.scheduler.runAfter(
