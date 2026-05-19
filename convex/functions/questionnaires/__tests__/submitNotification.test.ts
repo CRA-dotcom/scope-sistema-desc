@@ -1,6 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { setupTest } from "../../../../tests/harness";
 import { api } from "../../../_generated/api";
+
+const originalOps = process.env.OPS_NOTIFICATION_EMAIL;
+afterEach(() => {
+  if (originalOps) process.env.OPS_NOTIFICATION_EMAIL = originalOps;
+  else delete process.env.OPS_NOTIFICATION_EMAIL;
+});
 
 function asUserOfOrg(orgId: string) {
   return {
