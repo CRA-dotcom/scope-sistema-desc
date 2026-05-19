@@ -1,5 +1,4 @@
-import { internalQuery } from "../../_generated/server";
-import { QueryCtx, MutationCtx } from "../../_generated/server";
+import { internalQuery, QueryCtx, MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
 
 /**
