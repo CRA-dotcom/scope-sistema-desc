@@ -56,6 +56,7 @@ export const listPendingQuestionnaires = internalQuery({
     const results: Array<{
       clientId: string;
       clientName: string;
+      contactEmail?: string;
       serviceName: string;
     }> = [];
 
@@ -78,6 +79,7 @@ export const listPendingQuestionnaires = internalQuery({
           results.push({
             clientId: client._id,
             clientName: client.name,
+            contactEmail: client.contactEmail,
             serviceName: pair.serviceName,
           });
         }
@@ -154,33 +156,34 @@ export const run: ReturnType<typeof internalAction> = internalAction({
         { clientProjectionPairs }
       );
 
-      // TODO(feature): resolver el email real del cliente desde
-      // Clerk/contactos. Hasta entonces estos recordatorios NO se envían
-      // (antes iban a un dominio placeholder ajeno — fuga de datos).
-      const clientReminderTo = process.env.OPS_NOTIFICATION_EMAIL;
-      if (!clientReminderTo) {
-        console.warn(
-          `[monthlyCheck] Sin resolución de email de cliente; ` +
-            `omitiendo ${pendingQuestionnaires.length} recordatorios de cuestionario.`
-        );
-      } else {
-        // Send reminder email for each pending questionnaire
-        for (const pq of pendingQuestionnaires) {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.functions.email.send.sendEmailInternal,
-            {
-              to: clientReminderTo,
-              subject: `Recordatorio: Cuestionario pendiente - ${pq.serviceName}`,
-              html: `<p>Estimado ${pq.clientName}, le recordamos que su cuestionario de ${pq.serviceName} para ${currentMonth}/${currentYear} está pendiente.</p>`,
-            }
-          );
+      let sent = 0;
+      let skipped = 0;
+      for (const pq of pendingQuestionnaires) {
+        if (!pq.contactEmail) {
+          skipped += 1;
+          continue;
         }
+        await ctx.scheduler.runAfter(
+          0,
+          internal.functions.email.send.sendEmailInternal,
+          {
+            to: pq.contactEmail,
+            subject: `Recordatorio: Cuestionario pendiente - ${pq.serviceName}`,
+            html: `<p>Estimado ${pq.clientName}, le recordamos que su cuestionario de ${pq.serviceName} para ${currentMonth}/${currentYear} está pendiente.</p>`,
+          }
+        );
+        sent += 1;
+      }
 
-        console.log(
-          `[monthlyCheck] Sent ${pendingQuestionnaires.length} questionnaire reminder emails`
+      if (skipped > 0) {
+        console.warn(
+          `[monthlyCheck] ${skipped} recordatorio(s) omitido(s): cliente sin ` +
+            `contactEmail.`
         );
       }
+      console.log(
+        `[monthlyCheck] Sent ${sent} questionnaire reminder emails`
+      );
     }
 
     return summary;
