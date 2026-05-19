@@ -113,11 +113,22 @@ export const run: ReturnType<typeof internalAction> = internalAction({
           )
           .join("");
 
+        // TODO(feature): resolver el email del admin de la org desde Clerk.
+        // Hasta entonces se usa el buzón de ops; si no está configurado se
+        // omite el envío (no se manda a un dominio placeholder ajeno).
+        const opsTo = process.env.OPS_NOTIFICATION_EMAIL;
+        if (!opsTo) {
+          console.warn(
+            `[overdueCheck] OPS_NOTIFICATION_EMAIL no configurado; ` +
+              `omitiendo alerta de ${items.length} vencidos para org ${orgId}.`
+          );
+          continue;
+        }
         await ctx.scheduler.runAfter(
           0,
           internal.functions.email.send.sendEmailInternal,
           {
-            to: "admin@projex-platform.com", // In production, resolve org admin email from Clerk
+            to: opsTo,
             subject: `Alerta: Entregables vencidos - ${items.length} pendientes`,
             html: `<p>Alerta: Hay ${items.length} entregables vencidos para su organización.</p><ul>${itemsList}</ul>`,
           }

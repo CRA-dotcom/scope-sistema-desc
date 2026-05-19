@@ -63,8 +63,13 @@ export const seedForCapture = internalAction({
         declineReason: args.declineReason,
       }
     );
-    const appUrl =
-      args.appUrl ?? process.env.APP_URL ?? "http://localhost:3000";
+    const appUrl = args.appUrl ?? process.env.APP_URL;
+    if (!appUrl) {
+      throw new Error(
+        "APP_URL no configurado (ni args.appUrl ni env). " +
+          "Ejecuta: npx convex env set APP_URL http://localhost:3000 en el deployment dev."
+      );
+    }
     return {
       quotationId: result.quotationId,
       plaintextToken: args.plaintextToken,

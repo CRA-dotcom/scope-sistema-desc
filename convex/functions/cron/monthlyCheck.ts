@@ -154,22 +154,33 @@ export const run: ReturnType<typeof internalAction> = internalAction({
         { clientProjectionPairs }
       );
 
-      // Send reminder email for each pending questionnaire
-      for (const pq of pendingQuestionnaires) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.functions.email.send.sendEmailInternal,
-          {
-            to: "cliente@projex-platform.com", // In production, resolve client email from Clerk/contacts
-            subject: `Recordatorio: Cuestionario pendiente - ${pq.serviceName}`,
-            html: `<p>Estimado ${pq.clientName}, le recordamos que su cuestionario de ${pq.serviceName} para ${currentMonth}/${currentYear} está pendiente.</p>`,
-          }
+      // TODO(feature): resolver el email real del cliente desde
+      // Clerk/contactos. Hasta entonces estos recordatorios NO se envían
+      // (antes iban a un dominio placeholder ajeno — fuga de datos).
+      const clientReminderTo = process.env.OPS_NOTIFICATION_EMAIL;
+      if (!clientReminderTo) {
+        console.warn(
+          `[monthlyCheck] Sin resolución de email de cliente; ` +
+            `omitiendo ${pendingQuestionnaires.length} recordatorios de cuestionario.`
+        );
+      } else {
+        // Send reminder email for each pending questionnaire
+        for (const pq of pendingQuestionnaires) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.functions.email.send.sendEmailInternal,
+            {
+              to: clientReminderTo,
+              subject: `Recordatorio: Cuestionario pendiente - ${pq.serviceName}`,
+              html: `<p>Estimado ${pq.clientName}, le recordamos que su cuestionario de ${pq.serviceName} para ${currentMonth}/${currentYear} está pendiente.</p>`,
+            }
+          );
+        }
+
+        console.log(
+          `[monthlyCheck] Sent ${pendingQuestionnaires.length} questionnaire reminder emails`
         );
       }
-
-      console.log(
-        `[monthlyCheck] Sent ${pendingQuestionnaires.length} questionnaire reminder emails`
-      );
     }
 
     return summary;

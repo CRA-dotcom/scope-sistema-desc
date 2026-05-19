@@ -211,18 +211,26 @@ export const submit = mutation({
     // Get the assigned ejecutivo email
     const assignedTo = client?.assignedTo;
     if (assignedTo) {
-      // The identity subject is the user ID; for notification we need their email.
-      // We'll send a generic notification. In production, resolve user email from Clerk.
-      // For now, schedule email with a placeholder that can be configured.
-      await ctx.scheduler.runAfter(
-        0,
-        internal.functions.email.send.sendEmailInternal,
-        {
-          to: "ejecutivo@projex-platform.com", // In production, resolve from Clerk
-          subject: `Cuestionario completado - ${clientName}`,
-          html: `<p>El cliente <strong>${clientName}</strong> ha completado su cuestionario.</p><p>Revisa las respuestas en la plataforma.</p>`,
-        }
-      );
+      // TODO(feature): resolver el email del ejecutivo asignado desde Clerk.
+      // Hasta entonces se notifica al buzón de ops; si no está configurado
+      // se omite (antes iba a un dominio placeholder ajeno).
+      const notifyTo = process.env.OPS_NOTIFICATION_EMAIL;
+      if (!notifyTo) {
+        console.warn(
+          "[questionnaire] OPS_NOTIFICATION_EMAIL no configurado; " +
+            "omitiendo notificación de cuestionario completado."
+        );
+      } else {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.functions.email.send.sendEmailInternal,
+          {
+            to: notifyTo,
+            subject: `Cuestionario completado - ${clientName}`,
+            html: `<p>El cliente <strong>${clientName}</strong> ha completado su cuestionario.</p><p>Revisa las respuestas en la plataforma.</p>`,
+          }
+        );
+      }
     }
 
     return { success: true };

@@ -22,7 +22,17 @@ async function sendEmailHandler(args: {
     return { sent: false, reason: "no_api_key" };
   }
   const resend = new Resend(apiKey);
-  const from = args.from ?? "Projex <noreply@projex-platform.com>";
+  let from = args.from;
+  if (!from) {
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    if (!fromEmail) {
+      // Never send from an unowned domain — fail instead.
+      console.warn("RESEND_FROM_EMAIL not set, skipping email");
+      return { sent: false, reason: "no_from_email" };
+    }
+    const fromName = process.env.RESEND_FROM_NAME;
+    from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+  }
   try {
     const { data, error } = await resend.emails.send({
       from,

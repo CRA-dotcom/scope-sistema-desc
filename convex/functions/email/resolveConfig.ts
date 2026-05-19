@@ -6,7 +6,7 @@ import type { DataModel } from "../../_generated/dataModel";
 // Env vars consumed by platform fallback:
 //   RESEND_API_KEY       — fallback API key
 //   RESEND_WEBHOOK_SECRET — fallback webhook signing secret
-//   RESEND_FROM_EMAIL    — optional default "noreply@projex-platform.com"
+//   RESEND_FROM_EMAIL    — REQUIRED for platform fallback (verified domain)
 //   RESEND_FROM_NAME     — optional
 
 export class ResendNotConfiguredError extends Error {
@@ -44,10 +44,19 @@ export async function resolveResendCredentials(
     orgConfig.status === "active" &&
     orgConfig.config.apiKeySecretRef
   ) {
+    const fromEmail =
+      orgConfig.config.fromEmail ?? process.env.RESEND_FROM_EMAIL;
+    if (!fromEmail) {
+      throw new Error(
+        `Org ${args.orgId} tiene Resend activo pero sin From-email, ` +
+          `y RESEND_FROM_EMAIL no está configurado. Configura un remitente ` +
+          `de un dominio verificado en Resend (no se permite default ajeno).`
+      );
+    }
     return {
       apiKey: orgConfig.config.apiKeySecretRef,
-      fromEmail: orgConfig.config.fromEmail ?? "noreply@projex-platform.com",
-      fromName: orgConfig.config.fromName,
+      fromEmail,
+      fromName: orgConfig.config.fromName ?? process.env.RESEND_FROM_NAME,
       webhookSigningSecret: orgConfig.config.webhookSecretRef,
       source: "org_integration",
     };
@@ -58,9 +67,18 @@ export async function resolveResendCredentials(
     throw new ResendNotConfiguredError(args.orgId);
   }
 
+  const platformFromEmail = process.env.RESEND_FROM_EMAIL;
+  if (!platformFromEmail) {
+    throw new Error(
+      "RESEND_FROM_EMAIL no está configurado. Configura un remitente de un " +
+        "dominio verificado en Resend (ej. noreply@businessinteligencehub.com); " +
+        "no se permite enviar desde un dominio ajeno por default."
+    );
+  }
+
   return {
     apiKey: platformKey,
-    fromEmail: process.env.RESEND_FROM_EMAIL ?? "noreply@projex-platform.com",
+    fromEmail: platformFromEmail,
     fromName: process.env.RESEND_FROM_NAME,
     webhookSigningSecret: process.env.RESEND_WEBHOOK_SECRET,
     source: "platform_env",

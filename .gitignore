@@ -10,3 +10,5 @@ tsconfig.tsbuildinfo
 .claude/
 # Demo data dumps from real clients — RFC, financials, questionnaire responses
 scripts/.demo-data/
+# One-off cutover ops script (references Keychain, not project code)
+cutover-convex-env.sh

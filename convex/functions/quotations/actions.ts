@@ -430,7 +430,16 @@ export const sendQuotation = action({
     const subject =
       args.subjectOverride ??
       `Cotización ${quotation.serviceName} — ${issuingCompany.name}`;
-    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const appUrl = process.env.APP_URL;
+    if (!appUrl) {
+      // No localhost fallback: Convex sets NODE_ENV=production even on dev tier,
+      // so a fallback would silently ship dead localhost links to clients.
+      throw new Error(
+        "APP_URL no está configurado en el deployment de Convex. " +
+          "Ejecuta: npx convex env set APP_URL <url-base> " +
+          "(prod: https://businessinteligencehub.com, dev: http://localhost:3000)."
+      );
+    }
     const bodyHtml = buildQuotationEmailHtml({
       client: { name: client.name, contactName: client.contactName },
       serviceName: quotation.serviceName,
