@@ -165,11 +165,47 @@ export default defineSchema({
     .index("by_orgId", ["orgId"])
     .index("by_name", ["name"]),
 
+  // A1: padre→hijo de servicios contractuales. Ver
+  // docs/superpowers/specs/2026-05-21-subservices-model-design.md §2.1
+  subservices: defineTable({
+    orgId: v.optional(v.string()),
+    parentServiceId: v.id("services"),
+    name: v.string(),
+    slug: v.string(),
+    description: v.optional(v.string()),
+    defaultFrequency: v.union(
+      v.literal("mensual"),
+      v.literal("trimestral"),
+      v.literal("semestral"),
+      v.literal("anual"),
+      v.literal("una_vez")
+    ),
+    applicableMonths: v.optional(v.array(v.number())),
+    cooldownMonths: v.optional(v.number()),
+    defaultPricingHint: v.optional(v.number()),
+    isCommission: v.optional(v.boolean()),
+    isActive: v.boolean(),
+    isDefault: v.boolean(),
+    sortOrder: v.number(),
+    // Copy-on-write tracking (explicit personalizeGlobal, per R1 §12 #2)
+    parentSubserviceId: v.optional(v.id("subservices")),
+    originalVersionAtClone: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_parentServiceId", ["parentServiceId"])
+    .index("by_orgId_parentService", ["orgId", "parentServiceId"])
+    .index("by_orgId_isActive", ["orgId", "isActive"])
+    .index("by_parent_slug", ["parentServiceId", "slug"])
+    .index("by_parentSubserviceId", ["parentSubserviceId"]),
+
   projectionServices: defineTable({
     orgId: v.string(),
     projectionId: v.id("projections"),
     serviceId: v.id("services"),
     serviceName: v.string(),
+    subserviceId: v.optional(v.id("subservices")),
     chosenPct: v.number(),
     isActive: v.boolean(),
     annualAmount: v.number(),
@@ -185,6 +221,7 @@ export default defineSchema({
     projectionId: v.id("projections"),
     clientId: v.id("clients"),
     serviceName: v.string(),
+    subserviceId: v.optional(v.id("subservices")),
     month: v.number(),
     year: v.number(),
     amount: v.number(),
@@ -278,6 +315,7 @@ export default defineSchema({
     projServiceId: v.id("projectionServices"),
     clientId: v.id("clients"),
     serviceName: v.string(),
+    subserviceId: v.optional(v.id("subservices")),
     content: v.string(),
     pdfStorageId: v.optional(v.id("_storage")),
     status: v.union(
@@ -309,6 +347,7 @@ export default defineSchema({
     projServiceId: v.id("projectionServices"),
     clientId: v.id("clients"),
     serviceName: v.string(),
+    subserviceId: v.optional(v.id("subservices")),
     content: v.string(),
     pdfStorageId: v.optional(v.id("_storage")),
     status: v.union(
@@ -331,6 +370,7 @@ export default defineSchema({
     projServiceId: v.id("projectionServices"),
     clientId: v.id("clients"),
     serviceName: v.string(),
+    subserviceId: v.optional(v.id("subservices")),
     month: v.number(),
     year: v.number(),
     shortContent: v.string(),
@@ -408,6 +448,7 @@ export default defineSchema({
     orgId: v.optional(v.string()),
     serviceId: v.optional(v.id("services")),
     serviceName: v.string(),
+    subserviceId: v.optional(v.id("subservices")),
     type: v.union(
       v.literal("quotation"),
       v.literal("contract"),
