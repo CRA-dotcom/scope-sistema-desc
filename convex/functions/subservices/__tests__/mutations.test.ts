@@ -168,6 +168,22 @@ describe("subservices.mutations.create", () => {
       )
     ).rejects.toThrow(/Administrador/i);
   });
+
+  it("rechaza slug inválido (no kebab-case)", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    await expect(
+      t.withIdentity(admin(ORG_A)).mutation(
+        api.functions.subservices.mutations.create,
+        {
+          parentServiceId: legal,
+          name: "Random",
+          slug: "Some Random Slug!",
+          defaultFrequency: "mensual",
+        }
+      )
+    ).rejects.toThrow(/kebab-case/i);
+  });
 });
 
 describe("subservices.mutations.update", () => {
@@ -227,6 +243,28 @@ describe("subservices.mutations.update", () => {
         { id, patch: { name: "Hijack" } }
       )
     ).rejects.toThrow(/no encontrado/i);
+  });
+
+  it("members no pueden actualizar", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const id = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "MemberTest",
+        defaultFrequency: "mensual",
+      }
+    );
+    const before = await t.run((ctx) => ctx.db.get(id));
+    await expect(
+      t.withIdentity(member(ORG_A)).mutation(
+        api.functions.subservices.mutations.update,
+        { id, patch: { name: "Hijack" } }
+      )
+    ).rejects.toThrow(/Administrador/i);
+    const after = await t.run((ctx) => ctx.db.get(id));
+    expect(after?.name).toBe(before?.name);
   });
 });
 
@@ -293,6 +331,71 @@ describe("subservices.mutations.personalizeGlobal", () => {
       )
     ).rejects.toThrow(/globales/i);
   });
+
+  it("orgB personalizando el mismo global produce un clone separado (no toca el de orgA)", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const globalId = await seedGlobalSub(t, legal, "compliance");
+
+    const cloneA = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.personalizeGlobal,
+      { sourceId: globalId }
+    );
+    const cloneB = await t.withIdentity(admin(ORG_B)).mutation(
+      api.functions.subservices.mutations.personalizeGlobal,
+      { sourceId: globalId }
+    );
+
+    expect(cloneB).not.toBe(cloneA);
+
+    const docA = await t.run((ctx) => ctx.db.get(cloneA));
+    const docB = await t.run((ctx) => ctx.db.get(cloneB));
+    expect(docA?.orgId).toBe(ORG_A);
+    expect(docB?.orgId).toBe(ORG_B);
+    expect(docA?.parentSubserviceId).toBe(globalId);
+    expect(docB?.parentSubserviceId).toBe(globalId);
+
+    // orgA's clone untouched: still exists and its orgId is still ORG_A.
+    expect(docA).not.toBeNull();
+
+    // Each org sees exactly its own clone (not the other's).
+    const allA = await t.run((ctx) =>
+      ctx.db
+        .query("subservices")
+        .withIndex("by_orgId", (q) => q.eq("orgId", ORG_A))
+        .collect()
+    );
+    const allB = await t.run((ctx) =>
+      ctx.db
+        .query("subservices")
+        .withIndex("by_orgId", (q) => q.eq("orgId", ORG_B))
+        .collect()
+    );
+    expect(allA).toHaveLength(1);
+    expect(allB).toHaveLength(1);
+    expect(allA[0]._id).toBe(cloneA);
+    expect(allB[0]._id).toBe(cloneB);
+  });
+
+  it("members no pueden personalizar", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const globalId = await seedGlobalSub(t, legal, "compliance");
+    await expect(
+      t.withIdentity(member(ORG_A)).mutation(
+        api.functions.subservices.mutations.personalizeGlobal,
+        { sourceId: globalId }
+      )
+    ).rejects.toThrow(/Administrador/i);
+    // No clone created.
+    const orgRows = await t.run((ctx) =>
+      ctx.db
+        .query("subservices")
+        .withIndex("by_orgId", (q) => q.eq("orgId", ORG_A))
+        .collect()
+    );
+    expect(orgRows).toHaveLength(0);
+  });
 });
 
 describe("subservices.mutations.toggleActive", () => {
@@ -326,6 +429,53 @@ describe("subservices.mutations.toggleActive", () => {
         { id: globalId }
       )
     ).rejects.toThrow(/global/i);
+  });
+
+  it("orgB no puede togglear el subservicio de orgA", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const id = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "Solo OrgA",
+        defaultFrequency: "mensual",
+      }
+    );
+    const before = await t.run((ctx) => ctx.db.get(id));
+
+    await expect(
+      t.withIdentity(admin(ORG_B)).mutation(
+        api.functions.subservices.mutations.toggleActive,
+        { id }
+      )
+    ).rejects.toThrow(/no encontrado/i);
+
+    // State unchanged.
+    const after = await t.run((ctx) => ctx.db.get(id));
+    expect(after?.isActive).toBe(before?.isActive);
+  });
+
+  it("members no pueden togglear", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const id = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "ToggleMember",
+        defaultFrequency: "mensual",
+      }
+    );
+    const before = await t.run((ctx) => ctx.db.get(id));
+    await expect(
+      t.withIdentity(member(ORG_A)).mutation(
+        api.functions.subservices.mutations.toggleActive,
+        { id }
+      )
+    ).rejects.toThrow(/Administrador/i);
+    const after = await t.run((ctx) => ctx.db.get(id));
+    expect(after?.isActive).toBe(before?.isActive);
   });
 });
 
@@ -787,6 +937,27 @@ describe("subservices.mutations.remove", () => {
       )
     ).rejects.toThrow(/no encontrado/i);
   });
+
+  it("members no pueden borrar", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const subId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "RemoveMember",
+        defaultFrequency: "mensual",
+      }
+    );
+    await expect(
+      t.withIdentity(member(ORG_A)).mutation(
+        api.functions.subservices.mutations.remove,
+        { id: subId }
+      )
+    ).rejects.toThrow(/Administrador/i);
+    const stillThere = await t.run((ctx) => ctx.db.get(subId));
+    expect(stillThere).not.toBeNull();
+  });
 });
 
 describe("subservices.mutations.restoreToGlobal", () => {
@@ -882,6 +1053,46 @@ describe("subservices.mutations.restoreToGlobal", () => {
       )
     ).rejects.toThrow(/restaurar/i);
 
+    const stillThere = await t.run((ctx) => ctx.db.get(cloneId));
+    expect(stillThere).not.toBeNull();
+  });
+
+  it("orgB no puede restaurar el clone de orgA", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const globalId = await seedGlobalSub(t, legal, "compliance");
+    const cloneA = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.personalizeGlobal,
+      { sourceId: globalId }
+    );
+
+    await expect(
+      t.withIdentity(admin(ORG_B)).mutation(
+        api.functions.subservices.mutations.restoreToGlobal,
+        { id: cloneA }
+      )
+    ).rejects.toThrow(/no encontrado/i);
+
+    // orgA's clone is intact.
+    const stillThere = await t.run((ctx) => ctx.db.get(cloneA));
+    expect(stillThere).not.toBeNull();
+    expect(stillThere?.orgId).toBe(ORG_A);
+  });
+
+  it("members no pueden restaurar al global", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const globalId = await seedGlobalSub(t, legal, "compliance");
+    const cloneId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.personalizeGlobal,
+      { sourceId: globalId }
+    );
+    await expect(
+      t.withIdentity(member(ORG_A)).mutation(
+        api.functions.subservices.mutations.restoreToGlobal,
+        { id: cloneId }
+      )
+    ).rejects.toThrow(/Administrador/i);
     const stillThere = await t.run((ctx) => ctx.db.get(cloneId));
     expect(stillThere).not.toBeNull();
   });

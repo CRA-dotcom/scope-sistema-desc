@@ -10,8 +10,8 @@ function slugify(name: string): string {
   return name
     .toLowerCase()
     .normalize("NFD")
-    // strip combining diacritics
-    .replace(/[̀-ͯ]/g, "")
+    // strip combining diacritics (Unicode block U+0300–U+036F)
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
@@ -52,7 +52,11 @@ export const create = mutation({
     const parent = await ctx.db.get(args.parentServiceId);
     if (!parent) throw new Error("Servicio padre no encontrado.");
 
-    const slug = args.slug ?? slugify(args.name);
+    const rawSlug = args.slug?.trim();
+    if (rawSlug !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(rawSlug)) {
+      throw new Error("Slug inválido: usa kebab-case (solo minúsculas, números y guiones).");
+    }
+    const slug = rawSlug ?? slugify(args.name);
     if (!slug) {
       throw new Error("Slug inválido. Proporciona un nombre con caracteres alfanuméricos.");
     }
@@ -284,6 +288,9 @@ export const remove = mutation({
  * Internal helper: returns labels of tables that still reference this
  * subservice. Used by `remove` and `restoreToGlobal`.
  */
+// TODO scale: this performs 6 full org-scoped scans per remove() call. At ~12-month×N-service
+// volumes the cost grows linearly with rows per org. If perf becomes an issue, add
+// `by_orgId_subserviceId` compound indexes on each of the 6 referenced tables.
 async function findActiveRefs(
   ctx: MutationCtx,
   orgId: string,

@@ -194,10 +194,11 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_orgId", ["orgId"])
-    .index("by_parentServiceId", ["parentServiceId"])
     .index("by_orgId_parentService", ["orgId", "parentServiceId"])
+    // reserved for B1 active-only listing per spec §6.1
     .index("by_orgId_isActive", ["orgId", "isActive"])
     .index("by_parent_slug", ["parentServiceId", "slug"])
+    // reserved for D1 super-admin "which orgs personalized this global" view
     .index("by_parentSubserviceId", ["parentSubserviceId"]),
 
   projectionServices: defineTable({
