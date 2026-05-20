@@ -407,6 +407,356 @@ describe("subservices.mutations.remove", () => {
     expect(gone).toBeNull();
   });
 
+  it("bloquea con refs activas en monthlyAssignments", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const subId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "Test MA",
+        defaultFrequency: "mensual",
+      }
+    );
+
+    await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: ORG_A,
+        name: "C",
+        rfc: "ZZZ010101AAA",
+        industry: "x",
+        annualRevenue: 0,
+        billingFrequency: "mensual",
+        isArchived: false,
+        createdAt: Date.now(),
+      });
+      const projId = await ctx.db.insert("projections", {
+        orgId: ORG_A,
+        clientId,
+        year: 2026,
+        annualSales: 100,
+        totalBudget: 10,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const projServiceId = await ctx.db.insert("projectionServices", {
+        orgId: ORG_A,
+        projectionId: projId,
+        serviceId: legal,
+        serviceName: "Legal",
+        // NOTE: do NOT reference subId here — we are isolating the
+        // monthlyAssignments blocker, not the projectionServices one.
+        chosenPct: 0.02,
+        isActive: true,
+        annualAmount: 2,
+        normalizedWeight: 1,
+      });
+      await ctx.db.insert("monthlyAssignments", {
+        orgId: ORG_A,
+        projServiceId,
+        projectionId: projId,
+        clientId,
+        serviceName: "Legal",
+        subserviceId: subId,
+        month: 1,
+        year: 2026,
+        amount: 1,
+        feFactor: 1,
+        status: "pending" as const,
+        invoiceStatus: "not_invoiced" as const,
+      });
+    });
+
+    await expect(
+      t.withIdentity(admin(ORG_A)).mutation(
+        api.functions.subservices.mutations.remove,
+        { id: subId }
+      )
+    ).rejects.toThrow(/asignaciones mensuales/i);
+
+    const stillThere = await t.run((ctx) => ctx.db.get(subId));
+    expect(stillThere).not.toBeNull();
+  });
+
+  it("bloquea con refs activas en quotations", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const subId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "Test Q",
+        defaultFrequency: "mensual",
+      }
+    );
+
+    await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: ORG_A,
+        name: "C",
+        rfc: "ZZZ010101AAA",
+        industry: "x",
+        annualRevenue: 0,
+        billingFrequency: "mensual",
+        isArchived: false,
+        createdAt: Date.now(),
+      });
+      const projId = await ctx.db.insert("projections", {
+        orgId: ORG_A,
+        clientId,
+        year: 2026,
+        annualSales: 100,
+        totalBudget: 10,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const projServiceId = await ctx.db.insert("projectionServices", {
+        orgId: ORG_A,
+        projectionId: projId,
+        serviceId: legal,
+        serviceName: "Legal",
+        chosenPct: 0.02,
+        isActive: true,
+        annualAmount: 2,
+        normalizedWeight: 1,
+      });
+      await ctx.db.insert("quotations", {
+        orgId: ORG_A,
+        projServiceId,
+        clientId,
+        serviceName: "Legal",
+        subserviceId: subId,
+        content: "stub",
+        status: "draft" as const,
+        createdAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t.withIdentity(admin(ORG_A)).mutation(
+        api.functions.subservices.mutations.remove,
+        { id: subId }
+      )
+    ).rejects.toThrow(/cotizaciones/i);
+
+    const stillThere = await t.run((ctx) => ctx.db.get(subId));
+    expect(stillThere).not.toBeNull();
+  });
+
+  it("bloquea con refs activas en contracts", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const subId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "Test K",
+        defaultFrequency: "mensual",
+      }
+    );
+
+    await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: ORG_A,
+        name: "C",
+        rfc: "ZZZ010101AAA",
+        industry: "x",
+        annualRevenue: 0,
+        billingFrequency: "mensual",
+        isArchived: false,
+        createdAt: Date.now(),
+      });
+      const projId = await ctx.db.insert("projections", {
+        orgId: ORG_A,
+        clientId,
+        year: 2026,
+        annualSales: 100,
+        totalBudget: 10,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const projServiceId = await ctx.db.insert("projectionServices", {
+        orgId: ORG_A,
+        projectionId: projId,
+        serviceId: legal,
+        serviceName: "Legal",
+        chosenPct: 0.02,
+        isActive: true,
+        annualAmount: 2,
+        normalizedWeight: 1,
+      });
+      const quotationId = await ctx.db.insert("quotations", {
+        orgId: ORG_A,
+        projServiceId,
+        clientId,
+        serviceName: "Legal",
+        // NOTE: do NOT reference subId on the quotation — only on the contract,
+        // so we isolate the contracts blocker.
+        content: "stub",
+        status: "approved" as const,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("contracts", {
+        orgId: ORG_A,
+        quotationId,
+        projServiceId,
+        clientId,
+        serviceName: "Legal",
+        subserviceId: subId,
+        content: "stub",
+        status: "draft" as const,
+        createdAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t.withIdentity(admin(ORG_A)).mutation(
+        api.functions.subservices.mutations.remove,
+        { id: subId }
+      )
+    ).rejects.toThrow(/contratos/i);
+
+    const stillThere = await t.run((ctx) => ctx.db.get(subId));
+    expect(stillThere).not.toBeNull();
+  });
+
+  it("bloquea con refs activas en deliverables", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const subId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "Test D",
+        defaultFrequency: "mensual",
+      }
+    );
+
+    await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: ORG_A,
+        name: "C",
+        rfc: "ZZZ010101AAA",
+        industry: "x",
+        annualRevenue: 0,
+        billingFrequency: "mensual",
+        isArchived: false,
+        createdAt: Date.now(),
+      });
+      const projId = await ctx.db.insert("projections", {
+        orgId: ORG_A,
+        clientId,
+        year: 2026,
+        annualSales: 100,
+        totalBudget: 10,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const projServiceId = await ctx.db.insert("projectionServices", {
+        orgId: ORG_A,
+        projectionId: projId,
+        serviceId: legal,
+        serviceName: "Legal",
+        chosenPct: 0.02,
+        isActive: true,
+        annualAmount: 2,
+        normalizedWeight: 1,
+      });
+      const assignmentId = await ctx.db.insert("monthlyAssignments", {
+        orgId: ORG_A,
+        projServiceId,
+        projectionId: projId,
+        clientId,
+        serviceName: "Legal",
+        // NOTE: do NOT reference subId on the assignment — only on the
+        // deliverable, so we isolate the deliverables blocker.
+        month: 1,
+        year: 2026,
+        amount: 1,
+        feFactor: 1,
+        status: "pending" as const,
+        invoiceStatus: "not_invoiced" as const,
+      });
+      await ctx.db.insert("deliverables", {
+        orgId: ORG_A,
+        assignmentId,
+        projServiceId,
+        clientId,
+        serviceName: "Legal",
+        subserviceId: subId,
+        month: 1,
+        year: 2026,
+        shortContent: "s",
+        longContent: "l",
+        auditStatus: "pending" as const,
+        retryCount: 0,
+        createdAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t.withIdentity(admin(ORG_A)).mutation(
+        api.functions.subservices.mutations.remove,
+        { id: subId }
+      )
+    ).rejects.toThrow(/entregables/i);
+
+    const stillThere = await t.run((ctx) => ctx.db.get(subId));
+    expect(stillThere).not.toBeNull();
+  });
+
+  it("bloquea con refs activas en deliverableTemplates", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const subId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.create,
+      {
+        parentServiceId: legal,
+        name: "Test T",
+        defaultFrequency: "mensual",
+      }
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("deliverableTemplates", {
+        orgId: ORG_A,
+        serviceId: legal,
+        serviceName: "Legal",
+        subserviceId: subId,
+        type: "deliverable_short" as const,
+        name: "Plantilla Stub",
+        htmlTemplate: "<p></p>",
+        variables: [],
+        version: 1,
+        isActive: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t.withIdentity(admin(ORG_A)).mutation(
+        api.functions.subservices.mutations.remove,
+        { id: subId }
+      )
+    ).rejects.toThrow(/plantillas/i);
+
+    const stillThere = await t.run((ctx) => ctx.db.get(subId));
+    expect(stillThere).not.toBeNull();
+  });
+
   it("bloquea borrar globales desde un org", async () => {
     const t = setupTest();
     const legal = await seedParent(t);
@@ -476,5 +826,63 @@ describe("subservices.mutations.restoreToGlobal", () => {
         { id: globalId }
       )
     ).rejects.toThrow(/global/i);
+  });
+
+  it("bloquea restaurar al global si el clone tiene refs activas", async () => {
+    const t = setupTest();
+    const legal = await seedParent(t);
+    const globalId = await seedGlobalSub(t, legal, "compliance");
+    const cloneId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.subservices.mutations.personalizeGlobal,
+      { sourceId: globalId }
+    );
+
+    // attach a projectionServices row referencing the clone — same
+    // findActiveRefs gate as `remove`.
+    await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: ORG_A,
+        name: "C",
+        rfc: "ZZZ010101AAA",
+        industry: "x",
+        annualRevenue: 0,
+        billingFrequency: "mensual",
+        isArchived: false,
+        createdAt: Date.now(),
+      });
+      const projId = await ctx.db.insert("projections", {
+        orgId: ORG_A,
+        clientId,
+        year: 2026,
+        annualSales: 100,
+        totalBudget: 10,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("projectionServices", {
+        orgId: ORG_A,
+        projectionId: projId,
+        serviceId: legal,
+        serviceName: "Legal",
+        subserviceId: cloneId,
+        chosenPct: 0.02,
+        isActive: true,
+        annualAmount: 2,
+        normalizedWeight: 1,
+      });
+    });
+
+    await expect(
+      t.withIdentity(admin(ORG_A)).mutation(
+        api.functions.subservices.mutations.restoreToGlobal,
+        { id: cloneId }
+      )
+    ).rejects.toThrow(/restaurar/i);
+
+    const stillThere = await t.run((ctx) => ctx.db.get(cloneId));
+    expect(stillThere).not.toBeNull();
   });
 });
