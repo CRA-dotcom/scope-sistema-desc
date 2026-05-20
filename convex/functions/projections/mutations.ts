@@ -31,6 +31,11 @@ export const create = mutation({
         serviceId: v.id("services"),
         chosenPct: v.number(),
         isActive: v.boolean(),
+        // A1: optional subservice selection — required at the UI layer when
+        // the parent service has subservices available, but kept optional in
+        // the validator so legacy callers + transitional cases (no
+        // subservices configured yet) keep working.
+        subserviceId: v.optional(v.id("subservices")),
       })
     ),
     seasonalityDeltas: v.optional(
@@ -186,6 +191,7 @@ export const create = mutation({
         projectionId,
         serviceId: serviceConfig.serviceId,
         serviceName: svc.serviceName,
+        subserviceId: serviceConfig.subserviceId,
         chosenPct: svc.chosenPct,
         isActive: svc.isActive,
         annualAmount: svc.annualAmount,
@@ -201,6 +207,7 @@ export const create = mutation({
             projectionId,
             clientId: args.clientId,
             serviceName: svc.serviceName,
+            subserviceId: serviceConfig.subserviceId,
             month: ma.month,
             year: args.year,
             amount: ma.adjustedAmount,

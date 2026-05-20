@@ -64,6 +64,9 @@ type ServiceFormState = {
   chosenPct: number;
   isActive: boolean;
   isCommission: boolean;
+  // A1 — selected subservice for this parent. Obligatory when the parent has
+  // subservices available; undefined otherwise (transitional path during seed).
+  subserviceId?: Id<"subservices">;
 };
 
 function NuevaProyeccionContent() {
@@ -113,9 +116,49 @@ function NuevaProyeccionContent() {
     api.functions.services.queries.listGlobal,
     authReady ? {} : "skip"
   );
+  // A1: prefetch all subservices for the org once (instead of N queries per
+  // parent). Filtered by activity + grouped per parent below.
+  const allSubservices = useQuery(
+    api.functions.subservices.queries.listAllForOrg,
+    authReady ? {} : "skip"
+  );
   const createProjection = useMutation(
     api.functions.projections.mutations.create
   );
+
+  // Group active subservices by parentServiceId for the Step 2 dropdown.
+  const subservicesByParent = useMemo(() => {
+    const map = new Map<
+      string,
+      Array<{
+        _id: Id<"subservices">;
+        name: string;
+        defaultFrequency: string;
+      }>
+    >();
+    if (!allSubservices) return map;
+    for (const sub of allSubservices) {
+      if (!sub.isActive) continue;
+      const arr = map.get(sub.parentServiceId as string) ?? [];
+      arr.push({
+        _id: sub._id as Id<"subservices">,
+        name: sub.name,
+        defaultFrequency: sub.defaultFrequency,
+      });
+      map.set(sub.parentServiceId as string, arr);
+    }
+    return map;
+  }, [allSubservices]);
+
+  // True when the active service has subservices available but none picked.
+  const missingSubserviceSelection = useMemo(() => {
+    return serviceStates.some((s) => {
+      if (!s.isActive) return false;
+      const options = subservicesByParent.get(s.serviceId);
+      if (!options || options.length === 0) return false;
+      return !s.subserviceId;
+    });
+  }, [serviceStates, subservicesByParent]);
 
   const draftClientId = clientId
     ? (clientId as Id<"clients">)
@@ -323,6 +366,7 @@ function NuevaProyeccionContent() {
           serviceId: s.serviceId as Id<"services">,
           chosenPct: s.chosenPct,
           isActive: s.isActive,
+          subserviceId: s.subserviceId,
         })),
         // C2: projection period fields
         startMonth,
@@ -624,24 +668,80 @@ function NuevaProyeccionContent() {
                 {serviceStates.map((svc, i) => {
                   const svcAllocation =
                     allocation.perService.find((p) => p.serviceId === svc.serviceId) ?? null;
+                  const subOptions = subservicesByParent.get(svc.serviceId) ?? [];
                   return (
-                    <ServiceRow
-                      key={svc.serviceId}
-                      service={svc}
-                      allocation={svcAllocation}
-                      annualSales={annualSales}
-                      commissionRate={commissionRate}
-                      onToggleActive={(next) => {
-                        const updated = [...serviceStates];
-                        updated[i] = { ...updated[i], isActive: next };
-                        setServiceStates(updated);
-                      }}
-                      onChangePct={(next) => {
-                        const updated = [...serviceStates];
-                        updated[i] = { ...updated[i], chosenPct: next };
-                        setServiceStates(updated);
-                      }}
-                    />
+                    <div key={svc.serviceId} className="space-y-2">
+                      <ServiceRow
+                        service={svc}
+                        allocation={svcAllocation}
+                        annualSales={annualSales}
+                        commissionRate={commissionRate}
+                        onToggleActive={(next) => {
+                          const updated = [...serviceStates];
+                          updated[i] = { ...updated[i], isActive: next };
+                          setServiceStates(updated);
+                        }}
+                        onChangePct={(next) => {
+                          const updated = [...serviceStates];
+                          updated[i] = { ...updated[i], chosenPct: next };
+                          setServiceStates(updated);
+                        }}
+                      />
+                      {svc.isActive && (
+                        <div className="ml-6 space-y-1">
+                          {subOptions.length > 0 ? (
+                            <>
+                              <label className="text-xs text-muted-foreground">
+                                Subservicio (obligatorio)
+                              </label>
+                              <select
+                                value={svc.subserviceId ?? ""}
+                                onChange={(e) => {
+                                  const updated = [...serviceStates];
+                                  const val = e.target.value;
+                                  updated[i] = {
+                                    ...updated[i],
+                                    subserviceId: val
+                                      ? (val as Id<"subservices">)
+                                      : undefined,
+                                  };
+                                  setServiceStates(updated);
+                                }}
+                                required
+                                aria-label={`Subservicio para ${svc.serviceName}`}
+                                className="text-sm rounded-md border border-border bg-secondary px-2 py-1.5 focus:border-accent focus:outline-none cursor-pointer"
+                              >
+                                <option value="" disabled>
+                                  — Selecciona subservicio —
+                                </option>
+                                {subOptions.map((o) => (
+                                  <option key={o._id} value={o._id}>
+                                    {o.name} · {o.defaultFrequency}
+                                  </option>
+                                ))}
+                              </select>
+                              {!svc.subserviceId && (
+                                <p className="text-xs text-red-400">
+                                  Selecciona un subservicio antes de continuar.
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-xs text-amber-400">
+                              Este servicio no tiene subservicios configurados
+                              aún. Configúralos en{" "}
+                              <Link
+                                href="/configuracion/subservicios"
+                                className="underline hover:no-underline"
+                              >
+                                /configuracion/subservicios
+                              </Link>
+                              .
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -775,12 +875,16 @@ function NuevaProyeccionContent() {
               }}
               disabled={
                 (step === 0 && (!clientId || annualSales <= 0 || totalBudget <= 0)) ||
-                (step === 2 && Math.abs(allocation.remaining) > 0.01)
+                (step === 2 &&
+                  (Math.abs(allocation.remaining) > 0.01 ||
+                    missingSubserviceSelection))
               }
               title={
                 step === 2 && Math.abs(allocation.remaining) > 0.01
                   ? "Asigna exactamente el presupuesto antes de continuar."
-                  : undefined
+                  : step === 2 && missingSubserviceSelection
+                    ? "Selecciona un subservicio para cada servicio activo antes de continuar."
+                    : undefined
               }
               className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
             >
@@ -792,6 +896,13 @@ function NuevaProyeccionContent() {
                 Asigna exactamente el presupuesto antes de continuar.
               </p>
             )}
+            {step === 2 &&
+              Math.abs(allocation.remaining) <= 0.01 &&
+              missingSubserviceSelection && (
+                <p className="text-xs text-muted-foreground">
+                  Selecciona un subservicio para cada servicio activo.
+                </p>
+              )}
           </div>
         ) : (
           <div className="flex flex-col items-end gap-2">
