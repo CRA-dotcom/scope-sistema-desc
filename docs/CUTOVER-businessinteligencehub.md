@@ -42,6 +42,19 @@
 - [ ] `OPS_NOTIFICATION_EMAIL=<buzón interno>` (si no, los 3 crons se omiten)
 - [ ] Confirmar que `QA_SEED_ALLOWED` **NO** está en prod
 
+### Deploy del código a prod
+
+> Setear env vars ≠ deployar código. Sin deploy, las funciones (incluyendo
+> el handler de `/webhooks/resend`) no existen en prod y Resend recibe
+> `404 — This Convex deployment does not have HTTP actions enabled`.
+
+- [ ] `npx convex deploy --prod` — sube todas las funciones (queries,
+      mutations, actions, http routes) al deployment prod.
+- [ ] **Pre-requisito:** `CLERK_JWT_ISSUER_DOMAIN` debe estar seteado
+      ANTES del deploy. `auth.config.ts` lanza error al cargar si falta.
+- [ ] Después del deploy, en Resend → Webhooks → endpoint → "Replay"
+      los attempts pendientes para validar 200.
+
 ## Railway — variables del servicio (frontend)
 
 - [ ] `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_…`
