@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
@@ -55,6 +55,18 @@ export default function ProjectionDetailPage() {
   const selectedAssignment: Doc<"monthlyAssignments"> | null = selectedAssignmentId
     ? (matrix?.assignments.find((a) => a._id === selectedAssignmentId) ?? null)
     : null;
+
+  const subservices = useQuery(
+    api.functions.subservices.queries.listAllForOrg,
+    {}
+  );
+  const subservicesById = useMemo(
+    () => {
+      const list = subservices ?? [];
+      return new Map(list.map((s) => [s._id, s]));
+    },
+    [subservices]
+  );
 
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
   const { download: downloadPdf, state: pdfState } = usePdfGenerator();
@@ -297,7 +309,14 @@ export default function ProjectionDetailPage() {
               return (
                 <tr key={svc._id} className="border-b border-border/50">
                   <td className="sticky left-0 bg-card px-4 py-2.5 font-medium">
-                    {svc.serviceName}
+                    <div>
+                      <div>{svc.serviceName}</div>
+                      {svc.subserviceId && subservicesById.get(svc.subserviceId) && (
+                        <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                          {subservicesById.get(svc.subserviceId)!.name}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   {months.map((monthNum, i) => {
                     const ma = svcAssignments.find((a) => a.month === monthNum);
@@ -371,6 +390,11 @@ export default function ProjectionDetailPage() {
       {selectedAssignment && (
         <MatrixCellDetail
           assignment={selectedAssignment}
+          subserviceName={
+            selectedAssignment.subserviceId
+              ? subservicesById.get(selectedAssignment.subserviceId)?.name
+              : undefined
+          }
           onClose={() => setSelectedAssignmentId(null)}
         />
       )}

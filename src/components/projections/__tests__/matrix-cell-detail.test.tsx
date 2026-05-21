@@ -67,4 +67,16 @@ describe("MatrixCellDetail — override manual block", () => {
     expect(SOURCE).not.toMatch(/from\s*"sonner"/);
     expect(SOURCE).not.toMatch(/react-hot-toast/);
   });
+
+  it("accepts an optional subserviceName prop in the signature", () => {
+    expect(SOURCE).toMatch(/subserviceName\?\s*:\s*string/);
+  });
+
+  it("renders ' › subserviceName' in the header when provided", () => {
+    expect(SOURCE).toContain("› {subserviceName}");
+  });
+
+  it("does not require subserviceName (optional with falsy guard)", () => {
+    expect(SOURCE).toMatch(/\{subserviceName\s*&&\s*\(/);
+  });
 });

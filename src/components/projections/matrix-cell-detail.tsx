@@ -36,9 +36,11 @@ interface Step {
 
 export function MatrixCellDetail({
   assignment,
+  subserviceName,
   onClose,
 }: {
   assignment: Doc<"monthlyAssignments">;
+  subserviceName?: string;
   onClose: () => void;
 }) {
   const { flags } = useOrgConfig();
@@ -118,7 +120,15 @@ export function MatrixCellDetail({
           <p className="text-xs text-muted-foreground">
             {MONTH_NAMES[assignment.month - 1]} {assignment.year}
           </p>
-          <h3 className="text-lg font-semibold">{assignment.serviceName}</h3>
+          <h3 className="text-lg font-semibold">
+            {assignment.serviceName}
+            {subserviceName && (
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                › {subserviceName}
+              </span>
+            )}
+          </h3>
         </div>
         <button
           onClick={onClose}
