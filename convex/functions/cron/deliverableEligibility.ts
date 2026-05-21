@@ -2,6 +2,10 @@ import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 
+// Cap 1 reminder email per client per 24h. The lookback window used when
+// querying `documentEvents` for an existing `reminder_sent`.
+const REMINDER_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+
 /**
  * A3 — Daily eligibility scan.
  *
@@ -160,7 +164,7 @@ export const run = internalAction({
             {
               orgId: org.orgId,
               clientId: client._id,
-              sinceMs: Date.now() - 24 * 60 * 60 * 1000,
+              sinceMs: Date.now() - REMINDER_LOOKBACK_MS,
             }
           );
           if (recentReminder) {

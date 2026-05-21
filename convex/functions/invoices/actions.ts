@@ -10,6 +10,10 @@ import {
   signedDownloadUrl,
 } from "../../lib/blobStorage";
 
+// Authenticated, single-use download from the UI: a short TTL is enough
+// because the user is already in-session and can re-request another URL.
+const DOWNLOAD_URL_TTL_SEC = 60 * 60;
+
 /**
  * A3 — Upload an invoice PDF.
  *
@@ -150,7 +154,7 @@ export const getDownloadUrl = action({
     if (!inv) throw new Error("Factura no encontrada.");
     return await signedDownloadUrl({
       bucketKey: inv.bucketKey,
-      expiresSec: 60 * 60,
+      expiresSec: DOWNLOAD_URL_TTL_SEC,
     });
   },
 });

@@ -5,6 +5,11 @@ import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import { signedDownloadUrl } from "../../lib/blobStorage";
 
+// Signed URL embedded in the email to the client. Must outlive normal inbox
+// latency + the client's "read it later" pattern; 7 days mirrors how long a
+// typical invoice notification stays actionable.
+const EMAIL_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 7;
+
 /**
  * A3 — Email side-effects spawned from invoice flows. Both honour the
  * notification recipient resolution spec (2026-05-19):
@@ -59,7 +64,7 @@ export const notifyClientUploaded = internalAction({
     try {
       url = await signedDownloadUrl({
         bucketKey: inv.bucketKey,
-        expiresSec: 60 * 60 * 24 * 7,
+        expiresSec: EMAIL_SIGNED_URL_TTL_SEC,
       });
     } catch (err) {
       console.error("[notifyClientUploaded] signed URL failed:", err);
