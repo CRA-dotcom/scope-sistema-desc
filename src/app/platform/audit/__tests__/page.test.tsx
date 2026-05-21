@@ -27,9 +27,20 @@ describe("/platform/audit — page contract", () => {
     );
   });
 
-  it("populates the Org dropdown from organizations.queries.list", () => {
+  it("populates the Org dropdown from superAdmin.audit.listOrgsForAuditFilter", () => {
+    // D1: A3 used organizations.queries.list which leaked extra fields. D1's
+    // lightweight helper returns only {clerkOrgId, name} ordered alphabetically.
     expect(source).toMatch(
-      /useQuery\(api\.functions\.organizations\.queries\.list\)/
+      /useQuery\(\s*\n?\s*api\.functions\.superAdmin\.audit\.listOrgsForAuditFilter/
+    );
+  });
+
+  it("uses superAdmin.audit.listClientsForOrg for cross-org Cliente dropdown (D1)", () => {
+    // D1 fixes the A3 review gap: clients.queries.list was scoped to the
+    // caller's own org. listClientsForOrg is super-admin gated and accepts
+    // any orgId so the dropdown surfaces the correct clients of the audited org.
+    expect(source).toMatch(
+      /useQuery\(\s*\n?\s*api\.functions\.superAdmin\.audit\.listClientsForOrg/
     );
   });
 });
@@ -148,15 +159,16 @@ describe("/platform/audit — pagination flash guard", () => {
   });
 });
 
-describe("/platform/audit — cliente cross-org note", () => {
-  it("shows the 'Solo lista clientes de tu organización actual' note when viewing another org", () => {
-    // Fix #8: small muted note appears when the selected audit-target org
-    // does not match the caller's current Clerk org.
-    expect(source).toContain("Solo lista clientes de tu organización actual.");
-    expect(source).toMatch(/isViewingOtherOrg/);
-    expect(source).toContain('data-testid="filter-client-other-org-note"');
-    // The check must use the caller's *current* Clerk org id.
-    expect(source).toMatch(/useOrganization/);
+describe("/platform/audit — cross-org Cliente dropdown (D1)", () => {
+  it("no longer needs the 'Solo lista clientes de tu organización actual' note", () => {
+    // D1 replaced clients.queries.list with superAdmin.audit.listClientsForOrg,
+    // which is super-admin gated and accepts any orgId. The cross-org note
+    // (and the useOrganization dependency that drove it) are obsolete.
+    expect(source).not.toContain(
+      "Solo lista clientes de tu organización actual."
+    );
+    expect(source).not.toContain('data-testid="filter-client-other-org-note"');
+    expect(source).not.toMatch(/useOrganization/);
   });
 });
 

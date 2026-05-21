@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useOrganization } from "@clerk/nextjs";
 import { useState, useMemo, useEffect } from "react";
 import {
   FileSearch,
@@ -50,14 +49,14 @@ type EventListResult = {
 };
 
 type OrgRow = {
-  _id: Id<"organizations">;
   clerkOrgId: string;
   name: string;
 };
 
 type ClientRow = {
-  _id: Id<"clients">;
+  id: Id<"clients">;
   name: string;
+  rfc: string;
 };
 
 const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
@@ -101,24 +100,18 @@ export default function AuditPage() {
   // page lands and a useEffect clears the flag.
   const [pendingMore, setPendingMore] = useState(false);
 
-  const orgs = useQuery(api.functions.organizations.queries.list) as
-    | OrgRow[]
-    | undefined;
+  // D1: lightweight super-admin org list (clerkOrgId + name only).
+  const orgs = useQuery(
+    api.functions.superAdmin.audit.listOrgsForAuditFilter
+  ) as OrgRow[] | undefined;
 
-  // Super-admin's *current* Clerk org. The Cliente dropdown is scoped to the
-  // caller's own org (multi-tenant guard on clients.queries.list), so when the
-  // audit target differs we surface a tiny note explaining the empty list.
-  const { organization } = useOrganization();
-  const callerOrgId = organization?.id ?? null;
-  const isViewingOtherOrg =
-    selectedOrgId !== "" && callerOrgId !== null && selectedOrgId !== callerOrgId;
-
-  // Client filter is best-effort: it lists clients of the caller's own org
-  // (multi-tenant guard on the query). When auditing a different org, the
-  // dropdown will be empty — the operator can still filter by entity/severity.
-  const clients = useQuery(api.functions.clients.queries.list, {}) as
-    | ClientRow[]
-    | undefined;
+  // D1: cross-org client listing — closes the A3 review gap where the Cliente
+  // dropdown was scoped to the caller's own org. Super-admin can now filter
+  // by any client of any org.
+  const clients = useQuery(
+    api.functions.superAdmin.audit.listClientsForOrg,
+    selectedOrgId ? { orgId: selectedOrgId } : "skip"
+  ) as ClientRow[] | undefined;
 
   // Stringify date filter to ms once for query.
   const sinceMs = useMemo(() => {
@@ -237,7 +230,7 @@ export default function AuditPage() {
           >
             <option value="">Selecciona una organización…</option>
             {orgs?.map((o) => (
-              <option key={o._id} value={o.clerkOrgId}>
+              <option key={o.clerkOrgId} value={o.clerkOrgId}>
                 {o.name}
               </option>
             ))}
@@ -263,7 +256,7 @@ export default function AuditPage() {
             >
               <option value="">Todos los clientes</option>
               {clients?.map((c) => (
-                <option key={c._id} value={c._id}>
+                <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
@@ -273,14 +266,6 @@ export default function AuditPage() {
               className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
           </div>
-          {isViewingOtherOrg && (
-            <p
-              data-testid="filter-client-other-org-note"
-              className="mt-1 text-[10px] text-muted-foreground"
-            >
-              Solo lista clientes de tu organización actual.
-            </p>
-          )}
         </div>
 
         {/* Entidad */}
