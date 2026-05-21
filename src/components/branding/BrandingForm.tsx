@@ -133,6 +133,17 @@ export function BrandingForm({
     }
   }, [logoUrl]);
 
+  // Revoke any blob: URL we held on unmount or when it changes.
+  // The cleanup captures the *previous* localLogoUrl, so the new blob
+  // URL is only revoked after a subsequent replacement / unmount.
+  useEffect(() => {
+    return () => {
+      if (localLogoUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(localLogoUrl);
+      }
+    };
+  }, [localLogoUrl]);
+
   const handleLogoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -155,6 +166,11 @@ export function BrandingForm({
     try {
       const storageId = await onUpload(file);
       setLogoStorageId(storageId);
+      // Revoke the previous blob URL (if any) before allocating a new one
+      // so successive uploads in the same session don't leak memory.
+      if (localLogoUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(localLogoUrl);
+      }
       setLocalLogoUrl(URL.createObjectURL(file));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al subir logo");
