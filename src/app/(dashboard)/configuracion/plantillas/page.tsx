@@ -56,6 +56,15 @@ type Template = {
   updatedAt: number;
 };
 
+// listForOrg now returns wrapper rows so the tree can show the
+// "vN personalizada · vM global disponible" chip per spec §4.1 without
+// fetching parents row-by-row.
+type TemplateRowData = {
+  template: Template;
+  hasNewerGlobal: boolean;
+  globalVersion: number | null;
+};
+
 type Subservice = {
   _id: Id<"subservices">;
   orgId?: string;
@@ -157,13 +166,15 @@ export default function PlantillasPage() {
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((sub) => ({
           subservice: sub,
-          templates: (templates as Template[])
+          templates: (templates as TemplateRowData[])
             .filter(
-              (t) =>
-                t.subserviceId === sub._id &&
-                t.type !== "invoice" // operator-side filter
+              (row) =>
+                row.template.subserviceId === sub._id &&
+                row.template.type !== "invoice" // operator-side filter
             )
-            .sort((a, b) => a.name.localeCompare(b.name)),
+            .sort((a, b) =>
+              a.template.name.localeCompare(b.template.name),
+            ),
         })),
     }));
   }, [services, subservices, templates]);
@@ -394,23 +405,25 @@ export default function PlantillasPage() {
                                   </p>
                                 ) : (
                                   <ul className="space-y-1">
-                                    {tpls.map((tpl) => (
+                                    {tpls.map((row) => (
                                       <TemplateRow
-                                        key={tpl._id}
-                                        template={tpl}
+                                        key={row.template._id}
+                                        template={row.template}
+                                        hasNewerGlobal={row.hasNewerGlobal}
+                                        globalVersion={row.globalVersion}
                                         callerOrgId={callerOrgId}
                                         isAdmin={isAdmin}
-                                        busy={busyId === tpl._id}
+                                        busy={busyId === row.template._id}
                                         onPersonalize={() =>
-                                          handlePersonalize(tpl)
+                                          handlePersonalize(row.template)
                                         }
                                         onEdit={() =>
                                           router.push(
-                                            `/configuracion/plantillas/${tpl._id}`
+                                            `/configuracion/plantillas/${row.template._id}`
                                           )
                                         }
                                         onRequestRestore={() =>
-                                          setPendingRestore(tpl)
+                                          setPendingRestore(row.template)
                                         }
                                       />
                                     ))}
@@ -470,6 +483,8 @@ export default function PlantillasPage() {
 
 function TemplateRow({
   template,
+  hasNewerGlobal,
+  globalVersion,
   callerOrgId,
   isAdmin,
   busy,
@@ -478,6 +493,8 @@ function TemplateRow({
   onRequestRestore,
 }: {
   template: Template;
+  hasNewerGlobal: boolean;
+  globalVersion: number | null;
   callerOrgId: string | null;
   isAdmin: boolean;
   busy: boolean;
@@ -491,94 +508,114 @@ function TemplateRow({
   const isOrgScoped = !isGlobal && template.orgId === callerOrgId;
   const hasParent = template.parentTemplateId !== undefined;
 
-  // For now we render "hay versión nueva del global" only when listForOrg
-  // already includes the metadata. listForOrg doesn't compute hasNewerGlobal
-  // (that's editor-side via getByIdWithBanner). Here we infer it visually
-  // only via the editor banner — the tree just shows the chips.
   return (
     <li
       data-testid={`template-row-${template._id}`}
-      className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-background/40 px-3 py-2"
+      className="space-y-1 rounded-md border border-border/60 bg-background/40 px-3 py-2"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="text-sm font-medium truncate">{template.name}</span>
-        <span className="text-xs text-muted-foreground">
-          v{template.version}
-        </span>
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-            TYPE_COLORS[template.type]
-          }`}
-        >
-          {TYPE_LABELS[template.type]}
-        </span>
-        {isGlobal ? (
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="text-sm font-medium truncate">{template.name}</span>
+          <span className="text-xs text-muted-foreground">
+            v{template.version}
+          </span>
           <span
-            data-testid="badge-global"
-            className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+              TYPE_COLORS[template.type]
+            }`}
           >
-            Global
+            {TYPE_LABELS[template.type]}
           </span>
-        ) : (
-          <span
-            data-testid="badge-personalizada"
-            className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-accent"
-          >
-            Personalizada
-          </span>
-        )}
-        {!template.isActive && (
-          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            Inactivo
-          </span>
+          {isGlobal ? (
+            <span
+              data-testid="badge-global"
+              className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+            >
+              Global
+            </span>
+          ) : (
+            <span
+              data-testid="badge-personalizada"
+              className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-accent"
+            >
+              Personalizada
+            </span>
+          )}
+          {!template.isActive && (
+            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              Inactivo
+            </span>
+          )}
+        </div>
+
+        {isAdmin && (
+          <div className="flex items-center gap-1">
+            {isGlobal && (
+              <button
+                type="button"
+                onClick={onPersonalize}
+                disabled={busy}
+                data-testid="personalize-btn"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
+                title="Personalizar para mi org"
+              >
+                {busy ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Copy size={12} />
+                )}
+                Personalizar para mi org
+              </button>
+            )}
+            {isOrgScoped && (
+              <>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  disabled={busy}
+                  data-testid="edit-btn"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
+                  title="Editar plantilla"
+                >
+                  <Pencil size={12} /> Editar
+                </button>
+                {hasParent && (
+                  <button
+                    type="button"
+                    onClick={onRequestRestore}
+                    disabled={busy}
+                    data-testid="restore-to-global-btn"
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
+                    title="Restaurar default global"
+                  >
+                    <RotateCcw size={12} /> Restaurar default
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
 
-      {isAdmin && (
-        <div className="flex items-center gap-1">
-          {isGlobal && (
-            <button
-              type="button"
-              onClick={onPersonalize}
-              disabled={busy}
-              data-testid="personalize-btn"
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
-              title="Personalizar para mi org"
-            >
-              {busy ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <Copy size={12} />
-              )}
-              Personalizar para mi org
-            </button>
-          )}
-          {isOrgScoped && (
-            <>
-              <button
-                type="button"
-                onClick={onEdit}
-                disabled={busy}
-                data-testid="edit-btn"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
-                title="Editar plantilla"
-              >
-                <Pencil size={12} /> Editar
-              </button>
-              {hasParent && (
-                <button
-                  type="button"
-                  onClick={onRequestRestore}
-                  disabled={busy}
-                  data-testid="restore-to-global-btn"
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
-                  title="Restaurar default global"
-                >
-                  <RotateCcw size={12} /> Restaurar default
-                </button>
-              )}
-            </>
-          )}
+      {/* Spec §4.1: under each personalized stale row, show a chip with
+          link to the editor (whose diff modal loads via getByIdWithBanner). */}
+      {hasNewerGlobal && isOrgScoped && (
+        <div
+          data-testid="chip-newer-global"
+          className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/5 px-2 py-1 text-[11px] text-yellow-300"
+        >
+          <AlertTriangle size={12} className="shrink-0" />
+          <span>
+            v{template.version} personalizada · v{globalVersion} global
+            disponible.
+          </span>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="underline hover:no-underline cursor-pointer"
+          >
+            Ver cambios
+          </button>
         </div>
       )}
     </li>

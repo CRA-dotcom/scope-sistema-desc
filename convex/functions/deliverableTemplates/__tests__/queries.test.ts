@@ -257,7 +257,7 @@ describe("deliverableTemplates.queries.listForOrg — dedup global+clon", () => 
     const list = await t
       .withIdentity(admin(ORG_A))
       .query(api.functions.deliverableTemplates.queries.listForOrg, {});
-    const ids = list.map((t) => t._id);
+    const ids = list.map((row) => row.template._id);
     expect(ids).toContain(cloneId);
     expect(ids).not.toContain(globalId);
   });
@@ -282,16 +282,70 @@ describe("deliverableTemplates.queries.listForOrg — dedup global+clon", () => 
     const listA = await t
       .withIdentity(admin(ORG_A))
       .query(api.functions.deliverableTemplates.queries.listForOrg, {});
-    const idsA = listA.map((t) => t._id);
+    const idsA = listA.map((row) => row.template._id);
     expect(idsA).toContain(globalUntouched);
     expect(idsA).toContain(orgAId);
 
     const listB = await t
       .withIdentity(admin(ORG_B))
       .query(api.functions.deliverableTemplates.queries.listForOrg, {});
-    const idsB = listB.map((t) => t._id);
+    const idsB = listB.map((row) => row.template._id);
     expect(idsB).toContain(globalUntouched); // global visible
     expect(idsB).not.toContain(orgAId); // org-scoped de A invisible para B
+  });
+
+  // Spec §4.1: stale clones must carry hasNewerGlobal=true + globalVersion so
+  // the tree can render the inline chip without a per-row follow-up query.
+  it("clon stale (parent.version > originalVersionAtClone) ⇒ hasNewerGlobal=true", async () => {
+    const t = setupTest();
+    const globalId = await seedGlobal(t, { version: 3 });
+    const cloneId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.deliverableTemplates.mutations.personalizeGlobal,
+      { globalTemplateId: globalId },
+    );
+    // Super-admin bump del global a v8 → clon queda stale.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(globalId, { version: 8, updatedAt: Date.now() });
+    });
+
+    const list = await t
+      .withIdentity(admin(ORG_A))
+      .query(api.functions.deliverableTemplates.queries.listForOrg, {});
+    const cloneRow = list.find((row) => row.template._id === cloneId);
+    expect(cloneRow).toBeDefined();
+    expect(cloneRow!.hasNewerGlobal).toBe(true);
+    expect(cloneRow!.globalVersion).toBe(8);
+  });
+
+  it("clon up-to-date (parent.version === originalVersionAtClone) ⇒ hasNewerGlobal=false", async () => {
+    const t = setupTest();
+    const globalId = await seedGlobal(t, { version: 5 });
+    const cloneId = await t.withIdentity(admin(ORG_A)).mutation(
+      api.functions.deliverableTemplates.mutations.personalizeGlobal,
+      { globalTemplateId: globalId },
+    );
+    // No bump del global → parent.version === originalVersionAtClone.
+    const list = await t
+      .withIdentity(admin(ORG_A))
+      .query(api.functions.deliverableTemplates.queries.listForOrg, {});
+    const cloneRow = list.find((row) => row.template._id === cloneId);
+    expect(cloneRow).toBeDefined();
+    expect(cloneRow!.hasNewerGlobal).toBe(false);
+    // globalVersion lo seguimos exponiendo para que la UI pueda mostrar
+    // info auxiliar; lo que dispara el chip es hasNewerGlobal.
+    expect(cloneRow!.globalVersion).toBe(5);
+  });
+
+  it("global sin clonar ⇒ hasNewerGlobal=false, globalVersion=null", async () => {
+    const t = setupTest();
+    const globalId = await seedGlobal(t);
+    const list = await t
+      .withIdentity(admin(ORG_A))
+      .query(api.functions.deliverableTemplates.queries.listForOrg, {});
+    const globalRow = list.find((row) => row.template._id === globalId);
+    expect(globalRow).toBeDefined();
+    expect(globalRow!.hasNewerGlobal).toBe(false);
+    expect(globalRow!.globalVersion).toBeNull();
   });
 });
 

@@ -82,6 +82,12 @@ export const list = query({
  * `/configuracion/plantillas`. Globals + org-scoped, deduplicated by
  * `parentTemplateId` (if a clone exists, the source global is hidden).
  *
+ * Each row is wrapped with `hasNewerGlobal` + `globalVersion` so the tree can
+ * render the inline chip "⚠ vN personalizada · vM global disponible"
+ * (spec §4.1) without a per-row follow-up query. For org-scoped rows with a
+ * `parentTemplateId` we fetch the parent (1 read per parent — N is small in
+ * practice) and compare `parent.version` against `originalVersionAtClone`.
+ *
  * Per A2 §3.2.
  */
 export const listForOrg = query({
@@ -120,7 +126,33 @@ export const listForOrg = query({
       merged = merged.filter((t) => t.subserviceId === args.subserviceId);
     }
 
-    return merged;
+    // Enrich each row with hasNewerGlobal metadata. Globals and clones without
+    // a parent always return false/null. For clones we fetch the parent once
+    // and compare versions — same condition as getByIdWithBanner.
+    const enriched = await Promise.all(
+      merged.map(async (template) => {
+        if (
+          template.parentTemplateId &&
+          template.originalVersionAtClone !== undefined
+        ) {
+          const parent = await ctx.db.get(template.parentTemplateId);
+          if (parent) {
+            return {
+              template,
+              hasNewerGlobal: parent.version > template.originalVersionAtClone,
+              globalVersion: parent.version,
+            };
+          }
+        }
+        return {
+          template,
+          hasNewerGlobal: false,
+          globalVersion: null as number | null,
+        };
+      }),
+    );
+
+    return enriched;
   },
 });
 

@@ -605,7 +605,7 @@ describe("deliverableTemplates.mutations.restoreToGlobal", () => {
     const list = await t
       .withIdentity(admin(ORG_A))
       .query(api.functions.deliverableTemplates.queries.listForOrg, {});
-    expect(list.map((t) => t._id)).toContain(globalId);
+    expect(list.map((row) => row.template._id)).toContain(globalId);
   });
 
   it("soft-delete (isActive=false) cuando hay deliverables apuntando", async () => {

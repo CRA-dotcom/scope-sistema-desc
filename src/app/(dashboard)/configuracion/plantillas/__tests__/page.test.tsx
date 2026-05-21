@@ -138,7 +138,8 @@ describe("/configuracion/plantillas — badges + state", () => {
 describe("/configuracion/plantillas — invoice filtering (operator UI hides invoice type)", () => {
   it("filters templates where type === 'invoice' from the tree", () => {
     // The tree builder strips invoice templates so the operator never sees them.
-    expect(source).toMatch(/t\.type\s*!==\s*"invoice"/);
+    // listForOrg now returns wrapper rows so the filter looks at row.template.type.
+    expect(source).toMatch(/row\.template\.type\s*!==\s*"invoice"/);
   });
 
   it("the OPERATOR_TYPE_OPTIONS dropdown excludes 'invoice'", () => {
@@ -191,5 +192,44 @@ describe("/configuracion/plantillas — empty + loading states", () => {
 
   it("renders an empty-state message when a subservice has zero templates", () => {
     expect(source).toContain("No hay plantillas todavía");
+  });
+});
+
+describe("/configuracion/plantillas — hasNewerGlobal chip (spec §4.1)", () => {
+  it("declares a TemplateRowData wrapper type so listForOrg's enriched rows are typed", () => {
+    // The tree page consumes wrapper objects from listForOrg
+    // ({template, hasNewerGlobal, globalVersion}) — not flat Doc rows.
+    expect(source).toMatch(
+      /type\s+TemplateRowData\s*=\s*\{[\s\S]*?template:\s*Template;[\s\S]*?hasNewerGlobal:\s*boolean;[\s\S]*?globalVersion:\s*number\s*\|\s*null;[\s\S]*?\}/
+    );
+  });
+
+  it("iterates rows via row.template (not flat templates)", () => {
+    // The tree filter uses row.template.subserviceId / row.template.type;
+    // this guards against accidentally regressing to flat-row iteration.
+    expect(source).toMatch(/row\.template\.subserviceId\s*===\s*sub\._id/);
+    expect(source).toMatch(/row\.template\.type\s*!==\s*"invoice"/);
+  });
+
+  it("renders the chip only when hasNewerGlobal === true (and row is org-scoped)", () => {
+    // Spec §4.1: chip appears under personalized rows that are stale.
+    expect(source).toMatch(/\{hasNewerGlobal\s*&&\s*isOrgScoped\s*&&/);
+    expect(source).toContain('data-testid="chip-newer-global"');
+  });
+
+  it("chip text matches spec wording: vN personalizada · vM global disponible", () => {
+    // Spec §4.1 ASCII line 763.
+    expect(source).toMatch(/personalizada\s*·/);
+    expect(source).toContain("global");
+    expect(source).toContain("disponible");
+  });
+
+  it("'Ver cambios' inside the chip routes to the editor (where the diff modal lives)", () => {
+    // The chip's "Ver cambios" link delegates to the row's onEdit handler
+    // which pushes to /configuracion/plantillas/{id}. The editor's existing
+    // diff modal then loads via getByIdWithBanner.
+    expect(source).toMatch(
+      /chip-newer-global[\s\S]*?Ver cambios[\s\S]*?<\/button>/
+    );
   });
 });
