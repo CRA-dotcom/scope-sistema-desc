@@ -79,6 +79,21 @@ export const listProjServicesForClient = internalQuery({
   },
 });
 
+/**
+ * Find the most recent `reminder_sent` documentEvent for a (org, client) pair
+ * within the supplied lookback window.
+ *
+ * Correctness note: must filter via the `by_orgId_eventType_createdAt` index
+ * (not `by_orgId_clientId_createdAt` + in-memory eventType filter). If a
+ * client accumulates many non-reminder events newer than their last reminder
+ * (uploaded / paid / sent / voided / …), a `.take(N)` cap on the clientId
+ * index would silently drop the reminder and the cron would re-send,
+ * violating the "1 email per client per 24h" guarantee.
+ *
+ * Because clientIds are sparse per (orgId, eventType="reminder_sent")
+ * partition, scanning the per-eventType slice within the 24h window and
+ * matching `clientId` in-memory is cheap.
+ */
 export const findRecentReminder = internalQuery({
   args: {
     orgId: v.string(),
@@ -86,19 +101,16 @@ export const findRecentReminder = internalQuery({
     sinceMs: v.number(),
   },
   handler: async (ctx, args) => {
-    const rows = await ctx.db
+    const events = await ctx.db
       .query("documentEvents")
-      .withIndex("by_orgId_clientId_createdAt", (q) =>
-        q.eq("orgId", args.orgId).eq("clientId", args.clientId)
+      .withIndex("by_orgId_eventType_createdAt", (q) =>
+        q
+          .eq("orgId", args.orgId)
+          .eq("eventType", "reminder_sent" as const)
+          .gte("createdAt", args.sinceMs)
       )
-      .order("desc")
-      .take(50);
-    return (
-      rows.find(
-        (r) =>
-          r.eventType === "reminder_sent" && r.createdAt >= args.sinceMs
-      ) ?? null
-    );
+      .collect();
+    return events.find((e) => e.clientId === args.clientId) ?? null;
   },
 });
 

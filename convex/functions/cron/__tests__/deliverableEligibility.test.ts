@@ -256,4 +256,55 @@ describe("cron.deliverableEligibility.run", () => {
     expect(result.totalReminders).toBe(0);
     expect(result.totalSkipped).toBe(1);
   });
+
+  it("findRecentReminder still finds the reminder behind a wall of non-reminder events (regression for clientId-index .take(50) bug)", async () => {
+    const t = setupTest();
+    const a = await seedOrgAndClient(t, {
+      orgId: ORG_A,
+      notificationEmail: "ops@org-a.test",
+    });
+
+    // 2h-old reminder_sent — should suppress today's cron email.
+    await t.run(async (ctx) =>
+      ctx.db.insert("documentEvents", {
+        orgId: ORG_A,
+        clientId: a.clientId,
+        entityType: "deliverable" as const,
+        entityId: "old-reminder",
+        eventType: "reminder_sent" as const,
+        severity: "info" as const,
+        actorType: "cron" as const,
+        message: "old reminder",
+        createdAt: Date.now() - 2 * 60 * 60 * 1000,
+      })
+    );
+
+    // 60 newer non-reminder events for this client — more than the previous
+    // `.take(50)` cap. Under the old impl these would push the reminder out
+    // of the window and the cron would re-send.
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 60; i++) {
+        await ctx.db.insert("documentEvents", {
+          orgId: ORG_A,
+          clientId: a.clientId,
+          entityType: "invoice" as const,
+          entityId: `noise-${i}`,
+          eventType: i % 2 === 0 ? ("uploaded" as const) : ("paid" as const),
+          severity: "info" as const,
+          actorType: "system" as const,
+          message: `noise ${i}`,
+          // 1h ago, spread out — all newer than the reminder, older than now.
+          createdAt: Date.now() - 60 * 60 * 1000 + i,
+        });
+      }
+    });
+
+    const result = (await t.action(
+      internal.functions.cron.deliverableEligibility.run,
+      {}
+    )) as { totalReminders: number; totalSkipped: number };
+
+    expect(result.totalReminders).toBe(0);
+    expect(result.totalSkipped).toBe(1);
+  });
 });
