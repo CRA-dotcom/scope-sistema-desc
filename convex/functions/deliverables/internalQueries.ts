@@ -1,5 +1,6 @@
 import { internalQuery } from "../../_generated/server";
 import { v } from "convex/values";
+import { Doc } from "../../_generated/dataModel";
 
 export const getAssignmentData = internalQuery({
   args: { assignmentId: v.id("monthlyAssignments") },
@@ -45,31 +46,107 @@ export const getQuestionnaireForClient = internalQuery({
   },
 });
 
-export const findTemplate = internalQuery({
+/**
+ * A2 envoltorio sin guard: el action que llama esta query ya está
+ * autenticado, así que no aplicamos `requireAuth`. Replica la lógica
+ * dual-matching de `deliverableTemplates.queries.getResolved` pero recibe
+ * el `orgId` explícito (no del JWT, porque las generaciones automatizadas
+ * pueden correr en background donde el JWT del operador no aplica).
+ *
+ * Per docs/superpowers/specs/2026-05-22-templates-operator-access-design.md §5.
+ * Replaces the legacy `findTemplate` (R3.3 del doc-lifecycle design).
+ */
+export const getResolvedForGeneration = internalQuery({
   args: {
-    serviceName: v.string(),
-    type: v.union(v.literal("deliverable_short"), v.literal("deliverable_long")),
-    orgId: v.optional(v.string()),
+    orgId: v.string(),
+    type: v.union(
+      v.literal("deliverable_short"),
+      v.literal("deliverable_long"),
+      v.literal("quotation"),
+      v.literal("contract"),
+    ),
+    subserviceId: v.optional(v.id("subservices")),
+    serviceId: v.optional(v.id("services")),
+    serviceName: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const allTemplates = await ctx.db
+  handler: async (ctx, args): Promise<Doc<"deliverableTemplates"> | null> => {
+    // Dual-matching subserviceId path — uses the by_orgId_subserviceId
+    // composite index to avoid table scans. Org-scoped wins over global.
+    if (args.subserviceId) {
+      const orgSub = await ctx.db
+        .query("deliverableTemplates")
+        .withIndex("by_orgId_subserviceId", (q) =>
+          q.eq("orgId", args.orgId).eq("subserviceId", args.subserviceId!),
+        )
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("type"), args.type),
+            q.eq(q.field("isActive"), true),
+          ),
+        )
+        .first();
+      if (orgSub) return orgSub;
+
+      const globalSub = await ctx.db
+        .query("deliverableTemplates")
+        .withIndex("by_orgId_subserviceId", (q) =>
+          q.eq("orgId", undefined).eq("subserviceId", args.subserviceId!),
+        )
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("type"), args.type),
+            q.eq(q.field("isActive"), true),
+          ),
+        )
+        .first();
+      if (globalSub) return globalSub;
+    }
+
+    // Legacy fallbacks — serviceId/serviceName don't benefit from the
+    // subserviceId index, so we still pull by_type and filter in memory.
+    const candidates = await ctx.db
       .query("deliverableTemplates")
       .withIndex("by_type", (q) => q.eq("type", args.type))
       .collect();
+    const active = candidates.filter((t) => t.isActive);
 
-    // Prefer org-specific, then global, matching service name
-    const orgMatch = allTemplates.find(
-      (t) => t.isActive && t.orgId === args.orgId && t.serviceName === args.serviceName
-    );
-    if (orgMatch) return orgMatch;
+    if (args.serviceId) {
+      const orgSvc = active.find(
+        (t) =>
+          t.serviceId === args.serviceId &&
+          t.orgId === args.orgId &&
+          !t.subserviceId,
+      );
+      if (orgSvc) return orgSvc;
 
-    const globalMatch = allTemplates.find(
-      (t) => t.isActive && !t.orgId && t.serviceName === args.serviceName
-    );
-    if (globalMatch) return globalMatch;
+      const globalSvc = active.find(
+        (t) =>
+          t.serviceId === args.serviceId &&
+          t.orgId === undefined &&
+          !t.subserviceId,
+      );
+      if (globalSvc) return globalSvc;
+    }
 
-    // Fallback: any active template of this type
-    return allTemplates.find((t) => t.isActive) ?? null;
+    if (args.serviceName) {
+      const orgName = active.find(
+        (t) =>
+          t.serviceName === args.serviceName &&
+          t.orgId === args.orgId &&
+          !t.subserviceId,
+      );
+      if (orgName) return orgName;
+
+      const globalName = active.find(
+        (t) =>
+          t.serviceName === args.serviceName &&
+          t.orgId === undefined &&
+          !t.subserviceId,
+      );
+      if (globalName) return globalName;
+    }
+
+    return null;
   },
 });
 

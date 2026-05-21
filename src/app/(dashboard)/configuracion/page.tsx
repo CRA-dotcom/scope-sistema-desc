@@ -8,6 +8,7 @@ import {
   Plug,
   ChevronRight,
   Layers,
+  FileText,
 } from "lucide-react";
 
 const sections = [
@@ -24,6 +25,13 @@ const sections = [
     title: "Subservicios",
     description:
       "Catálogo de subservicios contractuales por servicio padre (global + personalizado).",
+  },
+  {
+    href: "/configuracion/plantillas",
+    icon: FileText,
+    title: "Plantillas",
+    description:
+      "Edita las plantillas que tu org usa para entregables, cotizaciones y contratos.",
   },
   {
     href: "/configuracion/email-log",

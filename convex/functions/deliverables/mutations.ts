@@ -177,6 +177,7 @@ export const saveGenerated = internalMutation({
     projServiceId: v.id("projectionServices"),
     clientId: v.id("clients"),
     serviceName: v.string(),
+    subserviceId: v.optional(v.id("subservices")),
     month: v.number(),
     year: v.number(),
     shortContent: v.string(),
@@ -184,6 +185,11 @@ export const saveGenerated = internalMutation({
     aiLog: aiLogValidator,
     unfilledKeys: v.optional(v.array(v.string())),
     costUsd: v.optional(v.number()),
+    // A2: snapshot por valor — reproducibilidad histórica aunque la plantilla
+    // mute. Per docs/superpowers/specs/2026-05-22-templates-operator-access-design.md §5.
+    templateId: v.optional(v.id("deliverableTemplates")),
+    templateVersion: v.optional(v.number()),
+    templateHtmlSnapshot: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const unfilledKeys = args.unfilledKeys ?? [];
@@ -204,10 +210,14 @@ export const saveGenerated = internalMutation({
       projServiceId: args.projServiceId,
       clientId: args.clientId,
       serviceName: args.serviceName,
+      subserviceId: args.subserviceId,
       month: args.month,
       year: args.year,
       shortContent: args.shortContent,
       longContent: args.longContent,
+      templateId: args.templateId,
+      templateVersion: args.templateVersion,
+      templateHtmlSnapshot: args.templateHtmlSnapshot,
       auditStatus,
       auditFeedback,
       retryCount: 0,

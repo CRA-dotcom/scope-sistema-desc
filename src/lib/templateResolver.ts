@@ -135,6 +135,14 @@ function escapeRegex(str: string): string {
 }
 
 /**
+ * Re-exports the canonical `extractPlaceholders` from
+ * `convex/lib/templatePlaceholders.ts` so the client-side editor warning and
+ * server-side `validatePlaceholdersDeclared` stay byte-for-byte in sync (no
+ * regex drift). Per A2 §4.2.
+ */
+export { extractPlaceholders } from "../../convex/lib/templatePlaceholders";
+
+/**
  * Generates sample data for template preview based on variable definitions.
  */
 export function generateSampleContext(
