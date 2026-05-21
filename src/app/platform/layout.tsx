@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Briefcase, ArrowLeft, Shield, FileText } from "lucide-react";
+import { Building2, Briefcase, ArrowLeft, Shield, FileText, FileSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton } from "@clerk/nextjs";
 
@@ -10,6 +10,7 @@ const navigation = [
   { name: "Organizaciones", href: "/platform", icon: Building2 },
   { name: "Servicios", href: "/platform/servicios", icon: Briefcase },
   { name: "Templates", href: "/platform/templates", icon: FileText },
+  { name: "Audit log", href: "/platform/audit", icon: FileSearch },
 ];
 
 export default function PlatformLayout({

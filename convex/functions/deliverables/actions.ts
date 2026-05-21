@@ -3,6 +3,7 @@
 import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
+import type { Id } from "../../_generated/dataModel";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractPlaceholders } from "../../lib/deliverableEngine/placeholders";
 import {
@@ -181,6 +182,28 @@ export const generateDeliverable = action({
       v.literal("deliverable_short"),
       v.literal("deliverable_long")
     ),
+    // A3: trigger metadata (R1 #5). UI-driven manual generation passes
+    // nothing → defaults to "manual". generateFromInvoice passes "invoice_paid".
+    triggerSource: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("cron"),
+        v.literal("invoice_paid"),
+        v.literal("api")
+      )
+    ),
+    triggerInvoiceId: v.optional(v.id("invoices")),
+    // A3: when set, skip getResolvedForGeneration and use this snapshot.
+    // Used by generateFromInvoice (caller already resolved via
+    // selectDeliverableForMonth) to lock in the exact snapshot for audit
+    // reproducibility.
+    templateOverride: v.optional(
+      v.object({
+        templateId: v.id("deliverableTemplates"),
+        templateVersion: v.number(),
+        templateHtmlSnapshot: v.string(),
+      })
+    ),
   },
   handler: async (ctx, args): Promise<string> => {
     // 1. Fetch all required data in parallel
@@ -200,32 +223,59 @@ export const generateDeliverable = action({
     if (!client) throw new Error("Cliente no encontrado.");
     if (!projService) throw new Error("Servicio de proyeccion no encontrado.");
 
-    const [projection, questionnaire, orgBranding, template] = await Promise.all([
-      ctx.runQuery(
-        internal.functions.deliverables.internalQueries.getProjectionByProjService,
-        { projectionId: projService.projectionId }
-      ),
-      ctx.runQuery(
-        internal.functions.deliverables.internalQueries.getQuestionnaireForClient,
-        { clientId: args.clientId, projectionId: projService.projectionId }
-      ),
-      ctx.runQuery(internal.functions.deliverables.internalQueries.getOrgBranding, {
-        orgId: assignment.orgId,
-      }),
-      // A2: dual-matching resolver con subserviceId preferido sobre legacy
-      // serviceId/serviceName. El internal wrapper no aplica auth guard
-      // porque este action ya corre autenticado.
-      ctx.runQuery(
-        internal.functions.deliverables.internalQueries.getResolvedForGeneration,
-        {
-          orgId: assignment.orgId,
-          type: args.templateType,
-          subserviceId: projService.subserviceId,
-          serviceId: projService.serviceId,
-          serviceName: projService.serviceName,
-        },
-      ),
-    ]);
+    const [projection, questionnaire, orgBranding, resolvedTemplate] =
+      await Promise.all([
+        ctx.runQuery(
+          internal.functions.deliverables.internalQueries.getProjectionByProjService,
+          { projectionId: projService.projectionId }
+        ),
+        ctx.runQuery(
+          internal.functions.deliverables.internalQueries.getQuestionnaireForClient,
+          { clientId: args.clientId, projectionId: projService.projectionId }
+        ),
+        ctx.runQuery(
+          internal.functions.deliverables.internalQueries.getOrgBranding,
+          { orgId: assignment.orgId }
+        ),
+        // A2/A3: when templateOverride is supplied (generateFromInvoice path),
+        // skip the resolver — the caller already picked the snapshot. The
+        // optional chain below applies the override or falls back to the
+        // dual-matching resolver from A2.
+        args.templateOverride
+          ? Promise.resolve(null)
+          : ctx.runQuery(
+              internal.functions.deliverables.internalQueries
+                .getResolvedForGeneration,
+              {
+                orgId: assignment.orgId,
+                type: args.templateType,
+                subserviceId: projService.subserviceId,
+                serviceId: projService.serviceId,
+                serviceName: projService.serviceName,
+              }
+            ),
+      ]);
+
+    // A3: synthesize the template shape from override (kept compatible with
+    // the rest of the action which only reads {_id, version, htmlTemplate}).
+    type ResolvedTemplate = {
+      _id: Id<"deliverableTemplates">;
+      version: number;
+      htmlTemplate: string;
+    };
+    const template: ResolvedTemplate | null = args.templateOverride
+      ? {
+          _id: args.templateOverride.templateId,
+          version: args.templateOverride.templateVersion,
+          htmlTemplate: args.templateOverride.templateHtmlSnapshot,
+        }
+      : resolvedTemplate
+        ? {
+            _id: resolvedTemplate._id,
+            version: resolvedTemplate.version,
+            htmlTemplate: resolvedTemplate.htmlTemplate,
+          }
+        : null;
 
     const aiLogs: AiLogEntry[] = [];
     let unfilledKeys: string[] = [];
@@ -386,6 +436,9 @@ export const generateDeliverable = action({
         templateId: template?._id,
         templateVersion: template?.version,
         templateHtmlSnapshot: template?.htmlTemplate,
+        // A3: trigger trail.
+        triggerSource: args.triggerSource ?? "manual",
+        triggerInvoiceId: args.triggerInvoiceId,
       }
     );
 
@@ -795,3 +848,8 @@ export const regenerateDeliverable = internalAction({
     }
   },
 });
+
+// ─── A3 ──────────────────────────────────────────────────────────────
+// `generateFromInvoice` + `notifyExecutiveGenerated` live in
+// `./invoiceFlow.ts` — that orchestration is a separate concern from
+// the generic AI pipeline above.

@@ -190,6 +190,17 @@ export const saveGenerated = internalMutation({
     templateId: v.optional(v.id("deliverableTemplates")),
     templateVersion: v.optional(v.number()),
     templateHtmlSnapshot: v.optional(v.string()),
+    // A3: origen del trigger (R1 #5).
+    // Per docs/superpowers/specs/2026-05-23-document-lifecycle-design.md §3.3.5
+    triggerSource: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("cron"),
+        v.literal("invoice_paid"),
+        v.literal("api")
+      )
+    ),
+    triggerInvoiceId: v.optional(v.id("invoices")),
   },
   handler: async (ctx, args) => {
     const unfilledKeys = args.unfilledKeys ?? [];
@@ -218,6 +229,8 @@ export const saveGenerated = internalMutation({
       templateId: args.templateId,
       templateVersion: args.templateVersion,
       templateHtmlSnapshot: args.templateHtmlSnapshot,
+      triggerSource: args.triggerSource,
+      triggerInvoiceId: args.triggerInvoiceId,
       auditStatus,
       auditFeedback,
       retryCount: 0,
