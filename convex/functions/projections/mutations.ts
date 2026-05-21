@@ -1,6 +1,8 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId, requireAuth } from "../../lib/authHelpers";
+import { internal } from "../../_generated/api";
+import { Id } from "../../_generated/dataModel";
 import {
   calculateProjection,
   generateEvenSeasonality,
@@ -314,14 +316,26 @@ export const recalculate = mutation({
     const effectiveBudget = totalBudget;
 
     // Get existing projection services
-    const existingProjServices = await ctx.db
+    const allExistingProjServices = await ctx.db
       .query("projectionServices")
       .withIndex("by_projectionId", (q) =>
         q.eq("projectionId", args.projectionId)
       )
       .collect();
 
-    // Build service configs
+    // B1 — Exclude mid-year add-ons from recalculate. Add-ons live outside
+    // the engine's balancing pool (chosenPct=0, normalizedWeight=0,
+    // supplementaryQuotationId set) and must NOT be touched. Without this
+    // filter the legacy `find by serviceId` lookup below would collide on
+    // duplicate serviceId rows and clobber the base row with the add-on's
+    // zero values. Per spec §4.3.
+    const existingProjServices = allExistingProjServices.filter(
+      (ps) =>
+        ps.supplementaryQuotationId === undefined &&
+        ps.addOnOfProjectionServiceId === undefined
+    );
+
+    // Build service configs (only base rows; add-ons preserved as-is).
     const serviceConfigs: ServiceConfig[] = await Promise.all(
       existingProjServices.map(async (ps) => {
         const service = await ctx.db.get(ps.serviceId);
@@ -451,5 +465,198 @@ export const updateStatus = mutation({
       status: args.status,
       updatedAt: Date.now(),
     });
+  },
+});
+
+/**
+ * B1 — Agrega un subservicio mid-year a una proyección activa. Crea:
+ *  1. fila `projectionServices` con `startMonth`/`endMonth`, chosenPct=0,
+ *     normalizedWeight=0 (aislado del engine recalculate).
+ *  2. filas `monthlyAssignments` SOLO para los meses de la ventana
+ *     (no las 12 del año, intencionalmente).
+ *  3. cotización suplementaria vía `quotations.createSupplementary`
+ *     (que se enlaza inversamente vía `supplementaryQuotationId`).
+ *
+ * Reglas de negocio (R1 + spec §2.3):
+ *  - Multi-tenant guards explícitos: projection, subservice, parentService.
+ *  - Sin add-ons retroactivos en año corriente (mes pasado bloqueado).
+ *  - Sin add-ons en proyecciones de años pasados.
+ *  - Idempotencia por (projectionId, parentServiceId, subserviceId,
+ *    startMonth): segunda llamada devuelve `alreadyExisted: true` con los
+ *    mismos ids.
+ *  - `parentQuotationId` heurístico = primera cotización APROBADA del
+ *    servicio padre en la misma proyección. Sin coincidencia → undefined
+ *    (cotización standalone, sin banner UI).
+ *
+ * Per docs/superpowers/specs/2026-05-26-client-services-overview-design.md §2.3
+ */
+export const addSubserviceMidYear = mutation({
+  args: {
+    projectionId: v.id("projections"),
+    subserviceId: v.id("subservices"),
+    startMonth: v.number(),
+    endMonth: v.optional(v.number()),
+    monthlyAmount: v.number(),
+    notes: v.optional(v.string()),
+  },
+  returns: v.object({
+    projectionServiceId: v.id("projectionServices"),
+    quotationId: v.id("quotations"),
+    alreadyExisted: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+    const orgId = await getOrgId(ctx);
+
+    // 1. Multi-tenant guards.
+    const projection = await ctx.db.get(args.projectionId);
+    if (!projection || projection.orgId !== orgId) {
+      throw new Error("Proyección no encontrada.");
+    }
+    const subservice = await ctx.db.get(args.subserviceId);
+    if (!subservice) {
+      throw new Error("Subservicio no encontrado.");
+    }
+    // Globals tienen orgId undefined; org-scoped DEBE coincidir con el caller.
+    if (subservice.orgId && subservice.orgId !== orgId) {
+      throw new Error("Subservicio no pertenece a tu org.");
+    }
+    const parentService = await ctx.db.get(subservice.parentServiceId);
+    if (!parentService) {
+      throw new Error("Servicio padre no encontrado.");
+    }
+
+    // 2. Validar ventana.
+    const endMonth = args.endMonth ?? 12;
+    if (args.startMonth < 1 || args.startMonth > 12) {
+      throw new Error("startMonth debe estar entre 1 y 12.");
+    }
+    if (endMonth < args.startMonth || endMonth > 12) {
+      throw new Error("endMonth debe ser >= startMonth y <= 12.");
+    }
+    if (!Number.isFinite(args.monthlyAmount) || args.monthlyAmount <= 0) {
+      throw new Error("monthlyAmount debe ser un número positivo.");
+    }
+
+    // 3. Bloqueo retroactivo (año corriente: mes pasado prohibido; año
+    //    pasado: prohibido del todo).
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth() + 1;
+    if (projection.year < currentYear) {
+      throw new Error(
+        "No se permite agregar subservicios a proyecciones de años pasados."
+      );
+    }
+    if (projection.year === currentYear && args.startMonth < currentMonth) {
+      throw new Error(
+        `No se permiten add-ons retroactivos en beta. startMonth=${args.startMonth} < mes actual=${currentMonth}.`
+      );
+    }
+
+    // 4. Idempotencia.
+    const existing = await ctx.db
+      .query("projectionServices")
+      .withIndex("by_projectionId_active", (q) =>
+        q.eq("projectionId", args.projectionId).eq("isActive", true)
+      )
+      .collect();
+    const dupe = existing.find(
+      (ps) =>
+        (ps.serviceId as string) === (subservice.parentServiceId as string) &&
+        ps.subserviceId === args.subserviceId &&
+        (ps.startMonth ?? 1) === args.startMonth
+    );
+    if (dupe && dupe.supplementaryQuotationId) {
+      return {
+        projectionServiceId: dupe._id,
+        quotationId: dupe.supplementaryQuotationId,
+        alreadyExisted: true,
+      };
+    }
+
+    // 5. Calcular annualAmount basado en ventana.
+    const monthsInWindow = endMonth - args.startMonth + 1;
+    const annualAmount = args.monthlyAmount * monthsInWindow;
+
+    // 6. Insertar projectionServices.
+    //    chosenPct=0 + normalizedWeight=0 aísla el row del engine de balanceo
+    //    (recalculate sólo itera result.services del engine, que filtra
+    //    weight=0).
+    const projServiceId = await ctx.db.insert("projectionServices", {
+      orgId,
+      projectionId: args.projectionId,
+      serviceId: subservice.parentServiceId,
+      serviceName: parentService.name,
+      subserviceId: args.subserviceId,
+      chosenPct: 0,
+      isActive: true,
+      annualAmount,
+      normalizedWeight: 0,
+      startMonth: args.startMonth,
+      endMonth,
+      addOnOfProjectionServiceId: undefined,
+      supplementaryQuotationId: undefined, // patcheado en step 10
+    });
+
+    // 7. Insertar monthlyAssignments SÓLO para meses de la ventana.
+    //    (R1 §12.10 "12 filas siempre" aplica a servicios base, no add-ons.)
+    for (let m = args.startMonth; m <= endMonth; m++) {
+      await ctx.db.insert("monthlyAssignments", {
+        orgId,
+        projServiceId,
+        projectionId: args.projectionId,
+        clientId: projection.clientId,
+        serviceName: parentService.name,
+        subserviceId: args.subserviceId,
+        month: m,
+        year: projection.year,
+        amount: args.monthlyAmount,
+        feFactor: 1, // add-on: monto fijo prorrateado calendario (no seasonality)
+        status: "pending" as const,
+        invoiceStatus: "not_invoiced" as const,
+      });
+    }
+
+    // 8. Resolver parentQuotationId — primera APROBADA del servicio padre.
+    const parentRowExisting = existing.find(
+      (ps) =>
+        (ps.serviceId as string) === (subservice.parentServiceId as string)
+    );
+    let parentQuotationId: Id<"quotations"> | undefined;
+    if (parentRowExisting) {
+      const q = await ctx.db
+        .query("quotations")
+        .withIndex("by_projServiceId", (qb) =>
+          qb.eq("projServiceId", parentRowExisting._id)
+        )
+        .filter((qb) => qb.eq(qb.field("status"), "approved"))
+        .first();
+      parentQuotationId = q?._id;
+    }
+
+    // 9. Crear cotización suplementaria (internal mutation).
+    const quotationId: Id<"quotations"> = await ctx.runMutation(
+      internal.functions.quotations.mutations.createSupplementary,
+      {
+        projServiceId,
+        parentQuotationId,
+        startMonth: args.startMonth,
+        endMonth,
+        monthlyAmount: args.monthlyAmount,
+        notes: args.notes,
+      }
+    );
+
+    // 10. Patch referencia inversa.
+    await ctx.db.patch(projServiceId, {
+      supplementaryQuotationId: quotationId,
+    });
+
+    return {
+      projectionServiceId: projServiceId,
+      quotationId,
+      alreadyExisted: false,
+    };
   },
 });

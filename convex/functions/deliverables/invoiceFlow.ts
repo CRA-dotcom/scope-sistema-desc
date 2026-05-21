@@ -107,7 +107,9 @@ export const generateFromInvoice = internalAction({
       return { ok: false, reason: "projection_missing" };
     }
 
-    // 4. Frequency-aware selector.
+    // 4. Frequency-aware selector. B1: pass projServiceId so the selector
+    //    can enforce the projectionServices [startMonth, endMonth] window
+    //    for mid-year add-ons.
     const selected = await ctx.runQuery(
       internal.functions.deliverables.internalQueries.selectDeliverableForMonth,
       {
@@ -116,6 +118,7 @@ export const generateFromInvoice = internalAction({
         subserviceId: invoice.subserviceId,
         serviceId: undefined,
         serviceName: invoice.serviceName,
+        projServiceId: invoice.projServiceId,
         month: invoice.month,
         year: invoice.year,
         projectionMode: projection.projectionMode ?? "rolling",

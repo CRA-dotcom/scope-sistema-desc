@@ -330,6 +330,93 @@ describe("selectDeliverableForMonth", () => {
     expect(result!.template._id).toBe(seed.templateId);
   });
 
+  it("B1: respects projectionServices [startMonth, endMonth] window", async () => {
+    // Setup: subservice mensual + projectionServices con ventana Jul-Dic.
+    const t = setupTest();
+    const { clientId, serviceId, subserviceId, templateId } =
+      await seedSubservice(t, ORG_A, "mensual");
+
+    const projServiceId = await t.run(async (ctx) => {
+      const projectionId = await ctx.db.insert("projections", {
+        orgId: ORG_A,
+        clientId,
+        year: 2026,
+        annualSales: 1,
+        totalBudget: 1,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return await ctx.db.insert("projectionServices", {
+        orgId: ORG_A,
+        projectionId,
+        serviceId,
+        serviceName: "Marketing",
+        subserviceId,
+        chosenPct: 0,
+        isActive: true,
+        annualAmount: 27_000,
+        normalizedWeight: 0,
+        startMonth: 7,
+        endMonth: 12,
+      });
+    });
+
+    // Month 6 (outside window): null.
+    const r6 = await t.query(
+      internal.functions.deliverables.internalQueries
+        .selectDeliverableForMonth,
+      {
+        orgId: ORG_A,
+        clientId,
+        subserviceId,
+        projServiceId,
+        month: 6,
+        year: 2026,
+        projectionMode: "rolling",
+        templateType: "deliverable_short",
+      }
+    );
+    expect(r6).toBeNull();
+
+    // Month 8 (inside window): match.
+    const r8 = await t.query(
+      internal.functions.deliverables.internalQueries
+        .selectDeliverableForMonth,
+      {
+        orgId: ORG_A,
+        clientId,
+        subserviceId,
+        projServiceId,
+        month: 8,
+        year: 2026,
+        projectionMode: "rolling",
+        templateType: "deliverable_short",
+      }
+    );
+    expect(r8).not.toBeNull();
+    expect(r8!.template._id).toBe(templateId);
+    expect(r8!.reason).toBe("monthly");
+
+    // Sanity: without projServiceId, gate is skipped (legacy behavior).
+    const r6Legacy = await t.query(
+      internal.functions.deliverables.internalQueries
+        .selectDeliverableForMonth,
+      {
+        orgId: ORG_A,
+        clientId,
+        subserviceId,
+        month: 6,
+        year: 2026,
+        projectionMode: "rolling",
+        templateType: "deliverable_short",
+      }
+    );
+    expect(r6Legacy).not.toBeNull();
+  });
+
   it("dual-matching fallback: serviceName when subserviceId is undefined", async () => {
     const t = setupTest();
     const { clientId } = await t.run(async (ctx) => {

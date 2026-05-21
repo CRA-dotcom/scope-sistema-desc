@@ -12,10 +12,29 @@ import {
   RotateCcw,
   TrendingUp,
   GitBranchPlus,
+  Layers,
+  Plus,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { useState } from "react";
+import { AddSubserviceModal } from "@/components/clients/AddSubserviceModal";
+
+const MONTH_SHORT = [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic",
+];
 
 const FREQ_LABELS: Record<string, string> = {
   semanal: "Semanal",
@@ -34,9 +53,14 @@ export default function ClientDetailPage() {
   const projections = useQuery(api.functions.projections.queries.getByClient, {
     clientId,
   });
+  const overview = useQuery(
+    api.functions.clients.queries.getServicesOverview,
+    { clientId }
+  );
   const archiveClient = useMutation(api.functions.clients.mutations.archive);
   const restoreClient = useMutation(api.functions.clients.mutations.restore);
   const [archiving, setArchiving] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   if (client === undefined) {
     return (
@@ -197,6 +221,138 @@ export default function ClientDetailPage() {
           </div>
         )}
       </div>
+
+      {/* B1 — Servicios contratados (subservicios activos + add-ons) */}
+      <div className="rounded-lg border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Servicios contratados</h2>
+          {overview?.activeProjection && (
+            <button
+              onClick={() => setAddModalOpen(true)}
+              className="flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-primary hover:bg-accent/90 transition-colors cursor-pointer"
+            >
+              <Plus size={14} />
+              Agregar subservicio
+            </button>
+          )}
+        </div>
+
+        {overview === undefined && (
+          <div className="mt-4 h-24 animate-pulse rounded bg-secondary" />
+        )}
+
+        {overview && !overview.activeProjection && (
+          <div className="mt-4 text-center py-8">
+            <Layers className="mx-auto mb-3 text-muted-foreground" size={36} />
+            <p className="text-sm text-muted-foreground">
+              Crea una proyección para empezar a contratar subservicios.
+            </p>
+          </div>
+        )}
+
+        {overview && overview.activeProjection && overview.groups.length === 0 && (
+          <div className="mt-4 text-center py-8">
+            <p className="text-sm text-muted-foreground">
+              La proyección {overview.activeProjection.year} no tiene servicios activos.
+            </p>
+          </div>
+        )}
+
+        {overview && overview.activeProjection && overview.groups.length > 0 && (
+          <div className="mt-4 space-y-5">
+            <p className="text-xs text-muted-foreground">
+              Año {overview.activeProjection.year} ·{" "}
+              {overview.activeProjection.status === "active"
+                ? "Activa"
+                : overview.activeProjection.status === "draft"
+                  ? "Borrador"
+                  : "Archivada"}
+            </p>
+            {overview.groups.map((group) => (
+              <div key={group.parentService._id} className="space-y-2">
+                <h3 className="text-sm font-semibold text-foreground">
+                  {group.parentService.name}
+                </h3>
+                <div className="space-y-1.5">
+                  {group.rows.map((row) => (
+                    <div
+                      key={row.projectionServiceId}
+                      className="flex items-center justify-between rounded-md border border-border p-3 hover:border-accent/30 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">
+                            {row.subservice?.name ?? row.serviceName}
+                          </p>
+                          {row.isAddOn && (
+                            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent">
+                              add-on
+                            </span>
+                          )}
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs ${
+                              row.status === "active"
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : row.status === "upcoming"
+                                  ? "bg-amber-500/10 text-amber-400"
+                                  : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {row.status === "active"
+                              ? "Activo"
+                              : row.status === "upcoming"
+                                ? "Por iniciar"
+                                : "Finalizado"}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span>
+                            {row.subservice?.defaultFrequency ?? "mensual"}
+                          </span>
+                          <span>·</span>
+                          <span>
+                            {MONTH_SHORT[row.startMonth - 1]}-
+                            {MONTH_SHORT[row.endMonth - 1]}
+                          </span>
+                          <span>·</span>
+                          <span>{formatCurrency(row.monthlyAmount)}/mes</span>
+                          {row.nextDueMonth && (
+                            <>
+                              <span>·</span>
+                              <span>
+                                Próximo: {MONTH_SHORT[row.nextDueMonth - 1]}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {row.supplementaryQuotationId && (
+                        <Link
+                          href={`/cotizaciones/${row.supplementaryQuotationId}`}
+                          className="flex items-center gap-1 text-xs text-accent hover:underline whitespace-nowrap"
+                        >
+                          <ExternalLink size={12} />
+                          Ver cotización
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {overview?.activeProjection && (
+        <AddSubserviceModal
+          open={addModalOpen}
+          onClose={() => setAddModalOpen(false)}
+          clientId={clientId}
+          projectionId={overview.activeProjection._id}
+          projectionYear={overview.activeProjection.year}
+        />
+      )}
     </div>
   );
 }

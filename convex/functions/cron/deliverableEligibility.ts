@@ -120,6 +120,9 @@ export const run = internalAction({
                 | undefined,
               serviceId: ps.serviceId as Id<"services">,
               serviceName: ps.serviceName,
+              // B1: include projServiceId so the selector enforces the
+              // [startMonth, endMonth] window for mid-year add-ons.
+              projServiceId: ps._id as Id<"projectionServices">,
               month: today.month,
               year: today.year,
               projectionMode: projection.projectionMode ?? "rolling",
