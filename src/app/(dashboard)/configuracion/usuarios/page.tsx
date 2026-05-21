@@ -42,6 +42,9 @@ type Row = {
   assignedClientCount: number;
 };
 
+/** Map a Clerk userId → display name, or `null` when no longer a member. */
+type UserNameLookup = (userId: string) => string | null;
+
 export default function UsuariosPage() {
   const { organization, membership, memberships, isLoaded } = useOrganization({
     memberships: { infinite: true, pageSize: 50 },
@@ -97,6 +100,22 @@ export default function UsuariosPage() {
   const selectedRow = useMemo(
     () => rows.find((r) => r.userId === selectedUserId) ?? null,
     [rows, selectedUserId]
+  );
+
+  // Lookup used by the drawer to label cross-assigned clients with the
+  // current assignee's name (spec §4.2 — prevent silent reassignment).
+  const lookupUserName: UserNameLookup = useCallback(
+    (userId) => {
+      const m = memberships?.data?.find(
+        (mem) => mem.publicUserData?.userId === userId
+      );
+      if (!m) return null;
+      const firstName = m.publicUserData?.firstName ?? "";
+      const lastName = m.publicUserData?.lastName ?? "";
+      const name = `${firstName} ${lastName}`.trim();
+      return name || m.publicUserData?.identifier || userId;
+    },
+    [memberships?.data]
   );
 
   if (!isLoaded || !isAdmin) return null;
@@ -197,6 +216,7 @@ export default function UsuariosPage() {
           row={selectedRow}
           onClose={() => setSelectedUserId(null)}
           allClients={allClients ?? []}
+          lookupUserName={lookupUserName}
         />
       )}
 
@@ -215,10 +235,12 @@ function UserDetailDrawer({
   row,
   onClose,
   allClients,
+  lookupUserName,
 }: {
   row: Row;
   onClose: () => void;
   allClients: Array<{ _id: Id<"clients">; name: string; assignedTo?: string }>;
+  lookupUserName: UserNameLookup;
 }) {
   const userId = row.userId;
   const assigned = useQuery(
@@ -242,7 +264,10 @@ function UserDetailDrawer({
   }, [onClose]);
 
   const assignedIds = new Set(assigned?.map((c) => c._id) ?? []);
-  const unassignedClients = allClients.filter((c) => !assignedIds.has(c._id));
+  // Spec §4.2 — include cross-assigned clients so the operator can see the
+  // current assignee instead of silently overwriting them. Filter out only
+  // the clients that already belong to this user.
+  const assignableClients = allClients.filter((c) => !assignedIds.has(c._id));
 
   const handleAssign = async (clientId: Id<"clients">) => {
     if (!userId) return;
@@ -365,32 +390,58 @@ function UserDetailDrawer({
           >
             Asignar nuevo cliente
           </h3>
-          {unassignedClients.length === 0 ? (
+          {assignableClients.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Todos los clientes activos ya están asignados.
+              No hay clientes disponibles para asignar.
             </p>
           ) : (
-            <select
-              aria-label="Seleccionar cliente para asignar"
-              disabled={mutating || !userId}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (!val) return;
-                handleAssign(val as Id<"clients">);
-                e.currentTarget.value = "";
-              }}
-              defaultValue=""
-              className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
-            >
-              <option value="" disabled>
-                Seleccionar cliente…
-              </option>
-              {unassignedClients.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
+            <>
+              <p
+                className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300"
+                role="note"
+              >
+                Reasignar moverá al cliente entre ejecutivos.
+              </p>
+              <select
+                aria-label="Seleccionar cliente para asignar"
+                disabled={mutating || !userId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  handleAssign(val as Id<"clients">);
+                  e.currentTarget.value = "";
+                }}
+                defaultValue=""
+                className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
+              >
+                <option value="" disabled>
+                  Seleccionar cliente…
                 </option>
-              ))}
-            </select>
+                {assignableClients.map((c) => {
+                  // When assigned to someone OTHER than the currently-
+                  // selected user, surface that so the operator never
+                  // overwrites an assignment silently.
+                  const otherAssignee =
+                    c.assignedTo && c.assignedTo !== userId
+                      ? c.assignedTo
+                      : null;
+                  const currentName = otherAssignee
+                    ? lookupUserName(otherAssignee)
+                    : null;
+                  const suffix = otherAssignee
+                    ? currentName
+                      ? ` — actualmente: ${currentName}`
+                      : " — ya no es miembro"
+                    : "";
+                  return (
+                    <option key={c._id} value={c._id}>
+                      {c.name}
+                      {suffix}
+                    </option>
+                  );
+                })}
+              </select>
+            </>
           )}
         </section>
       </aside>

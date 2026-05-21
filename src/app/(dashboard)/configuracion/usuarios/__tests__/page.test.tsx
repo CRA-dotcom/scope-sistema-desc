@@ -99,3 +99,25 @@ describe("/configuracion/usuarios — OrganizationSwitcher race (spec §7)", () 
     );
   });
 });
+
+describe("/configuracion/usuarios — cross-user reassignment guard (spec §4.2)", () => {
+  it("surfaces cross-assigned clients in the dropdown WITH current-assignee labels", () => {
+    // Dropdown must include clients assigned to other users (not pre-filter
+    // them out) and annotate them with the current assignee so the operator
+    // never overwrites an assignment silently.
+    expect(source).toContain("assignableClients");
+    // The filter only excludes clients ALREADY assigned to the selected user
+    // (i.e. assignedIds set), not cross-assigned ones.
+    expect(source).toMatch(
+      /assignableClients\s*=\s*allClients\.filter\(\(c\)\s*=>\s*!assignedIds\.has\(c\._id\)\)/
+    );
+    // The label suffix uses the cross-assignment lookup.
+    expect(source).toContain("c.assignedTo && c.assignedTo !== userId");
+    expect(source).toContain("— actualmente:");
+    expect(source).toContain("— ya no es miembro");
+    // Warning banner above the dropdown.
+    expect(source).toContain("Reasignar moverá al cliente entre ejecutivos.");
+    // Lookup is sourced from the Clerk memberships hook (no extra fetch).
+    expect(source).toMatch(/lookupUserName[\s\S]*?memberships\?\.data/);
+  });
+});
