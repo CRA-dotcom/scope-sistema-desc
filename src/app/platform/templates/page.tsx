@@ -116,6 +116,11 @@ export default function TemplatesPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // A2: optimistic concurrency. We track the version of the row at the moment
+  // the editor opened and pass it to `update` as `expectedVersion`. If another
+  // user bumped the row in between, the mutation throws and we surface the
+  // error to the operator.
+  const [editingVersion, setEditingVersion] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +134,7 @@ export default function TemplatesPage() {
   const openCreate = () => {
     setForm(emptyForm);
     setEditingId(null);
+    setEditingVersion(null);
     setShowForm(true);
     setError(null);
   };
@@ -143,6 +149,7 @@ export default function TemplatesPage() {
     htmlTemplate: string;
     variables: Variable[];
     isActive: boolean;
+    version: number;
   }) => {
     setForm({
       name: template.name,
@@ -155,6 +162,7 @@ export default function TemplatesPage() {
       isActive: template.isActive,
     });
     setEditingId(template._id);
+    setEditingVersion(template.version);
     setShowForm(true);
     setError(null);
   };
@@ -162,6 +170,7 @@ export default function TemplatesPage() {
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
+    setEditingVersion(null);
     setForm(emptyForm);
     setError(null);
   };
@@ -181,17 +190,25 @@ export default function TemplatesPage() {
 
     try {
       if (editingId) {
+        if (editingVersion === null) {
+          throw new Error(
+            "Versión de la plantilla desconocida. Recargá la página."
+          );
+        }
         await updateTemplate({
           id: editingId as Id<"deliverableTemplates">,
-          name: form.name,
-          type: form.type,
-          htmlTemplate: form.htmlTemplate,
-          variables: form.variables,
-          serviceName: form.serviceName,
-          serviceId: form.serviceId
-            ? (form.serviceId as Id<"services">)
-            : undefined,
-          orgId: form.orgId || undefined,
+          expectedVersion: editingVersion,
+          patch: {
+            name: form.name,
+            type: form.type,
+            htmlTemplate: form.htmlTemplate,
+            variables: form.variables,
+            serviceName: form.serviceName,
+            serviceId: form.serviceId
+              ? (form.serviceId as Id<"services">)
+              : undefined,
+            isActive: form.isActive,
+          },
         });
       } else {
         await createTemplate({
@@ -687,6 +704,7 @@ export default function TemplatesPage() {
                       htmlTemplate: template.htmlTemplate,
                       variables: template.variables as Variable[],
                       isActive: template.isActive,
+                      version: template.version,
                     })
                   }
                 >
