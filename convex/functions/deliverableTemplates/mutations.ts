@@ -2,6 +2,7 @@ import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import {
   getOrgId,
+  isSuperAdminFromIdentity,
   requireAdmin,
   requireAuth,
   requireSuperAdmin,
@@ -31,15 +32,6 @@ const typeValidator = v.union(
   v.literal("invoice"),
 );
 
-function isSuperAdmin(identity: unknown): boolean {
-  if (!identity || typeof identity !== "object") return false;
-  const id = identity as Record<string, unknown>;
-  const pub = id.publicMetadata as Record<string, unknown> | undefined;
-  const custom = id.metadata as Record<string, unknown> | undefined;
-  const role = pub?.role ?? custom?.role;
-  return role === "super_admin";
-}
-
 /**
  * Crea una plantilla. Dual-path:
  * - Super-admin: puede pasar `orgId` explícito (incluyendo `undefined` = global).
@@ -62,7 +54,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
-    const superAdmin = isSuperAdmin(identity);
+    const superAdmin = isSuperAdminFromIdentity(identity);
 
     let resolvedOrgId: string | undefined;
     if (superAdmin) {

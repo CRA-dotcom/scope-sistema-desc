@@ -1,7 +1,11 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../../_generated/dataModel";
-import { getOrgIdSafe, requireAuth } from "../../lib/authHelpers";
+import {
+  getOrgIdSafe,
+  isSuperAdminFromIdentity,
+  requireAuth,
+} from "../../lib/authHelpers";
 
 const typeValidator = v.union(
   v.literal("quotation"),
@@ -19,15 +23,6 @@ const resolvedTypeValidator = v.union(
   v.literal("contract"),
 );
 
-function isSuperAdmin(identity: unknown): boolean {
-  if (!identity || typeof identity !== "object") return false;
-  const id = identity as Record<string, unknown>;
-  const pub = id.publicMetadata as Record<string, unknown> | undefined;
-  const custom = id.metadata as Record<string, unknown> | undefined;
-  const role = pub?.role ?? custom?.role;
-  return role === "super_admin";
-}
-
 /**
  * Open list: returns globals (orgId === undefined) + org-scoped of the caller's
  * org. Super-admin sees everything. Per A2 §3.2.
@@ -44,7 +39,7 @@ export const list = query({
     if (!identity) return [];
 
     const callerOrgId = await getOrgIdSafe(ctx);
-    const superAdmin = isSuperAdmin(identity);
+    const superAdmin = isSuperAdminFromIdentity(identity);
 
     // Pick the narrowest index available without joining.
     let base;
@@ -227,7 +222,7 @@ export const getByIdWithBanner = query({
 
     const orgId = await getOrgIdSafe(ctx);
     const identity = await ctx.auth.getUserIdentity();
-    const superAdmin = isSuperAdmin(identity);
+    const superAdmin = isSuperAdminFromIdentity(identity);
     if (!superAdmin && tpl.orgId !== undefined && tpl.orgId !== orgId) {
       return null;
     }
@@ -261,7 +256,7 @@ export const getById = query({
     const tpl = await ctx.db.get(args.id);
     if (!tpl) return null;
     const orgId = await getOrgIdSafe(ctx);
-    if (isSuperAdmin(identity)) return tpl;
+    if (isSuperAdminFromIdentity(identity)) return tpl;
     if (tpl.orgId === undefined) return tpl; // global readable
     return tpl.orgId === orgId ? tpl : null;
   },

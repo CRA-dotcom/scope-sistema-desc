@@ -39,12 +39,23 @@ export async function requireAdmin(ctx: QueryCtx | MutationCtx) {
 
 export async function requireSuperAdmin(ctx: QueryCtx | MutationCtx) {
   const identity = await requireAuth(ctx);
-  // Check publicMetadata (Convex standard) or metadata claim (custom JWT)
-  const publicMeta = identity.publicMetadata as Record<string, unknown> | undefined;
-  const customMeta = (identity as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
-  const role = publicMeta?.role ?? customMeta?.role;
-  if (role !== "super_admin") {
+  if (!isSuperAdminFromIdentity(identity)) {
     throw new Error("Acceso denegado. Se requiere rol de Super Admin.");
   }
   return identity;
+}
+
+/**
+ * Stateless super-admin check from a Clerk identity object. Reuse this in
+ * queries/mutations/actions where you already have the identity in hand and
+ * want to branch instead of throw. Mirrors the role-detection logic in
+ * `requireSuperAdmin` (publicMetadata.role | metadata.role === "super_admin").
+ */
+export function isSuperAdminFromIdentity(identity: unknown): boolean {
+  if (!identity || typeof identity !== "object") return false;
+  const id = identity as Record<string, unknown>;
+  const publicMeta = id.publicMetadata as Record<string, unknown> | undefined;
+  const customMeta = id.metadata as Record<string, unknown> | undefined;
+  const role = publicMeta?.role ?? customMeta?.role;
+  return role === "super_admin";
 }
