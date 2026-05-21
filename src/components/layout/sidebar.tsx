@@ -14,6 +14,7 @@ import {
   FileOutput,
   Receipt,
   Shield,
+  FileSearch,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -114,6 +115,19 @@ export function Sidebar() {
             >
               <Shield size={20} />
               {!collapsed && <span>Panel de Plataforma</span>}
+            </Link>
+            <Link
+              href="/platform/audit"
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+                pathname.startsWith("/platform/audit")
+                  ? "bg-purple-500/20 text-purple-300"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+              title={collapsed ? "Audit log" : undefined}
+            >
+              <FileSearch size={20} />
+              {!collapsed && <span>Audit log</span>}
             </Link>
           </>
         )}
