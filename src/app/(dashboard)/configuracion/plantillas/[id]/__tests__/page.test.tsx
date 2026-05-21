@@ -77,6 +77,16 @@ describe("/configuracion/plantillas/[id] — banner: hasNewerGlobal", () => {
     expect(source).toMatch(/<pre[^>]*>[\s\S]*?\{orgHtml\}[\s\S]*?<\/pre>/);
     expect(source).toMatch(/<pre[^>]*>[\s\S]*?parentHtml[\s\S]*?<\/pre>/);
   });
+
+  it("diff modal right pane reads data.globalHtml (no hardcoded placeholder)", () => {
+    // Spec §4.2 + §8 R2: the right pane must show the actual parent global's
+    // htmlTemplate as exposed by getByIdWithBanner. Before this fix it was
+    // hardcoded to null with a fallback placeholder string.
+    expect(source).toMatch(/parentHtml[^=]*=\s*data\?\.globalHtml/);
+    expect(source).not.toContain(
+      "El HTML del global se cargará en una versión futura"
+    );
+  });
 });
 
 describe("/configuracion/plantillas/[id] — banner: stale concurrency", () => {

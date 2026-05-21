@@ -233,6 +233,9 @@ export const getResolved = query({
 /**
  * Editor entry point. Returns the template plus `hasNewerGlobal` metadata so
  * the UI can render the "vN personalizada · vM global disponible" banner.
+ * Also surfaces the parent global's `htmlTemplate` as `globalHtml` so the
+ * editor's diff modal can render two `<pre>` blocks side-by-side
+ * (spec §4.2 + §8 R2 mitigation).
  *
  * Per A2 §3.2.
  */
@@ -253,6 +256,7 @@ export const getByIdWithBanner = query({
     let hasNewerGlobal = false;
     let globalVersion: number | null = null;
     let globalName: string | null = null;
+    let globalHtml: string | null = null;
 
     if (tpl.parentTemplateId && tpl.originalVersionAtClone !== undefined) {
       const parent = await ctx.db.get(tpl.parentTemplateId);
@@ -260,10 +264,19 @@ export const getByIdWithBanner = query({
         hasNewerGlobal = true;
         globalVersion = parent.version;
         globalName = parent.name;
+        // Only expose globalHtml when the diff modal will actually be shown
+        // (banner triggered). Avoids leaking parent HTML for up-to-date clones.
+        globalHtml = parent.htmlTemplate;
       }
     }
 
-    return { template: tpl, hasNewerGlobal, globalVersion, globalName };
+    return {
+      template: tpl,
+      hasNewerGlobal,
+      globalVersion,
+      globalName,
+      globalHtml,
+    };
   },
 });
 

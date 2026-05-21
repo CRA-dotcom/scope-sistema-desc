@@ -169,15 +169,24 @@ describe("deliverableTemplates.queries.getByIdWithBanner — banner global", () 
   // Test #8 — hasNewerGlobal banner true when global bumps past originalVersionAtClone.
   it("hasNewerGlobal=true cuando global sube de versión después del clon", async () => {
     const t = setupTest();
-    const globalId = await seedGlobal(t, { version: 3 });
+    const globalId = await seedGlobal(t, {
+      version: 3,
+      htmlTemplate: "<p>v3 original</p>",
+    });
     // orgA personaliza el global v3 → clon con originalVersionAtClone=3
     const cloneId = await t.withIdentity(admin(ORG_A)).mutation(
       api.functions.deliverableTemplates.mutations.personalizeGlobal,
       { globalTemplateId: globalId },
     );
-    // Super-admin (simulado) bumpea el global a v4 directamente vía db.patch.
+    // Super-admin (simulado) bumpea el global a v4 directamente vía db.patch
+    // y modifica el htmlTemplate para verificar que el diff modal recibe la
+    // nueva fuente, no el HTML que existía al clonar.
     await t.run(async (ctx) => {
-      await ctx.db.patch(globalId, { version: 4, updatedAt: Date.now() });
+      await ctx.db.patch(globalId, {
+        version: 4,
+        htmlTemplate: "<p>v4 actualizado</p>",
+        updatedAt: Date.now(),
+      });
     });
 
     const banner = await t
@@ -188,6 +197,8 @@ describe("deliverableTemplates.queries.getByIdWithBanner — banner global", () 
     expect(banner).not.toBeNull();
     expect(banner!.hasNewerGlobal).toBe(true);
     expect(banner!.globalVersion).toBe(4);
+    // Spec §4.2: diff modal right pane consumes globalHtml.
+    expect(banner!.globalHtml).toBe("<p>v4 actualizado</p>");
   });
 
   it("hasNewerGlobal=false cuando no hay parent (template creado from-scratch)", async () => {
@@ -208,6 +219,8 @@ describe("deliverableTemplates.queries.getByIdWithBanner — banner global", () 
         id,
       });
     expect(banner?.hasNewerGlobal).toBe(false);
+    // Sin parent ⇒ no hay nada que mostrar en el diff modal.
+    expect(banner?.globalHtml).toBeNull();
   });
 
   it("orgB no puede ver template org-scoped de orgA via banner", async () => {

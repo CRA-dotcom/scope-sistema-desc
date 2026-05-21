@@ -101,10 +101,9 @@ export default function EditarPlantillaPage() {
   const [previewMissing, setPreviewMissing] = useState<string[]>([]);
   const [diffOpen, setDiffOpen] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
-  // The global parent's HTML is not exposed via getByIdWithBanner in beta —
-  // the diff modal renders only the org-side HTML and a placeholder. A future
-  // iteration adds a dedicated `getParentTemplate` query.
-  const parentHtml: string | null = null;
+  // getByIdWithBanner now exposes the parent global's htmlTemplate as
+  // data.globalHtml when hasNewerGlobal is true (spec §4.2 + §8 R2).
+  const parentHtml: string | null = data?.globalHtml ?? null;
 
   // Hydrate form when data arrives (only once — re-fetches due to live query
   // must NOT clobber operator's local edits).
@@ -721,8 +720,7 @@ function DiffModal({
               Versión global (v{parentVersion ?? "?"})
             </h4>
             <pre className="max-h-[60vh] overflow-auto rounded-md border border-border bg-background p-3 font-mono text-[11px]">
-              {parentHtml ??
-                "(El HTML del global se cargará en una versión futura. Por ahora abrí /platform/templates como super-admin para inspeccionar la fuente.)"}
+              {parentHtml ?? ""}
             </pre>
           </section>
         </div>
