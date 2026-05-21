@@ -148,24 +148,47 @@ export const getResolved = query({
     await requireAuth(ctx);
     const orgId = await getOrgIdSafe(ctx);
 
+    // Dual-matching subserviceId path — uses the by_orgId_subserviceId
+    // composite index to avoid table scans. Org-scoped wins over global.
+    if (args.subserviceId) {
+      if (orgId) {
+        const orgSub = await ctx.db
+          .query("deliverableTemplates")
+          .withIndex("by_orgId_subserviceId", (q) =>
+            q.eq("orgId", orgId).eq("subserviceId", args.subserviceId!),
+          )
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("type"), args.type),
+              q.eq(q.field("isActive"), true),
+            ),
+          )
+          .first();
+        if (orgSub) return orgSub;
+      }
+
+      const globalSub = await ctx.db
+        .query("deliverableTemplates")
+        .withIndex("by_orgId_subserviceId", (q) =>
+          q.eq("orgId", undefined).eq("subserviceId", args.subserviceId!),
+        )
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("type"), args.type),
+            q.eq(q.field("isActive"), true),
+          ),
+        )
+        .first();
+      if (globalSub) return globalSub;
+    }
+
+    // Legacy fallbacks — serviceId/serviceName don't benefit from the
+    // subserviceId index, so we still pull by_type and filter in memory.
     const candidates = await ctx.db
       .query("deliverableTemplates")
       .withIndex("by_type", (q) => q.eq("type", args.type))
       .collect();
     const active = candidates.filter((t) => t.isActive);
-
-    if (args.subserviceId) {
-      const orgSub = active.find(
-        (t) => t.subserviceId === args.subserviceId && t.orgId === orgId,
-      );
-      if (orgSub) return orgSub;
-
-      const globalSub = active.find(
-        (t) =>
-          t.subserviceId === args.subserviceId && t.orgId === undefined,
-      );
-      if (globalSub) return globalSub;
-    }
 
     if (args.serviceId) {
       const orgSvc = active.find(
