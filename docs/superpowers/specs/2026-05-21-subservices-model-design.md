@@ -1011,6 +1011,11 @@ del padre en lugar de `Id<"services">`?
 tiene el id en mano (viene de `services.listByOrg`). API por id es más
 type-safe y consistente con `services` mutations existentes.
 
+### Resoluciones post-Phase-2 (2026-05-20)
+
+- **`applicableMonths` y `cooldownMonths` en drawer UI:** diferidos. El field existe en schema y se puede setear vía Convex dashboard durante beta. UI completa en V3 cuando la frecuencia "trimestral" lo necesite operacionalmente.
+- **Version drift banner ("v3 personalizada · v5 global disponible"):** diferido. Hoy `originalVersionAtClone` se snapshea pero la UI no muestra el diff. V3 cuando super admin empiece a editar globales con frecuencia.
+
 ---
 
 ## 10. Referencias

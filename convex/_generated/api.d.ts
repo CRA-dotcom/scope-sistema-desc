@@ -82,6 +82,9 @@ import type * as functions_services_queries from "../functions/services/queries.
 import type * as functions_services_seed from "../functions/services/seed.js";
 import type * as functions_storage_mutations from "../functions/storage/mutations.js";
 import type * as functions_storage_upload from "../functions/storage/upload.js";
+import type * as functions_subservices_mutations from "../functions/subservices/mutations.js";
+import type * as functions_subservices_queries from "../functions/subservices/queries.js";
+import type * as functions_subservices_seed from "../functions/subservices/seed.js";
 import type * as http from "../http.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_blobStorage from "../lib/blobStorage.js";
@@ -177,6 +180,9 @@ declare const fullApi: ApiFromModules<{
   "functions/services/seed": typeof functions_services_seed;
   "functions/storage/mutations": typeof functions_storage_mutations;
   "functions/storage/upload": typeof functions_storage_upload;
+  "functions/subservices/mutations": typeof functions_subservices_mutations;
+  "functions/subservices/queries": typeof functions_subservices_queries;
+  "functions/subservices/seed": typeof functions_subservices_seed;
   http: typeof http;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/blobStorage": typeof lib_blobStorage;

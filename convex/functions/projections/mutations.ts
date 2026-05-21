@@ -31,6 +31,11 @@ export const create = mutation({
         serviceId: v.id("services"),
         chosenPct: v.number(),
         isActive: v.boolean(),
+        // A1: optional subservice selection — required at the UI layer when
+        // the parent service has subservices available, but kept optional in
+        // the validator so legacy callers + transitional cases (no
+        // subservices configured yet) keep working.
+        subserviceId: v.optional(v.id("subservices")),
       })
     ),
     seasonalityDeltas: v.optional(
@@ -93,6 +98,50 @@ export const create = mutation({
         } satisfies ServiceConfig;
       })
     );
+
+    // A1 Phase 2 review: server-side validation that mirrors the wizard UI
+    // contract — if the parent service has any active subservices available
+    // (org-scoped or global), the caller MUST pick one. Prevents bypassing
+    // the UI and ending up with projectionServices.subserviceId === undefined
+    // when the parent actually has options.
+    for (const sc of args.serviceConfigs) {
+      if (!sc.isActive) continue;
+      if (sc.subserviceId !== undefined) continue;
+
+      // Inline the listByParent logic instead of ctx.runQuery to keep the
+      // mutation transactional (runQuery would open a separate read view).
+      const orgScoped = await ctx.db
+        .query("subservices")
+        .withIndex("by_orgId_parentService", (q) =>
+          q.eq("orgId", orgId).eq("parentServiceId", sc.serviceId)
+        )
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+
+      const globals = await ctx.db
+        .query("subservices")
+        .withIndex("by_orgId_parentService", (q) =>
+          q.eq("orgId", undefined).eq("parentServiceId", sc.serviceId)
+        )
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+
+      const orgSlugs = new Set(orgScoped.map((s) => s.slug));
+      const merged = [
+        ...orgScoped,
+        ...globals.filter((g) => !orgSlugs.has(g.slug)),
+      ];
+
+      if (merged.length > 0) {
+        const detail = serviceDetails.find(
+          (d) => d.serviceId === (sc.serviceId as string)
+        );
+        const label = detail?.serviceName ?? (sc.serviceId as string);
+        throw new Error(
+          `El servicio ${label} requiere subservicio. Selecciónalo antes de crear la proyección.`
+        );
+      }
+    }
 
     // Resolve seasonality: if deltas provided, compute from them; else use raw data or even spread
     const seasonality: MonthlyData[] =
@@ -186,6 +235,7 @@ export const create = mutation({
         projectionId,
         serviceId: serviceConfig.serviceId,
         serviceName: svc.serviceName,
+        subserviceId: serviceConfig.subserviceId,
         chosenPct: svc.chosenPct,
         isActive: svc.isActive,
         annualAmount: svc.annualAmount,
@@ -201,6 +251,7 @@ export const create = mutation({
             projectionId,
             clientId: args.clientId,
             serviceName: svc.serviceName,
+            subserviceId: serviceConfig.subserviceId,
             month: ma.month,
             year: args.year,
             amount: ma.adjustedAmount,

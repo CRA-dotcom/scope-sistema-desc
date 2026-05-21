@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, Building2, Mail, Plug, ChevronRight } from "lucide-react";
+import {
+  Settings,
+  Building2,
+  Mail,
+  Plug,
+  ChevronRight,
+  Layers,
+} from "lucide-react";
 
 const sections = [
   {
@@ -10,6 +17,13 @@ const sections = [
     title: "Empresas Emitentes",
     description:
       "Personas morales que emiten cotizaciones, contratos y facturas.",
+  },
+  {
+    href: "/configuracion/subservicios",
+    icon: Layers,
+    title: "Subservicios",
+    description:
+      "Catálogo de subservicios contractuales por servicio padre (global + personalizado).",
   },
   {
     href: "/configuracion/email-log",
