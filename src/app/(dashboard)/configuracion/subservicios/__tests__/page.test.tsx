@@ -122,3 +122,40 @@ describe("/configuracion/subservicios — admin gate", () => {
     expect(source).toContain("{isAdmin && (");
   });
 });
+
+describe("/configuracion/subservicios — a11y (A1 Phase 2 review)", () => {
+  it("'+ Agregar' is a real <button>, not a <span onClick> (button-in-button fix)", () => {
+    // The previous implementation nested a <span onClick> inside a <button>,
+    // which is invalid HTML and keyboard-inaccessible. The fixed header
+    // splits into a header <div> with sibling <button>s: one for toggle,
+    // one for Agregar. Assert no <span onClick> remains, and that Agregar
+    // is rendered as a <button>.
+    expect(source).not.toMatch(/<span[^>]*onClick[^>]*>\s*<Plus/);
+    expect(source).toMatch(
+      /<button[\s\S]*?>[\s\S]*?<Plus size=\{12\} \/> Agregar[\s\S]*?<\/button>/
+    );
+  });
+
+  it("accordion trigger declares aria-expanded and aria-controls", () => {
+    expect(source).toContain("aria-expanded={isExpanded}");
+    expect(source).toMatch(/aria-controls=\{`subservices-panel-\$\{parentId\}`\}/);
+  });
+
+  it("accordion panel has matching id, role=region, and aria-labelledby", () => {
+    expect(source).toMatch(/id=\{`subservices-panel-\$\{parentId\}`\}/);
+    expect(source).toContain('role="region"');
+    expect(source).toMatch(
+      /aria-labelledby=\{`subservices-trigger-\$\{parentId\}`\}/
+    );
+  });
+});
+
+describe("/configuracion/subservicios — restore-to-global visibility", () => {
+  it("hides 'Volver al default' when row has no parentSubserviceId (not a clone)", () => {
+    // The button is wrapped in `{subservice.parentSubserviceId !== undefined && (...)}`
+    expect(source).toMatch(
+      /subservice\.parentSubserviceId\s*!==\s*undefined\s*&&[\s\S]*?Volver al default/
+    );
+    expect(source).toContain('data-testid="restore-to-global-btn"');
+  });
+});

@@ -99,6 +99,50 @@ export const create = mutation({
       })
     );
 
+    // A1 Phase 2 review: server-side validation that mirrors the wizard UI
+    // contract — if the parent service has any active subservices available
+    // (org-scoped or global), the caller MUST pick one. Prevents bypassing
+    // the UI and ending up with projectionServices.subserviceId === undefined
+    // when the parent actually has options.
+    for (const sc of args.serviceConfigs) {
+      if (!sc.isActive) continue;
+      if (sc.subserviceId !== undefined) continue;
+
+      // Inline the listByParent logic instead of ctx.runQuery to keep the
+      // mutation transactional (runQuery would open a separate read view).
+      const orgScoped = await ctx.db
+        .query("subservices")
+        .withIndex("by_orgId_parentService", (q) =>
+          q.eq("orgId", orgId).eq("parentServiceId", sc.serviceId)
+        )
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+
+      const globals = await ctx.db
+        .query("subservices")
+        .withIndex("by_orgId_parentService", (q) =>
+          q.eq("orgId", undefined).eq("parentServiceId", sc.serviceId)
+        )
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+
+      const orgSlugs = new Set(orgScoped.map((s) => s.slug));
+      const merged = [
+        ...orgScoped,
+        ...globals.filter((g) => !orgSlugs.has(g.slug)),
+      ];
+
+      if (merged.length > 0) {
+        const detail = serviceDetails.find(
+          (d) => d.serviceId === (sc.serviceId as string)
+        );
+        const label = detail?.serviceName ?? (sc.serviceId as string);
+        throw new Error(
+          `El servicio ${label} requiere subservicio. Selecciónalo antes de crear la proyección.`
+        );
+      }
+    }
+
     // Resolve seasonality: if deltas provided, compute from them; else use raw data or even spread
     const seasonality: MonthlyData[] =
       args.seasonalityDeltas && args.seasonalityDeltas.length === 12

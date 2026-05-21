@@ -238,12 +238,21 @@ export default function SubserviciosPage() {
               className="rounded-lg border border-border bg-card"
               data-testid={`parent-${parentId}`}
             >
-              <button
-                type="button"
-                onClick={() => toggleExpanded(parentId)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 hover:bg-secondary/40 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
+              {/*
+                A11y (A1 Phase 2 review): the header is a div with two sibling
+                buttons (toggle + "+ Agregar"). Previously the toggle was a
+                <button> containing a <span onClick> for Agregar, which broke
+                button-in-button semantics and was unreachable by keyboard.
+              */}
+              <div className="flex w-full items-center justify-between gap-3 px-4 py-3 hover:bg-secondary/40 transition-colors">
+                <button
+                  type="button"
+                  id={`subservices-trigger-${parentId}`}
+                  onClick={() => toggleExpanded(parentId)}
+                  aria-expanded={isExpanded}
+                  aria-controls={`subservices-panel-${parentId}`}
+                  className="flex flex-1 items-center gap-3 text-left cursor-pointer"
+                >
                   {isExpanded ? (
                     <ChevronDown size={16} className="text-muted-foreground" />
                   ) : (
@@ -254,11 +263,11 @@ export default function SubserviciosPage() {
                     {children.length} subservicio
                     {children.length === 1 ? "" : "s"}
                   </span>
-                </div>
+                </button>
                 {isAdmin && (
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
+                  <button
+                    type="button"
+                    onClick={() => {
                       setEditor({
                         mode: "create",
                         parentServiceId: svc._id as Id<"services">,
@@ -273,12 +282,17 @@ export default function SubserviciosPage() {
                     className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors cursor-pointer"
                   >
                     <Plus size={12} /> Agregar
-                  </span>
+                  </button>
                 )}
-              </button>
+              </div>
 
               {isExpanded && (
-                <div className="border-t border-border">
+                <div
+                  id={`subservices-panel-${parentId}`}
+                  role="region"
+                  aria-labelledby={`subservices-trigger-${parentId}`}
+                  className="border-t border-border"
+                >
                   {children.length === 0 ? (
                     <p className="px-6 py-4 text-sm text-muted-foreground">
                       Aún no hay subservicios bajo este servicio padre.
@@ -435,15 +449,23 @@ function SubserviceRow({
                   </>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={onRestore}
-                disabled={busy}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
-                title="Volver al default global"
-              >
-                <RotateCcw size={12} /> Volver al default
-              </button>
+              {/*
+                A1 Phase 2 review fix #4: "Volver al default" only makes sense
+                when the row is a clone of a global (parentSubserviceId set).
+                Org-only rows created from scratch have no global to restore to.
+              */}
+              {subservice.parentSubserviceId !== undefined && (
+                <button
+                  type="button"
+                  onClick={onRestore}
+                  disabled={busy}
+                  data-testid="restore-to-global-btn"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer"
+                  title="Volver al default global"
+                >
+                  <RotateCcw size={12} /> Volver al default
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onRequestDelete}
