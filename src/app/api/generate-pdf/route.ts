@@ -152,7 +152,20 @@ export async function POST(req: NextRequest) {
     });
 
     const page = await browser.newPage();
-    await page.setContent(fullHtml, { waitUntil: "networkidle0" });
+    await page.setContent(fullHtml, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    // Wait for web fonts (Google Fonts @import, etc.) with a short fallback.
+    // networkidle0 was too strict — would hang if any background request never settled.
+    await page
+      .evaluate(() =>
+        Promise.race([
+          document.fonts.ready,
+          new Promise((resolve) => setTimeout(resolve, 3000)),
+        ])
+      )
+      .catch(() => {});
 
     const pdfBuffer = await page.pdf({
       format: "A4",
