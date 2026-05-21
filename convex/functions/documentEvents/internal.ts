@@ -9,7 +9,7 @@ import { v } from "convex/values";
  * - `invoices.mutations.markSent` (sent)
  * - `invoices.mutations.markPaid` (paid)
  * - `invoices.mutations.markVoid` (voided)
- * - `deliverables.actions.generateFromInvoice` (generated / error)
+ * - `deliverables.invoiceFlow.generateFromInvoice` (generated / error)
  * - `cron.deliverableEligibility.run` (reminder_sent)
  * - (future) `subservices.mutations.*`, `templates.mutations.*`
  *

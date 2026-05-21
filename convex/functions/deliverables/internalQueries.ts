@@ -207,7 +207,7 @@ export const findProjServiceByServiceAndProjection = internalQuery({
  * for per-client overrides (`getOverride`, beta returns null).
  *
  * Used by:
- * - `deliverables.actions.generateFromInvoice` to decide which template
+ * - `deliverables.invoiceFlow.generateFromInvoice` to decide which template
  *   applies for the invoice's (subservice, month, year).
  * - `cron.deliverableEligibility.run` to decide which (client, projService,
  *   month) tuples need a reminder.

@@ -187,13 +187,13 @@ beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = "test-key";
 });
 
-describe("deliverables.actions.generateFromInvoice", () => {
+describe("deliverables.invoiceFlow.generateFromInvoice", () => {
   it("happy path: inserts deliverable with snapshot + trigger fields, emits generated event", async () => {
     const t = setupTest();
     const seed = await seedWithTemplate(t, ORG_A);
 
     const result = (await t.action(
-      internal.functions.deliverables.actions.generateFromInvoice,
+      internal.functions.deliverables.invoiceFlow.generateFromInvoice,
       { invoiceId: seed.invoiceId }
     )) as { ok: boolean; deliverableId?: Id<"deliverables"> };
     expect(result.ok).toBe(true);
@@ -230,7 +230,7 @@ describe("deliverables.actions.generateFromInvoice", () => {
     });
 
     const result = (await t.action(
-      internal.functions.deliverables.actions.generateFromInvoice,
+      internal.functions.deliverables.invoiceFlow.generateFromInvoice,
       { invoiceId: seed.invoiceId }
     )) as { ok: boolean; reason?: string };
     expect(result.ok).toBe(false);
@@ -267,7 +267,7 @@ describe("deliverables.actions.generateFromInvoice", () => {
     });
 
     const result = (await t.action(
-      internal.functions.deliverables.actions.generateFromInvoice,
+      internal.functions.deliverables.invoiceFlow.generateFromInvoice,
       { invoiceId: seed.invoiceId }
     )) as { ok: boolean; reason?: string };
     expect(result.ok).toBe(false);
@@ -284,13 +284,13 @@ describe("deliverables.actions.generateFromInvoice", () => {
     const seed = await seedWithTemplate(t, ORG_A);
 
     const first = (await t.action(
-      internal.functions.deliverables.actions.generateFromInvoice,
+      internal.functions.deliverables.invoiceFlow.generateFromInvoice,
       { invoiceId: seed.invoiceId }
     )) as { ok: boolean; deliverableId?: Id<"deliverables"> };
     expect(first.ok).toBe(true);
 
     const second = (await t.action(
-      internal.functions.deliverables.actions.generateFromInvoice,
+      internal.functions.deliverables.invoiceFlow.generateFromInvoice,
       { invoiceId: seed.invoiceId }
     )) as { ok: boolean; reason?: string; deliverableId?: Id<"deliverables"> };
     expect(second.ok).toBe(true);

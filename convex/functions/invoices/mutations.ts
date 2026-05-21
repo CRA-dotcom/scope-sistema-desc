@@ -114,7 +114,7 @@ export const markPaid = mutation({
     // Fire-and-forget; the action checks idempotency via findByTriggerInvoiceId.
     await ctx.scheduler.runAfter(
       0,
-      internal.functions.deliverables.actions.generateFromInvoice,
+      internal.functions.deliverables.invoiceFlow.generateFromInvoice,
       { invoiceId: args.invoiceId }
     );
 
