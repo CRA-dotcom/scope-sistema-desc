@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
+import { useOrganization } from "@clerk/nextjs";
 import { api } from "../../../convex/_generated/api";
 import { Doc } from "../../../convex/_generated/dataModel";
 import {
@@ -54,6 +55,9 @@ export function MatrixCellDetail({
   onClose: () => void;
 }) {
   const { flags } = useOrgConfig();
+  const { membership, isLoaded: orgLoaded } = useOrganization();
+  const isAdmin = membership?.role === "org:admin";
+  const canOverride = orgLoaded && isAdmin && flags.manualOverrideAllowed;
   const updateStatus = useMutation(api.functions.monthlyAssignments.mutations.updateStatus);
   const updateInvoice = useMutation(api.functions.monthlyAssignments.mutations.updateInvoiceStatus);
   const updateAmount = useMutation(api.functions.monthlyAssignments.mutations.updateAmount);
