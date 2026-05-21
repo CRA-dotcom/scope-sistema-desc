@@ -177,6 +177,27 @@ describe("/configuracion/plantillas/[id] — editor type field hides invoice", (
   });
 });
 
+describe("/configuracion/plantillas/[id] — stable keys on variable rows", () => {
+  it("declares an EditorVariable type with an id field for React keys", () => {
+    expect(source).toMatch(/type\s+EditorVariable\s*=\s*Variable\s*&\s*\{\s*id:\s*string\s*\}/);
+  });
+
+  it("uses v.id (not array index) as the React key for variable rows", () => {
+    expect(source).toMatch(/key=\{v\.id\}/);
+    expect(source).not.toMatch(/key=\{i\}/);
+  });
+
+  it("strips the editor-only id field before sending the mutation", () => {
+    // The schema validator only accepts {key, label, source, required}.
+    expect(source).toMatch(/sanitizedVariables/);
+    expect(source).toMatch(/\{\s*id:\s*_id,\s*\.\.\.rest\s*\}/);
+  });
+
+  it("stamps a new id when adding a variable row", () => {
+    expect(source).toMatch(/\.\.\.EMPTY_VAR,\s*id:\s*newRowId\(\)/);
+  });
+});
+
 describe("/configuracion/plantillas/[id] — a11y", () => {
   it("all dialogs declare role=dialog + aria-modal", () => {
     expect(source).toContain('role="dialog"');

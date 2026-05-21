@@ -42,12 +42,17 @@ type Variable = {
   required: boolean;
 };
 
+// Editor-only Variable shape: carries a stable per-row `id` so React `key`s
+// stay stable when rows are reordered or removed. The `id` is stripped before
+// being sent to `update`/`create` (schema only accepts {key,label,source,required}).
+type EditorVariable = Variable & { id: string };
+
 type FormState = {
   name: string;
   serviceName: string;
   type: Exclude<TemplateType, "invoice">;
   htmlTemplate: string;
-  variables: Variable[];
+  variables: EditorVariable[];
 };
 
 const TYPE_LABELS: Record<Exclude<TemplateType, "invoice">, string> = {
@@ -72,6 +77,21 @@ const EMPTY_VAR: Variable = {
   source: "client",
   required: true,
 };
+
+/**
+ * Stable per-row id generator. Prefers `crypto.randomUUID` (browser + Node 19+)
+ * with a base36 fallback for older runtimes / test environments that mock
+ * `crypto`. Only used for React `key`s — never persisted.
+ */
+function newRowId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  return `v-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+}
 
 export default function EditarPlantillaPage() {
   const router = useRouter();
@@ -118,7 +138,11 @@ export default function EditarPlantillaPage() {
             ? "deliverable_short"
             : (tpl.type as Exclude<TemplateType, "invoice">),
         htmlTemplate: tpl.htmlTemplate,
-        variables: tpl.variables as Variable[],
+        // Stamp each row with a stable id so React `key`s don't shift on remove.
+        variables: (tpl.variables as Variable[]).map((v) => ({
+          ...v,
+          id: newRowId(),
+        })),
       };
       setForm(next);
       setInitialSnapshot(next);
@@ -154,6 +178,11 @@ export default function EditarPlantillaPage() {
     }
     setSaving(true);
     try {
+      // Strip the editor-only `id` field before sending to the mutation.
+      // Schema validator only accepts {key, label, source, required}.
+      const sanitizedVariables: Variable[] = form.variables.map(
+        ({ id: _id, ...rest }) => rest
+      );
       await updateTemplate({
         id,
         expectedVersion: savedVersion,
@@ -162,7 +191,7 @@ export default function EditarPlantillaPage() {
           serviceName: form.serviceName,
           type: form.type,
           htmlTemplate: form.htmlTemplate,
-          variables: form.variables,
+          variables: sanitizedVariables,
         },
       });
       router.push("/configuracion/plantillas");
@@ -428,7 +457,10 @@ export default function EditarPlantillaPage() {
               onClick={() =>
                 setForm({
                   ...form,
-                  variables: [...form.variables, { ...EMPTY_VAR }],
+                  variables: [
+                    ...form.variables,
+                    { ...EMPTY_VAR, id: newRowId() },
+                  ],
                 })
               }
               className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-secondary transition-colors cursor-pointer"
@@ -460,7 +492,7 @@ export default function EditarPlantillaPage() {
             <ul className="space-y-2">
               {form.variables.map((v, i) => (
                 <li
-                  key={i}
+                  key={v.id}
                   className="space-y-2 rounded-md border border-border/60 bg-background/40 p-2"
                 >
                   <div className="grid grid-cols-2 gap-2">
