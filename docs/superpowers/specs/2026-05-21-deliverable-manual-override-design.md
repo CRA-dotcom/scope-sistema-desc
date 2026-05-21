@@ -65,16 +65,16 @@ El bloque "Avanzado · override manual" se renderiza solo si:
 
 Esto preserva consistencia con el flag `manualOverrideAllowed` que ya
 gating el "Editar monto" del mismo componente (líneas 114, 146 del archivo
-actual).
+actual). El patrón de detección de admin es el mismo que usan
+`/configuracion/branding`, `/configuracion/notificaciones`, etc.:
 
 ```ts
-const { flags } = useOrgConfig();  // ya está importado
-const { user } = useUser();        // nuevo
-const { organization } = useOrganization();  // ya está importado
-const isAdmin = user?.organizationMemberships.some(
-  (m) => m.organization.id === organization?.id && m.role === "org:admin"
-) ?? false;
-const canOverride = isAdmin && flags.manualOverrideAllowed;
+import { useOrganization } from "@clerk/nextjs";
+// ...
+const { flags } = useOrgConfig();                  // ya importado
+const { membership, isLoaded } = useOrganization(); // nuevo
+const isAdmin = membership?.role === "org:admin";
+const canOverride = isLoaded && isAdmin && flags.manualOverrideAllowed;
 ```
 
 No requiere cambios de backend porque `generateDeliverable` ya valida
@@ -116,20 +116,31 @@ El header (chevron + label) ya existe; cambia el contenido interno.
 | `deliverable` existe | Disabled + `Link` "Ya existe entregable · ver" | Navega a `/entregables/{id}` |
 | `assignment.status === "pending"` | Disabled gris | Tooltip "Cliente no ha respondido el cuestionario" |
 | Mid-call | Disabled + spinner | — |
-| Error: "no plantilla" | Toast + botón vuelve activo | Toast con link `/configuracion/plantillas` |
-| Error genérico | Toast rojo + botón vuelve activo | Mensaje del error del action |
+| Error: "no plantilla" | Banner amarillo bajo el botón + link inline | Renderiza link a `/configuracion/plantillas` dentro del banner |
+| Error genérico | Banner rojo bajo el botón con mensaje | Mensaje del error del action |
 
-### 3.4 Click handler
+### 3.4 Click handler + feedback inline
+
+El repo **no tiene toast library** (ver comentario en
+`src/app/(dashboard)/configuracion/notificaciones/page.tsx:7` —
+*"Uses inline banners for feedback (no toast library in this repo)"*).
+Usamos un banner inline bajo el botón, con estado local.
 
 ```ts
 const generate = useAction(api.functions.deliverables.actions.generateDeliverable);
 const [loading, setLoading] = useState(false);
+const [errorBanner, setErrorBanner] = useState<
+  | { kind: "missing-template" }
+  | { kind: "generic"; message: string }
+  | null
+>(null);
 
 async function handleManualGenerate() {
   const ok = window.confirm(
     `Generar entregable ahora sin factura pagada para ${assignment.serviceName} de ${MONTH_NAMES[assignment.month - 1]} ${assignment.year}? Esto queda auditado en triggerSource=manual.`
   );
   if (!ok) return;
+  setErrorBanner(null);
   setLoading(true);
   try {
     await generate({
@@ -139,20 +150,41 @@ async function handleManualGenerate() {
       templateType: "deliverable_short",
       triggerSource: "manual",
     });
-    toast.success("Entregable generado. Refrescando…");
+    // Convex queries re-run reactivamente; `deliverable` pasa de null a doc
+    // y el `PrimaryAction` cambia a "Ver entregable". No requiere refetch.
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error desconocido";
     if (msg.includes("plantilla") || msg.includes("template")) {
-      toast.error("No hay plantilla aplicable. Configura una en Plantillas.", {
-        action: { label: "Abrir", onClick: () => router.push("/configuracion/plantillas") },
-      });
+      setErrorBanner({ kind: "missing-template" });
     } else {
-      toast.error(`No se pudo generar: ${msg}`);
+      setErrorBanner({ kind: "generic", message: msg });
     }
   } finally {
     setLoading(false);
   }
 }
+```
+
+**Banner inline (renderizado bajo el botón cuando `errorBanner != null`):**
+
+```tsx
+{errorBanner?.kind === "missing-template" && (
+  <p className="text-xs text-warning flex items-start gap-2">
+    <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+    <span>
+      No hay plantilla aplicable para este subservicio.{" "}
+      <Link href="/configuracion/plantillas" className="underline">
+        Configurar plantilla
+      </Link>.
+    </span>
+  </p>
+)}
+{errorBanner?.kind === "generic" && (
+  <p className="text-xs text-destructive flex items-start gap-2">
+    <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+    <span>{errorBanner.message}</span>
+  </p>
+)}
 ```
 
 **Decisiones tomadas:**
@@ -164,8 +196,8 @@ async function handleManualGenerate() {
 - `window.confirm()` en lugar de dialog shadcn. Razón: acción excepcional,
   no justifica fricción de un dialog completo; el warning visible arriba
   del botón ya da contexto.
-- Si no hay plantilla aplicable, toast con link en vez de redirect:
-  preserva el contexto del drawer.
+- Banner inline para errores en lugar de toast: el repo no tiene librería
+  de toast; los componentes existentes usan banners locales.
 
 ### 3.5 Idempotencia
 
@@ -179,23 +211,83 @@ puede borrar el viejo desde `/entregables`.)
 
 ## 4. Tests
 
+Convención del repo: **source-level tests** (leen el archivo como texto y
+verifican estructura con regex/`toContain`). Patrón visible en
+`src/app/(dashboard)/configuracion/branding/__tests__/page.test.tsx`. No
+hay React Testing Library renders en el repo de DESC.
+
 `src/components/projections/__tests__/matrix-cell-detail.test.tsx`:
 
-1. `renders advanced block only when canOverride` — 4 casos: (a) admin + flag
-   on → block visible; (b) admin + flag off → no block; (c) member + flag on
-   → no block; (d) member + flag off → no block. Mock `useUser` y `useOrgConfig`
-   acordemente.
-2. `manual generate button invokes action with correct args` — click → assert
-   mock action recibió `{ triggerSource: "manual", templateType: "deliverable_short", ... }`.
-3. `button disabled when deliverable already exists` — mock query
-   `getByAssignment` retorna deliverable, assert `disabled` attribute.
-4. `button disabled when assignment status is pending` — mock assignment con
-   `status: "pending"`, assert `disabled`.
+```ts
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-E2E manual: con cliente Katimi, abrir drawer de un mes sin factura pagada,
-expandir Avanzado, clickear "Generar entregable ahora", confirmar modal,
-verificar que aparece en `/entregables` con `triggerSource = "manual"` y
-sin `triggerInvoiceId`.
+const SOURCE = readFileSync(
+  resolve(__dirname, "../matrix-cell-detail.tsx"),
+  "utf-8"
+);
+
+describe("MatrixCellDetail — override manual block", () => {
+  it("imports useOrganization from Clerk for admin detection", () => {
+    expect(SOURCE).toMatch(
+      /import\s*\{[^}]*useOrganization[^}]*\}\s*from\s*"@clerk\/nextjs"/
+    );
+  });
+
+  it("derives canOverride from admin role AND manualOverrideAllowed flag", () => {
+    expect(SOURCE).toContain('membership?.role === "org:admin"');
+    expect(SOURCE).toContain("flags.manualOverrideAllowed");
+    expect(SOURCE).toMatch(/canOverride\s*=/);
+  });
+
+  it("renders the Avanzado block only when canOverride is true", () => {
+    // The collapsible header is gated by canOverride.
+    expect(SOURCE).toMatch(/\{canOverride\s*&&\s*\(/);
+  });
+
+  it("invokes generateDeliverable action with triggerSource manual and short template", () => {
+    expect(SOURCE).toMatch(
+      /useAction\(\s*api\.functions\.deliverables\.actions\.generateDeliverable/
+    );
+    expect(SOURCE).toContain('triggerSource: "manual"');
+    expect(SOURCE).toContain('templateType: "deliverable_short"');
+  });
+
+  it("confirms before generating with a window.confirm prompt", () => {
+    expect(SOURCE).toMatch(/window\.confirm\(/);
+    expect(SOURCE).toContain("triggerSource=manual");
+  });
+
+  it("disables the button when deliverable already exists", () => {
+    // Button must check `deliverable` and switch to a 'ver entregable' link.
+    expect(SOURCE).toMatch(/Ya existe entregable/);
+    expect(SOURCE).toMatch(/\/entregables\/\$\{deliverable\._id\}/);
+  });
+
+  it("disables the button when assignment.status is pending", () => {
+    expect(SOURCE).toMatch(
+      /assignment\.status\s*===\s*"pending"/
+    );
+    expect(SOURCE).toContain("Cliente no ha respondido");
+  });
+
+  it("renders inline banner with link to plantillas when template is missing", () => {
+    expect(SOURCE).toContain('"missing-template"');
+    expect(SOURCE).toMatch(/\/configuracion\/plantillas/);
+  });
+
+  it("does not import any toast library (repo convention)", () => {
+    expect(SOURCE).not.toMatch(/from\s*"sonner"/);
+    expect(SOURCE).not.toMatch(/react-hot-toast/);
+  });
+});
+```
+
+E2E manual: con cliente Katimi (org `org_3Bc04Ld76zZeepkBpOLRSK9XLOg`),
+abrir drawer de un mes sin factura pagada, expandir Avanzado, clickear
+"Generar entregable ahora", confirmar modal, verificar que aparece en
+`/entregables` con `triggerSource = "manual"` y sin `triggerInvoiceId`.
 
 ## 5. Riesgos
 
