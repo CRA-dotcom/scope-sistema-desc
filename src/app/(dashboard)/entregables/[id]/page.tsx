@@ -307,12 +307,28 @@ export default function EntregableDetailPage() {
             Completo (Long)
           </button>
         </div>
-        <iframe
-          title="Vista previa del entregable"
-          srcDoc={currentContent}
-          sandbox=""
-          className="w-full min-h-[1200px] border-0 bg-white"
-        />
+        {currentContent ? (
+          <iframe
+            title="Vista previa del entregable"
+            srcDoc={currentContent}
+            sandbox=""
+            className="w-full min-h-[1200px] border-0 bg-white"
+          />
+        ) : (
+          <div className="p-12 text-center text-sm text-muted-foreground">
+            <p className="mb-2">
+              No hay contenido en la versión{" "}
+              <span className="font-medium text-foreground">
+                {tab === "short" ? "Resumen (Short)" : "Completo (Long)"}
+              </span>
+              .
+            </p>
+            <p>
+              Usa <span className="text-accent">Regenerar con AI</span> y
+              selecciona esta versión para generarla.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
