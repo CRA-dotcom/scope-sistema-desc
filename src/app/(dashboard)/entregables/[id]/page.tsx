@@ -307,9 +307,11 @@ export default function EntregableDetailPage() {
             Completo (Long)
           </button>
         </div>
-        <div
-          className="p-6"
-          dangerouslySetInnerHTML={{ __html: currentContent }}
+        <iframe
+          title="Vista previa del entregable"
+          srcDoc={currentContent}
+          sandbox=""
+          className="w-full min-h-[1200px] border-0 bg-white"
         />
       </div>
     </div>
