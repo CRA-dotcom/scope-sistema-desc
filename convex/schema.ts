@@ -477,6 +477,17 @@ export default defineSchema({
     // Default UTC si null/undefined. Usado por el cron de eligibility para
     // computar "hoy" en zona local de cada org (sáb-dom skip).
     timezone: v.optional(v.string()),
+    // D2 (§8 Q5): preferencias de notificación operator-editable. Todos los
+    // sub-campos son opcionales para permitir backfill gradual. UI lo edita
+    // vía `orgConfigs.updateNotificationPreferences`.
+    notificationPreferences: v.optional(
+      v.object({
+        reminderHourLocal: v.optional(v.number()),
+        notifyOnDeliverableGenerated: v.optional(v.boolean()),
+        notifyOnInvoicePaid: v.optional(v.boolean()),
+        notifyOnQuotationAccepted: v.optional(v.boolean()),
+      })
+    ),
     updatedAt: v.number(),
   })
     .index("by_orgId", ["orgId"]),

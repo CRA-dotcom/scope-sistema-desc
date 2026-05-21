@@ -1,6 +1,8 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { requireSuperAdmin } from "../../lib/authHelpers";
+import { getOrgId, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Validate an IANA timezone string. Uses `Intl.supportedValuesOf` when
@@ -89,6 +91,116 @@ export const upsert = mutation({
       fiscalYearStartMonth: args.fiscalYearStartMonth,
       notificationEmail: args.notificationEmail,
       timezone: args.timezone,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * D2 §3.4 — `updateNotificationPreferences`
+ *
+ * Operator-facing subset of `orgConfigs.upsert`: only the notification
+ * fields. Requires `org:admin` role (vs `requireSuperAdmin` for the full
+ * upsert). Validates email format and preference bounds. If no `orgConfigs`
+ * row exists yet, inserts a defensive default with conservative feature
+ * flags.
+ */
+export const updateNotificationPreferences = mutation({
+  args: {
+    notificationEmail: v.optional(v.string()),
+    reminderHourLocal: v.optional(v.number()),
+    notifyOnDeliverableGenerated: v.optional(v.boolean()),
+    notifyOnInvoicePaid: v.optional(v.boolean()),
+    notifyOnQuotationAccepted: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+
+    if (
+      args.notificationEmail !== undefined &&
+      args.notificationEmail !== "" &&
+      !EMAIL_REGEX.test(args.notificationEmail)
+    ) {
+      throw new Error("Email inválido.");
+    }
+    if (args.reminderHourLocal !== undefined) {
+      if (
+        !Number.isInteger(args.reminderHourLocal) ||
+        args.reminderHourLocal < 0 ||
+        args.reminderHourLocal > 23
+      ) {
+        throw new Error("Hora debe estar entre 0 y 23.");
+      }
+    }
+
+    const normalizedEmail =
+      args.notificationEmail === undefined
+        ? undefined
+        : args.notificationEmail === ""
+          ? undefined
+          : args.notificationEmail.trim();
+
+    // Build a notificationPreferences object, dropping undefined keys so
+    // the stored shape mirrors the schema validator (object with optional
+    // fields).
+    type NotificationPrefs = {
+      reminderHourLocal?: number;
+      notifyOnDeliverableGenerated?: boolean;
+      notifyOnInvoicePaid?: boolean;
+      notifyOnQuotationAccepted?: boolean;
+    };
+    const prefsCandidate: NotificationPrefs = {};
+    if (args.reminderHourLocal !== undefined) {
+      prefsCandidate.reminderHourLocal = args.reminderHourLocal;
+    }
+    if (args.notifyOnDeliverableGenerated !== undefined) {
+      prefsCandidate.notifyOnDeliverableGenerated =
+        args.notifyOnDeliverableGenerated;
+    }
+    if (args.notifyOnInvoicePaid !== undefined) {
+      prefsCandidate.notifyOnInvoicePaid = args.notifyOnInvoicePaid;
+    }
+    if (args.notifyOnQuotationAccepted !== undefined) {
+      prefsCandidate.notifyOnQuotationAccepted = args.notifyOnQuotationAccepted;
+    }
+    const hasPrefs = Object.keys(prefsCandidate).length > 0;
+
+    const existing = await ctx.db
+      .query("orgConfigs")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .unique();
+
+    const now = Date.now();
+
+    if (existing) {
+      const mergedPrefs = hasPrefs
+        ? { ...(existing.notificationPreferences ?? {}), ...prefsCandidate }
+        : existing.notificationPreferences;
+      await ctx.db.patch(existing._id, {
+        notificationEmail:
+          args.notificationEmail === undefined
+            ? existing.notificationEmail
+            : normalizedEmail,
+        notificationPreferences: mergedPrefs,
+        updatedAt: now,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("orgConfigs", {
+      orgId,
+      calculationMode: "weighted",
+      commissionMode: "proportional",
+      seasonalityEnabled: false,
+      featureFlags: {
+        advancedConfigVisible: false,
+        customServicesVisible: false,
+        seasonalityEditable: false,
+        manualOverrideAllowed: false,
+      },
+      notificationEmail: normalizedEmail,
+      notificationPreferences: hasPrefs ? prefsCandidate : undefined,
       updatedAt: now,
     });
   },
