@@ -1,6 +1,6 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
-import { Id } from "../../_generated/dataModel";
+import { Doc, Id } from "../../_generated/dataModel";
 import {
   getOrgIdSafe,
   isSuperAdminFromIdentity,
@@ -127,30 +127,59 @@ export const listForOrg = query({
     }
 
     // Enrich each row with hasNewerGlobal metadata. Globals and clones without
-    // a parent always return false/null. For clones we fetch the parent once
-    // and compare versions — same condition as getByIdWithBanner.
-    const enriched = await Promise.all(
-      merged.map(async (template) => {
-        if (
-          template.parentTemplateId &&
-          template.originalVersionAtClone !== undefined
-        ) {
-          const parent = await ctx.db.get(template.parentTemplateId);
-          if (parent) {
-            return {
-              template,
-              hasNewerGlobal: parent.version > template.originalVersionAtClone,
-              globalVersion: parent.version,
-            };
-          }
-        }
+    // a parent always return false/null. For clones we fetch each unique parent
+    // exactly once — N clones of the same global cause 1 fetch, not N. Same
+    // condition as getByIdWithBanner.
+    const parentIds = [
+      ...new Set(
+        merged.flatMap((m) =>
+          m.parentTemplateId
+            ? [m.parentTemplateId as Id<"deliverableTemplates">]
+            : [],
+        ),
+      ),
+    ];
+    const parentEntries = await Promise.all(
+      parentIds.map(
+        async (pid) => [pid, await ctx.db.get(pid)] as const,
+      ),
+    );
+    const parents = new Map<
+      Id<"deliverableTemplates">,
+      Doc<"deliverableTemplates">
+    >();
+    for (const [pid, parent] of parentEntries) {
+      if (parent) parents.set(pid, parent);
+    }
+
+    const enriched = merged.map((template) => {
+      if (
+        !template.parentTemplateId ||
+        template.originalVersionAtClone === undefined
+      ) {
         return {
           template,
           hasNewerGlobal: false,
           globalVersion: null as number | null,
         };
-      }),
-    );
+      }
+      const parent = parents.get(template.parentTemplateId);
+      if (!parent) {
+        return {
+          template,
+          hasNewerGlobal: false,
+          globalVersion: null as number | null,
+        };
+      }
+      // `globalVersion` is always exposed when a parent exists (the chip is
+      // driven by `hasNewerGlobal`; the version is auxiliary info). Matches
+      // pre-dedup behavior — see queries.test.ts:336.
+      return {
+        template,
+        hasNewerGlobal: parent.version > template.originalVersionAtClone,
+        globalVersion: parent.version as number | null,
+      };
+    });
 
     return enriched;
   },
