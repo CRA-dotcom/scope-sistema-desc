@@ -58,8 +58,13 @@ import type * as functions_notifications_mutations from "../functions/notificati
 import type * as functions_notifications_queries from "../functions/notifications/queries.js";
 import type * as functions_orgBranding_mutations from "../functions/orgBranding/mutations.js";
 import type * as functions_orgBranding_queries from "../functions/orgBranding/queries.js";
+import type * as functions_orgConfigs_actions from "../functions/orgConfigs/actions.js";
+import type * as functions_orgConfigs_internalQueries from "../functions/orgConfigs/internalQueries.js";
 import type * as functions_orgConfigs_mutations from "../functions/orgConfigs/mutations.js";
 import type * as functions_orgConfigs_queries from "../functions/orgConfigs/queries.js";
+import type * as functions_orgIntegrations_actions from "../functions/orgIntegrations/actions.js";
+import type * as functions_orgIntegrations_mutations from "../functions/orgIntegrations/mutations.js";
+import type * as functions_orgIntegrations_queries from "../functions/orgIntegrations/queries.js";
 import type * as functions_organizations_mutations from "../functions/organizations/mutations.js";
 import type * as functions_organizations_queries from "../functions/organizations/queries.js";
 import type * as functions_projectionDrafts_mutations from "../functions/projectionDrafts/mutations.js";
@@ -101,6 +106,8 @@ import type * as functions_subservices_seed from "../functions/subservices/seed.
 import type * as functions_superAdmin_audit from "../functions/superAdmin/audit.js";
 import type * as functions_superAdmin_billing from "../functions/superAdmin/billing.js";
 import type * as functions_superAdmin_metrics from "../functions/superAdmin/metrics.js";
+import type * as functions_users_mutations from "../functions/users/mutations.js";
+import type * as functions_users_queries from "../functions/users/queries.js";
 import type * as http from "../http.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_blobStorage from "../lib/blobStorage.js";
@@ -175,8 +182,13 @@ declare const fullApi: ApiFromModules<{
   "functions/notifications/queries": typeof functions_notifications_queries;
   "functions/orgBranding/mutations": typeof functions_orgBranding_mutations;
   "functions/orgBranding/queries": typeof functions_orgBranding_queries;
+  "functions/orgConfigs/actions": typeof functions_orgConfigs_actions;
+  "functions/orgConfigs/internalQueries": typeof functions_orgConfigs_internalQueries;
   "functions/orgConfigs/mutations": typeof functions_orgConfigs_mutations;
   "functions/orgConfigs/queries": typeof functions_orgConfigs_queries;
+  "functions/orgIntegrations/actions": typeof functions_orgIntegrations_actions;
+  "functions/orgIntegrations/mutations": typeof functions_orgIntegrations_mutations;
+  "functions/orgIntegrations/queries": typeof functions_orgIntegrations_queries;
   "functions/organizations/mutations": typeof functions_organizations_mutations;
   "functions/organizations/queries": typeof functions_organizations_queries;
   "functions/projectionDrafts/mutations": typeof functions_projectionDrafts_mutations;
@@ -218,6 +230,8 @@ declare const fullApi: ApiFromModules<{
   "functions/superAdmin/audit": typeof functions_superAdmin_audit;
   "functions/superAdmin/billing": typeof functions_superAdmin_billing;
   "functions/superAdmin/metrics": typeof functions_superAdmin_metrics;
+  "functions/users/mutations": typeof functions_users_mutations;
+  "functions/users/queries": typeof functions_users_queries;
   http: typeof http;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/blobStorage": typeof lib_blobStorage;
