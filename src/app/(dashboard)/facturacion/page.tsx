@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { useOrganization } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -70,9 +71,17 @@ type AssignmentRow = {
 };
 
 export default function FacturacionPage() {
+  const searchParams = useSearchParams();
   const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [selectedMonth, setSelectedMonth] = useState<number | undefined>(undefined);
+  const initialYear = Number(searchParams.get("year")) || currentYear;
+  const initialMonth = (() => {
+    const raw = searchParams.get("month");
+    if (!raw) return undefined;
+    const n = Number(raw);
+    return n >= 1 && n <= 12 ? n : undefined;
+  })();
+  const [selectedYear, setSelectedYear] = useState(initialYear);
+  const [selectedMonth, setSelectedMonth] = useState<number | undefined>(initialMonth);
   const [selectedService, setSelectedService] = useState<string | undefined>(undefined);
   const [selectedStatus, setSelectedStatus] = useState<MaInvoiceStatus | undefined>(undefined);
 
