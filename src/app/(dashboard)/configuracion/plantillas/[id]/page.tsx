@@ -151,13 +151,15 @@ export default function EditarPlantillaPage() {
 
   // Detect placeholders in the HTML not declared in variables[].
   // Auto-strips `branding_*` since those are resolved by the renderer.
+  // Deps are intentionally narrow — only `htmlTemplate` + `variables` are read,
+  // so name/type/serviceName keystrokes do NOT re-run extractPlaceholders.
   const undeclaredPlaceholders = useMemo(() => {
     if (!form) return [];
     const declared = new Set(form.variables.map((v) => v.key));
     return extractPlaceholders(form.htmlTemplate).filter(
       (k) => !declared.has(k) && !k.startsWith("branding_")
     );
-  }, [form]);
+  }, [form?.htmlTemplate, form?.variables]);
 
   const isDirty = useMemo(() => {
     if (!form || !initialSnapshot) return false;
