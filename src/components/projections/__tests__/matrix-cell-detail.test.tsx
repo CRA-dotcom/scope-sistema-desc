@@ -35,12 +35,12 @@ describe("MatrixCellDetail — override manual block", () => {
     expect(SOURCE).toMatch(/\{canOverride\s*&&\s*\(/);
   });
 
-  it("invokes generateDeliverable action with triggerSource manual and short template", () => {
+  it("invokes generateDeliverable action with triggerSource manual and long template", () => {
     expect(SOURCE).toMatch(
       /useAction\(\s*api\.functions\.deliverables\.actions\.generateDeliverable/
     );
     expect(SOURCE).toContain('triggerSource: "manual"');
-    expect(SOURCE).toContain('templateType: "deliverable_short"');
+    expect(SOURCE).toContain('templateType: "deliverable_long"');
   });
 
   it("confirms before generating with a window.confirm prompt", () => {

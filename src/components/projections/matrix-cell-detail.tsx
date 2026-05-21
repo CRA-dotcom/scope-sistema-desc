@@ -84,7 +84,7 @@ export function MatrixCellDetail({
         assignmentId: assignment._id,
         projServiceId: assignment.projServiceId,
         clientId: assignment.clientId,
-        templateType: "deliverable_short",
+        templateType: "deliverable_long",
         triggerSource: "manual",
       });
     } catch (err) {
