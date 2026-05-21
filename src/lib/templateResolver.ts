@@ -135,27 +135,12 @@ function escapeRegex(str: string): string {
 }
 
 /**
- * Extract unique `{{key}}` placeholders from an HTML template in first-seen
- * order. Mirrors the regex in `convex/lib/templatePlaceholders.ts` so the
- * client-side editor warning stays in sync with server-side validation.
- *
- * Per A2 §4.2 (the operator editor parses placeholders client-side as the
- * operator types and surfaces a warning for any `{{x}}` not declared in
- * `variables[]`).
+ * Re-exports the canonical `extractPlaceholders` from
+ * `convex/lib/templatePlaceholders.ts` so the client-side editor warning and
+ * server-side `validatePlaceholdersDeclared` stay byte-for-byte in sync (no
+ * regex drift). Per A2 §4.2.
  */
-export function extractPlaceholders(htmlTemplate: string): string[] {
-  const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
-  const seen = new Set<string>();
-  const out: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(htmlTemplate)) !== null) {
-    if (!seen.has(m[1])) {
-      seen.add(m[1]);
-      out.push(m[1]);
-    }
-  }
-  return out;
-}
+export { extractPlaceholders } from "../../convex/lib/templatePlaceholders";
 
 /**
  * Generates sample data for template preview based on variable definitions.
