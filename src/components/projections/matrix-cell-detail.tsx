@@ -25,19 +25,6 @@ const MONTH_NAMES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-const STATUS_OPTIONS = [
-  { value: "pending" as const, label: "Pendiente", color: "bg-muted-foreground/20 text-muted-foreground" },
-  { value: "info_received" as const, label: "Info Recibida", color: "bg-info/20 text-info" },
-  { value: "in_progress" as const, label: "En Progreso", color: "bg-warning/20 text-warning" },
-  { value: "delivered" as const, label: "Entregado", color: "bg-accent/20 text-accent" },
-];
-
-const INVOICE_OPTIONS = [
-  { value: "not_invoiced" as const, label: "Sin Facturar" },
-  { value: "invoiced" as const, label: "Facturado" },
-  { value: "paid" as const, label: "Pagado" },
-];
-
 type StepStatus = "done" | "current" | "pending";
 
 interface Step {
@@ -58,8 +45,6 @@ export function MatrixCellDetail({
   const { membership, isLoaded: orgLoaded } = useOrganization();
   const isAdmin = membership?.role === "org:admin";
   const canOverride = orgLoaded && isAdmin && flags.manualOverrideAllowed;
-  const updateStatus = useMutation(api.functions.monthlyAssignments.mutations.updateStatus);
-  const updateInvoice = useMutation(api.functions.monthlyAssignments.mutations.updateInvoiceStatus);
   const updateAmount = useMutation(api.functions.monthlyAssignments.mutations.updateAmount);
 
   const deliverable = useQuery(
@@ -265,46 +250,6 @@ export function MatrixCellDetail({
                     <span>{errorBanner.message}</span>
                   </p>
                 )}
-
-                <div className="border-t border-border pt-4 space-y-5">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Status de Entrega (legacy)</p>
-                    <div className="flex flex-wrap gap-2">
-                      {STATUS_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => updateStatus({ id: assignment._id, status: opt.value })}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                            assignment.status === opt.value
-                              ? opt.color
-                              : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Status de Facturación (legacy)</p>
-                    <div className="flex flex-wrap gap-2">
-                      {INVOICE_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => updateInvoice({ id: assignment._id, invoiceStatus: opt.value })}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                            assignment.invoiceStatus === opt.value
-                              ? "bg-accent/20 text-accent"
-                              : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>
