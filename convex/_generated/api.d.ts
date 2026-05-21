@@ -104,6 +104,7 @@ import type * as functions_superAdmin_metrics from "../functions/superAdmin/metr
 import type * as http from "../http.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_blobStorage from "../lib/blobStorage.js";
+import type * as lib_date from "../lib/date.js";
 import type * as lib_deliverableEngine_aiBatchFill from "../lib/deliverableEngine/aiBatchFill.js";
 import type * as lib_deliverableEngine_errors from "../lib/deliverableEngine/errors.js";
 import type * as lib_deliverableEngine_placeholders from "../lib/deliverableEngine/placeholders.js";
@@ -220,6 +221,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/blobStorage": typeof lib_blobStorage;
+  "lib/date": typeof lib_date;
   "lib/deliverableEngine/aiBatchFill": typeof lib_deliverableEngine_aiBatchFill;
   "lib/deliverableEngine/errors": typeof lib_deliverableEngine_errors;
   "lib/deliverableEngine/placeholders": typeof lib_deliverableEngine_placeholders;
