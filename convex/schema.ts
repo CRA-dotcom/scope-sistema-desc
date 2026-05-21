@@ -378,6 +378,11 @@ export default defineSchema({
     longContent: v.string(),
     shortPdfStorageId: v.optional(v.id("_storage")),
     longPdfStorageId: v.optional(v.id("_storage")),
+    // A2: snapshot por valor (R1 decisión #1). Reproducibilidad histórica del
+    // entregable aunque la plantilla mute. Legacy rows tienen undefined.
+    templateId: v.optional(v.id("deliverableTemplates")),
+    templateVersion: v.optional(v.number()),
+    templateHtmlSnapshot: v.optional(v.string()),
     auditStatus: v.union(
       v.literal("pending"),
       v.literal("approved"),
@@ -405,7 +410,9 @@ export default defineSchema({
     .index("by_assignmentId", ["assignmentId"])
     .index("by_clientId", ["clientId"])
     .index("by_orgId_auditStatus", ["orgId", "auditStatus"])
-    .index("by_orgId_year_month", ["orgId", "year", "month"]),
+    .index("by_orgId_year_month", ["orgId", "year", "month"])
+    // A2: "qué deliverables usan esta plantilla" para banner y restoreToGlobal
+    .index("by_templateId", ["templateId"]),
 
   orgConfigs: defineTable({
     orgId: v.string(),
@@ -455,7 +462,9 @@ export default defineSchema({
       v.literal("contract"),
       v.literal("deliverable_short"),
       v.literal("deliverable_long"),
-      v.literal("questionnaire")
+      v.literal("questionnaire"),
+      // A2: R1 decisión #4 — reservado V2 (UI lo oculta en beta)
+      v.literal("invoice")
     ),
     name: v.string(),
     htmlTemplate: v.string(),
@@ -475,12 +484,19 @@ export default defineSchema({
     ),
     version: v.number(),
     isActive: v.boolean(),
+    // A2: copy-on-write tracking — apunta al global del que se clonó (R1 #2)
+    parentTemplateId: v.optional(v.id("deliverableTemplates")),
+    originalVersionAtClone: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_orgId", ["orgId"])
     .index("by_serviceId", ["serviceId"])
-    .index("by_type", ["type"]),
+    .index("by_type", ["type"])
+    // A2: dual-matching resolver (org-scoped → global por subserviceId)
+    .index("by_orgId_subserviceId", ["orgId", "subserviceId"])
+    // A2: banner "hay vN global disponible" + idempotencia personalizeGlobal
+    .index("by_parentTemplateId", ["parentTemplateId"]),
 
   issuingCompanies: defineTable({
     orgId: v.string(),

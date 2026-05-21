@@ -212,11 +212,19 @@ export const generateDeliverable = action({
       ctx.runQuery(internal.functions.deliverables.internalQueries.getOrgBranding, {
         orgId: assignment.orgId,
       }),
-      ctx.runQuery(internal.functions.deliverables.internalQueries.findTemplate, {
-        serviceName: projService.serviceName,
-        type: args.templateType,
-        orgId: assignment.orgId,
-      }),
+      // A2: dual-matching resolver con subserviceId preferido sobre legacy
+      // serviceId/serviceName. El internal wrapper no aplica auth guard
+      // porque este action ya corre autenticado.
+      ctx.runQuery(
+        internal.functions.deliverables.internalQueries.getResolvedForGeneration,
+        {
+          orgId: assignment.orgId,
+          type: args.templateType,
+          subserviceId: projService.subserviceId,
+          serviceId: projService.serviceId,
+          serviceName: projService.serviceName,
+        },
+      ),
     ]);
 
     const aiLogs: AiLogEntry[] = [];
@@ -355,6 +363,9 @@ export const generateDeliverable = action({
     }
 
     // 7. Save deliverable (with unfilledKeys → rejected status per D1).
+    // A2: snapshot del template por valor (templateId/Version/Html) +
+    // subserviceId, para reproducir el deliverable a futuro aunque la
+    // plantilla mute.
     const isShort = args.templateType === "deliverable_short";
     const deliverableId = await ctx.runMutation(
       internal.functions.deliverables.mutations.saveGenerated,
@@ -364,6 +375,7 @@ export const generateDeliverable = action({
         projServiceId: args.projServiceId,
         clientId: args.clientId,
         serviceName: projService.serviceName,
+        subserviceId: projService.subserviceId,
         month: assignment.month,
         year: assignment.year,
         shortContent: isShort ? finalContent : "",
@@ -371,6 +383,9 @@ export const generateDeliverable = action({
         aiLog: aiLogs,
         unfilledKeys: unfilledKeys.length > 0 ? unfilledKeys : undefined,
         costUsd: totalCost > 0 ? totalCost : undefined,
+        templateId: template?._id,
+        templateVersion: template?.version,
+        templateHtmlSnapshot: template?.htmlTemplate,
       }
     );
 

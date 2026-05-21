@@ -96,6 +96,8 @@ import type * as lib_projectionContext from "../lib/projectionContext.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
 import type * as lib_questionnaireMappings from "../lib/questionnaireMappings.js";
 import type * as lib_seasonality from "../lib/seasonality.js";
+import type * as lib_templateAccess from "../lib/templateAccess.js";
+import type * as lib_templatePlaceholders from "../lib/templatePlaceholders.js";
 import type * as lib_templateVariables from "../lib/templateVariables.js";
 import type * as lib_validators from "../lib/validators.js";
 
@@ -194,6 +196,8 @@ declare const fullApi: ApiFromModules<{
   "lib/projectionEngine": typeof lib_projectionEngine;
   "lib/questionnaireMappings": typeof lib_questionnaireMappings;
   "lib/seasonality": typeof lib_seasonality;
+  "lib/templateAccess": typeof lib_templateAccess;
+  "lib/templatePlaceholders": typeof lib_templatePlaceholders;
   "lib/templateVariables": typeof lib_templateVariables;
   "lib/validators": typeof lib_validators;
 }>;

@@ -1,5 +1,6 @@
 import { internalQuery } from "../../_generated/server";
 import { v } from "convex/values";
+import { Doc } from "../../_generated/dataModel";
 
 export const getAssignmentData = internalQuery({
   args: { assignmentId: v.id("monthlyAssignments") },
@@ -70,6 +71,88 @@ export const findTemplate = internalQuery({
 
     // Fallback: any active template of this type
     return allTemplates.find((t) => t.isActive) ?? null;
+  },
+});
+
+/**
+ * A2 envoltorio sin guard: el action que llama esta query ya está
+ * autenticado, así que no aplicamos `requireAuth`. Replica la lógica
+ * dual-matching de `deliverableTemplates.queries.getResolved` pero recibe
+ * el `orgId` explícito (no del JWT, porque las generaciones automatizadas
+ * pueden correr en background donde el JWT del operador no aplica).
+ *
+ * Per docs/superpowers/specs/2026-05-22-templates-operator-access-design.md §5.
+ */
+export const getResolvedForGeneration = internalQuery({
+  args: {
+    orgId: v.string(),
+    type: v.union(
+      v.literal("deliverable_short"),
+      v.literal("deliverable_long"),
+      v.literal("quotation"),
+      v.literal("contract"),
+    ),
+    subserviceId: v.optional(v.id("subservices")),
+    serviceId: v.optional(v.id("services")),
+    serviceName: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<Doc<"deliverableTemplates"> | null> => {
+    const candidates = await ctx.db
+      .query("deliverableTemplates")
+      .withIndex("by_type", (q) => q.eq("type", args.type))
+      .collect();
+    const active = candidates.filter((t) => t.isActive);
+
+    if (args.subserviceId) {
+      const orgSub = active.find(
+        (t) => t.subserviceId === args.subserviceId && t.orgId === args.orgId,
+      );
+      if (orgSub) return orgSub;
+
+      const globalSub = active.find(
+        (t) =>
+          t.subserviceId === args.subserviceId && t.orgId === undefined,
+      );
+      if (globalSub) return globalSub;
+    }
+
+    if (args.serviceId) {
+      const orgSvc = active.find(
+        (t) =>
+          t.serviceId === args.serviceId &&
+          t.orgId === args.orgId &&
+          !t.subserviceId,
+      );
+      if (orgSvc) return orgSvc;
+
+      const globalSvc = active.find(
+        (t) =>
+          t.serviceId === args.serviceId &&
+          t.orgId === undefined &&
+          !t.subserviceId,
+      );
+      if (globalSvc) return globalSvc;
+    }
+
+    if (args.serviceName) {
+      const orgName = active.find(
+        (t) =>
+          t.serviceName === args.serviceName &&
+          t.orgId === args.orgId &&
+          !t.subserviceId,
+      );
+      if (orgName) return orgName;
+
+      const globalName = active.find(
+        (t) =>
+          t.serviceName === args.serviceName &&
+          t.orgId === undefined &&
+          !t.subserviceId,
+      );
+      if (globalName) return globalName;
+    }
+
+    return null;
   },
 });
 
