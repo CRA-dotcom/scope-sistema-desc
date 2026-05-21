@@ -1,6 +1,7 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId } from "../../lib/authHelpers";
+import { Doc, Id } from "../../_generated/dataModel";
 
 export const generate = mutation({
   args: {
@@ -270,6 +271,159 @@ export const saveGenerated = internalMutation({
     });
   },
 });
+
+/**
+ * B1 — Internal mutation que crea una cotización suplementaria a partir de
+ * un projectionServices add-on. Reusa el flujo accept/decline del módulo
+ * (publicActions no requiere cambios).
+ *
+ * Per docs/superpowers/specs/2026-05-26-client-services-overview-design.md §2.4
+ */
+export const createSupplementary = internalMutation({
+  args: {
+    projServiceId: v.id("projectionServices"),
+    parentQuotationId: v.optional(v.id("quotations")),
+    startMonth: v.number(),
+    endMonth: v.number(),
+    monthlyAmount: v.number(),
+    notes: v.optional(v.string()),
+  },
+  returns: v.id("quotations"),
+  handler: async (ctx, args) => {
+    const projService = await ctx.db.get(args.projServiceId);
+    if (!projService) {
+      throw new Error("projectionServices no encontrado.");
+    }
+    const orgId = projService.orgId;
+    const projection = await ctx.db.get(projService.projectionId);
+    if (!projection) {
+      throw new Error("projection no encontrada.");
+    }
+    const client = await ctx.db.get(projection.clientId);
+    if (!client) {
+      throw new Error("client no encontrado.");
+    }
+
+    // Multi-tenant guard on parentQuotationId when present.
+    if (args.parentQuotationId) {
+      const parent = await ctx.db.get(args.parentQuotationId);
+      if (!parent || parent.orgId !== orgId) {
+        throw new Error(
+          "parentQuotationId inválido (otro org o no existe)."
+        );
+      }
+    }
+
+    // Build lineItems (mes calendario × monto fijo).
+    const lineItems: Array<{ month: number; label: string; amount: number }> =
+      [];
+    for (let m = args.startMonth; m <= args.endMonth; m++) {
+      lineItems.push({
+        month: m,
+        label: `${MONTH_LABELS_ES[m - 1]} ${projection.year}`,
+        amount: args.monthlyAmount,
+      });
+    }
+    const totalAmount = lineItems.reduce((s, li) => s + li.amount, 0);
+
+    const content = renderSupplementaryHtml({
+      client,
+      projection,
+      projService,
+      lineItems,
+      totalAmount,
+      parentQuotationId: args.parentQuotationId,
+      notes: args.notes,
+    });
+
+    const now = Date.now();
+    return await ctx.db.insert("quotations", {
+      orgId,
+      projServiceId: args.projServiceId,
+      clientId: projection.clientId,
+      serviceName: projService.serviceName,
+      subserviceId: projService.subserviceId,
+      content,
+      status: "draft" as const,
+      createdAt: now,
+      parentQuotationId: args.parentQuotationId,
+      isSupplementary: true,
+      lineItems,
+      totalAmount,
+    });
+  },
+});
+
+const MONTH_LABELS_ES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+function renderSupplementaryHtml(args: {
+  client: Doc<"clients">;
+  projection: Doc<"projections">;
+  projService: Doc<"projectionServices">;
+  lineItems: Array<{ month: number; label: string; amount: number }>;
+  totalAmount: number;
+  parentQuotationId?: Id<"quotations">;
+  notes?: string;
+}): string {
+  const rows = args.lineItems
+    .map(
+      (li) =>
+        `<tr><td style="padding:8px;border-bottom:1px solid #eee">${li.label}</td><td style="padding:8px;text-align:right;border-bottom:1px solid #eee">$${li.amount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td></tr>`
+    )
+    .join("");
+  const supplementaryNote = args.parentQuotationId
+    ? `<p style="font-size:12px;color:#666">Cotización suplementaria del contrato principal vigente.</p>`
+    : "";
+  const notesBlock = args.notes
+    ? `<p style="margin-top:24px;font-size:13px;color:#444"><strong>Notas:</strong> ${escapeHtml(args.notes)}</p>`
+    : "";
+  return `
+<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px;">
+  <h1 style="font-size:20px;color:#1a1a2e">Cotización suplementaria</h1>
+  ${supplementaryNote}
+  <p><strong>Cliente:</strong> ${escapeHtml(args.client.name)}</p>
+  <p><strong>Servicio:</strong> ${escapeHtml(args.projService.serviceName)}</p>
+  <p style="font-size:12px;color:#666">Vigente hasta el 31 de diciembre de ${args.projection.year}. Se renovará junto con el contrato anual el 1 de enero.</p>
+  <table style="width:100%;margin-top:24px;border-collapse:collapse;font-size:14px">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:8px;border-bottom:2px solid #1a1a2e">Mes</th>
+        <th style="text-align:right;padding:8px;border-bottom:2px solid #1a1a2e">Monto MXN</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <th style="text-align:left;padding:8px;border-top:2px solid #1a1a2e">Total</th>
+        <th style="text-align:right;padding:8px;border-top:2px solid #1a1a2e">$${args.totalAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</th>
+      </tr>
+    </tfoot>
+  </table>
+  ${notesBlock}
+</div>`.trim();
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 export const setPdfStorageId = mutation({
   args: {

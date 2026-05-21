@@ -17,6 +17,7 @@ import {
   FileSignature,
   Plus,
   ArrowRight,
+  Layers,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,13 @@ export default function QuotationDetailPage() {
   const existingContract = useQuery(
     api.functions.contracts.queries.getByQuotation,
     { quotationId: id }
+  );
+  // B1 — parent quotation lookup for the supplementary banner.
+  const parentQuotation = useQuery(
+    api.functions.quotations.queries.getById,
+    quotation?.parentQuotationId
+      ? { id: quotation.parentQuotationId }
+      : "skip"
   );
 
   const updateContent = useMutation(
@@ -359,6 +367,23 @@ export default function QuotationDetailPage() {
       {pdfState.error && (
         <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           {pdfState.error}
+        </div>
+      )}
+
+      {/* B1 — Banner cotización suplementaria */}
+      {quotation.parentQuotationId && parentQuotation && (
+        <div className="flex items-center gap-2 rounded-md border border-accent/30 bg-accent/5 p-3 text-sm">
+          <Layers size={14} className="text-accent" />
+          <span>
+            Cotización suplementaria del contrato principal:{" "}
+            <Link
+              href={`/cotizaciones/${quotation.parentQuotationId}`}
+              className="text-accent hover:underline"
+            >
+              {parentQuotation.serviceName} ·{" "}
+              {new Date(parentQuotation.createdAt).toLocaleDateString("es-MX")}
+            </Link>
+          </span>
         </div>
       )}
 

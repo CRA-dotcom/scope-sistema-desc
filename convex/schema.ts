@@ -211,6 +211,16 @@ export default defineSchema({
     isActive: v.boolean(),
     annualAmount: v.number(),
     normalizedWeight: v.number(),
+    // B1 — ventana contractual del row.
+    // null/undefined = año completo (legacy + servicios base normales);
+    //   set = mid-year add-on con ventana específica (julio→dic, etc.).
+    // Per docs/superpowers/specs/2026-05-26-client-services-overview-design.md §2.1
+    startMonth: v.optional(v.number()),
+    endMonth: v.optional(v.number()),
+    // Audit trail: si el add-on clona/extiende un row existente.
+    addOnOfProjectionServiceId: v.optional(v.id("projectionServices")),
+    // Referencia inversa a la cotización suplementaria que originó el row.
+    supplementaryQuotationId: v.optional(v.id("quotations")),
   })
     .index("by_projectionId", ["projectionId"])
     .index("by_orgId", ["orgId"])
@@ -335,12 +345,28 @@ export default defineSchema({
     tokenExpiresAt: v.optional(v.number()),
     respondedAt: v.optional(v.number()),
     declineReason: v.optional(v.string()),
+
+    // B1 — cotización suplementaria (mid-year add-on).
+    // Per docs/superpowers/specs/2026-05-26-client-services-overview-design.md §2.1
+    parentQuotationId: v.optional(v.id("quotations")),
+    isSupplementary: v.optional(v.boolean()),
+    lineItems: v.optional(
+      v.array(
+        v.object({
+          month: v.number(),
+          label: v.string(),
+          amount: v.number(),
+        })
+      )
+    ),
+    totalAmount: v.optional(v.number()),
   })
     .index("by_orgId", ["orgId"])
     .index("by_projServiceId", ["projServiceId"])
     .index("by_clientId", ["clientId"])
     .index("by_orgId_status", ["orgId", "status"])
-    .index("by_accessTokenHash", ["accessTokenHash"]),
+    .index("by_accessTokenHash", ["accessTokenHash"])
+    .index("by_parentQuotationId", ["parentQuotationId"]),
 
   contracts: defineTable({
     orgId: v.string(),

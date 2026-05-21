@@ -224,6 +224,11 @@ export const selectDeliverableForMonth = internalQuery({
     subserviceId: v.optional(v.id("subservices")),
     serviceId: v.optional(v.id("services")),
     serviceName: v.optional(v.string()),
+    // B1 — optional projectionServices reference. When present and the row
+    // has startMonth/endMonth set, the selector enforces that window before
+    // applying frequency rules. Backward-compatible: legacy callers omit
+    // this and the gate is a no-op.
+    projServiceId: v.optional(v.id("projectionServices")),
     month: v.number(),
     year: v.number(),
     projectionMode: v.union(
@@ -292,6 +297,20 @@ export const selectDeliverableForMonth = internalQuery({
       !applicableMonths.includes(contractMonth)
     ) {
       return null;
+    }
+
+    // 5b. B1 — projectionServices window gate (mid-year add-on). Legacy rows
+    //     with undefined start/end behave as 1..12 (no-op). Per
+    //     docs/superpowers/specs/2026-05-26-client-services-overview-design.md §4.2
+    if (args.projServiceId) {
+      const ps = await ctx.db.get(args.projServiceId);
+      if (ps) {
+        const startMonth = ps.startMonth ?? 1;
+        const endMonth = ps.endMonth ?? 12;
+        if (contractMonth < startMonth || contractMonth > endMonth) {
+          return null;
+        }
+      }
     }
 
     // 6. Gate frecuencia.
