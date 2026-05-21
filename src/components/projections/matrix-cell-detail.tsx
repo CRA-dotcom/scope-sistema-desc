@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
+import { useOrganization } from "@clerk/nextjs";
 import { api } from "../../../convex/_generated/api";
 import { Doc } from "../../../convex/_generated/dataModel";
 import {
@@ -24,19 +25,6 @@ const MONTH_NAMES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-const STATUS_OPTIONS = [
-  { value: "pending" as const, label: "Pendiente", color: "bg-muted-foreground/20 text-muted-foreground" },
-  { value: "info_received" as const, label: "Info Recibida", color: "bg-info/20 text-info" },
-  { value: "in_progress" as const, label: "En Progreso", color: "bg-warning/20 text-warning" },
-  { value: "delivered" as const, label: "Entregado", color: "bg-accent/20 text-accent" },
-];
-
-const INVOICE_OPTIONS = [
-  { value: "not_invoiced" as const, label: "Sin Facturar" },
-  { value: "invoiced" as const, label: "Facturado" },
-  { value: "paid" as const, label: "Pagado" },
-];
-
 type StepStatus = "done" | "current" | "pending";
 
 interface Step {
@@ -54,8 +42,9 @@ export function MatrixCellDetail({
   onClose: () => void;
 }) {
   const { flags } = useOrgConfig();
-  const updateStatus = useMutation(api.functions.monthlyAssignments.mutations.updateStatus);
-  const updateInvoice = useMutation(api.functions.monthlyAssignments.mutations.updateInvoiceStatus);
+  const { membership, isLoaded: orgLoaded } = useOrganization();
+  const isAdmin = membership?.role === "org:admin";
+  const canOverride = orgLoaded && isAdmin && flags.manualOverrideAllowed;
   const updateAmount = useMutation(api.functions.monthlyAssignments.mutations.updateAmount);
 
   const deliverable = useQuery(
@@ -70,6 +59,43 @@ export function MatrixCellDetail({
   const [editAmount, setEditAmount] = useState(false);
   const [newAmount, setNewAmount] = useState(assignment.amount);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const generateNow = useAction(
+    api.functions.deliverables.actions.generateDeliverable
+  );
+  const [generating, setGenerating] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<
+    | { kind: "missing-template" }
+    | { kind: "generic"; message: string }
+    | null
+  >(null);
+
+  async function handleManualGenerate() {
+    const ok = window.confirm(
+      `Generar entregable ahora sin factura pagada para ${assignment.serviceName} de ${MONTH_NAMES[assignment.month - 1]} ${assignment.year}? Esto queda auditado en triggerSource=manual.`
+    );
+    if (!ok) return;
+    setErrorBanner(null);
+    setGenerating(true);
+    try {
+      await generateNow({
+        assignmentId: assignment._id,
+        projServiceId: assignment.projServiceId,
+        clientId: assignment.clientId,
+        templateType: "deliverable_short",
+        triggerSource: "manual",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      if (msg.toLowerCase().includes("plantilla") || msg.toLowerCase().includes("template")) {
+        setErrorBanner({ kind: "missing-template" });
+      } else {
+        setErrorBanner({ kind: "generic", message: msg });
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   const matchingInvoice = invoicesForClient?.find(
     (inv) =>
@@ -176,66 +202,58 @@ export function MatrixCellDetail({
           </p>
         </div>
 
-        <div className="border-t border-border pt-4">
-          <button
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            Avanzado · override manual
-          </button>
-          {showAdvanced && (
-            <div className="mt-4 space-y-5">
-              <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
-                <p className="flex items-start gap-2 text-xs text-warning leading-relaxed">
-                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                  <span>
-                    Estos botones <strong>no</strong> generan entregable. Solo cambian el estado mostrado al equipo. Para activar la generación real, sube la factura en{" "}
-                    <Link href="/facturacion" className="underline">/facturacion</Link>.
-                  </span>
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Status de Entrega</p>
-                <div className="flex flex-wrap gap-2">
-                  {STATUS_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => updateStatus({ id: assignment._id, status: opt.value })}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                        assignment.status === opt.value
-                          ? opt.color
-                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+        {canOverride && (
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              Avanzado · override manual
+            </button>
+            {showAdvanced && (
+              <div className="mt-4 space-y-5">
+                <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                  <p className="flex items-start gap-2 text-xs text-warning leading-relaxed">
+                    <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                    <span>
+                      Esta acción genera un entregable <strong>AHORA</strong>, sin
+                      esperar a que la factura se marque como pagada. Úsala solo para
+                      casos puntuales (anticipo, error en pipeline). Queda registrada
+                      en el audit log como <code>triggerSource=manual</code>.
+                    </span>
+                  </p>
                 </div>
-              </div>
 
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Status de Facturación (legacy)</p>
-                <div className="flex flex-wrap gap-2">
-                  {INVOICE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => updateInvoice({ id: assignment._id, invoiceStatus: opt.value })}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                        assignment.invoiceStatus === opt.value
-                          ? "bg-accent/20 text-accent"
-                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+                <ManualGenerateButton
+                  deliverable={deliverable}
+                  assignment={assignment}
+                  generating={generating}
+                  onGenerate={handleManualGenerate}
+                />
+
+                {errorBanner?.kind === "missing-template" && (
+                  <p className="text-xs text-warning flex items-start gap-2">
+                    <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                    <span>
+                      No hay plantilla aplicable para este subservicio.{" "}
+                      <Link href="/configuracion/plantillas" className="underline">
+                        Configurar plantilla
+                      </Link>
+                      .
+                    </span>
+                  </p>
+                )}
+                {errorBanner?.kind === "generic" && (
+                  <p className="text-xs text-destructive flex items-start gap-2">
+                    <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                    <span>{errorBanner.message}</span>
+                  </p>
+                )}
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -365,6 +383,64 @@ function StepRow({ step }: { step: Step }) {
         </p>
       </div>
     </li>
+  );
+}
+
+function ManualGenerateButton({
+  deliverable,
+  assignment,
+  generating,
+  onGenerate,
+}: {
+  deliverable: Doc<"deliverables"> | null | undefined;
+  assignment: Doc<"monthlyAssignments">;
+  generating: boolean;
+  onGenerate: () => void;
+}) {
+  if (deliverable) {
+    return (
+      <Link
+        href={`/entregables/${deliverable._id}`}
+        className="flex w-full items-center justify-between rounded-md border border-border bg-secondary/50 px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-secondary transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <CheckCircle2 size={16} />
+          Ya existe entregable — ver
+        </span>
+        <ExternalLink size={14} />
+      </Link>
+    );
+  }
+  if (assignment.status === "pending") {
+    return (
+      <button
+        disabled
+        title="Cliente no ha respondido el cuestionario"
+        className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted px-4 py-3 text-sm font-medium text-muted-foreground cursor-not-allowed"
+      >
+        <Clock size={16} />
+        Cliente no ha respondido el cuestionario
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={onGenerate}
+      disabled={generating}
+      className="flex w-full items-center justify-center gap-2 rounded-md bg-warning px-4 py-3 text-sm font-medium text-primary hover:bg-warning/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {generating ? (
+        <>
+          <Clock size={16} className="animate-pulse" />
+          Generando…
+        </>
+      ) : (
+        <>
+          <AlertCircle size={16} />
+          Generar entregable ahora
+        </>
+      )}
+    </button>
   );
 }
 
