@@ -175,6 +175,20 @@ describe("/configuracion/plantillas/[id] — editor type field hides invoice", (
       /TYPE_LABELS:\s*Record<Exclude<TemplateType,\s*"invoice">/
     );
   });
+
+  it("rejects invoice rows at editor mount (no silent type coercion)", () => {
+    // The early-return branch must run BEFORE the form is hydrated so the
+    // operator never sees an invoice row coerced to 'deliverable_short'.
+    expect(source).toMatch(
+      /data\.template\?\.type\s*===\s*"invoice"/
+    );
+    expect(source).toContain('data-testid="banner-invoice-rejected"');
+    expect(source).toContain("Esta plantilla no puede editarse desde aquí.");
+    // The old silent-coercion branch in the form hydrator must be gone.
+    expect(source).not.toMatch(
+      /tpl\.type\s*===\s*"invoice"\s*\?\s*"deliverable_short"/
+    );
+  });
 });
 
 describe("/configuracion/plantillas/[id] — stable keys on variable rows", () => {

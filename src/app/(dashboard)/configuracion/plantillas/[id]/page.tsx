@@ -126,17 +126,16 @@ export default function EditarPlantillaPage() {
   const parentHtml: string | null = data?.globalHtml ?? null;
 
   // Hydrate form when data arrives (only once — re-fetches due to live query
-  // must NOT clobber operator's local edits).
+  // must NOT clobber operator's local edits). Invoice rows are rejected before
+  // we ever hit this branch (see early-return below), so the type coercion is
+  // defensive only — should never fire in practice.
   useEffect(() => {
-    if (data?.template && form === null) {
+    if (data?.template && form === null && data.template.type !== "invoice") {
       const tpl = data.template;
       const next: FormState = {
         name: tpl.name,
         serviceName: tpl.serviceName,
-        type:
-          tpl.type === "invoice"
-            ? "deliverable_short"
-            : (tpl.type as Exclude<TemplateType, "invoice">),
+        type: tpl.type as Exclude<TemplateType, "invoice">,
         htmlTemplate: tpl.htmlTemplate,
         // Stamp each row with a stable id so React `key`s don't shift on remove.
         variables: (tpl.variables as Variable[]).map((v) => ({
@@ -273,6 +272,30 @@ export default function EditarPlantillaPage() {
         </Link>
         <div className="rounded-md border border-red-400/40 bg-red-400/10 p-4 text-sm text-red-400">
           Plantilla no encontrada o no tenés permiso para editarla.
+        </div>
+      </div>
+    );
+  }
+
+  // Invoice templates are reserved for V2 and cannot be edited from this
+  // operator surface. Reject at mount so we never silently coerce the type
+  // (R1 decisión #4 + spec §3.3 R6 — invoice rows must not be persisted from
+  // this editor).
+  if (data.template?.type === "invoice") {
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/configuracion/plantillas"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          <ChevronLeft size={16} /> Plantillas
+        </Link>
+        <div
+          role="alert"
+          data-testid="banner-invoice-rejected"
+          className="rounded-md border border-red-400/40 bg-red-400/10 p-4 text-sm text-red-400"
+        >
+          Esta plantilla no puede editarse desde aquí.
         </div>
       </div>
     );
