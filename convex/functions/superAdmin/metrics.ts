@@ -1,6 +1,7 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { requireSuperAdmin } from "../../lib/authHelpers";
+import { monthStartMs } from "../../lib/date";
 
 /**
  * D1 — Super-admin metrics queries.
@@ -14,13 +15,6 @@ import { requireSuperAdmin } from "../../lib/authHelpers";
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 const MS_30D = 30 * MS_DAY;
-
-function monthStartMs(): number {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.getTime();
-}
 
 /**
  * Cross-org overview for `/platform/metrics`. Returns totals + per-org rollup

@@ -1,6 +1,7 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { requireSuperAdmin } from "../../lib/authHelpers";
+import { monthStartMs } from "../../lib/date";
 
 /**
  * D1 — Super-admin billing query (read-only).
@@ -38,10 +39,7 @@ export const getUsage = query({
       return { rows: [] };
     }
 
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
-    const monthStartMs = monthStart.getTime();
+    const monthStart = monthStartMs();
 
     let orgs;
     if (args.orgId) {
@@ -59,7 +57,7 @@ export const getUsage = query({
 
     const rows = orgs.map((org) => {
       const delivMonth = allDeliverables.filter(
-        (d) => d.orgId === org.clerkOrgId && d.createdAt >= monthStartMs
+        (d) => d.orgId === org.clerkOrgId && d.createdAt >= monthStart
       );
       const clientsActive = allClients.filter(
         (c) => c.orgId === org.clerkOrgId && !c.isArchived
