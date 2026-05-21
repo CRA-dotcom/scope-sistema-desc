@@ -706,6 +706,12 @@ function OrgAuditTab({ orgClerkId }: { orgClerkId: string }) {
       message: string;
     }>
   >([]);
+  // Pagination guard: between the "Cargar más" click and the next Convex tick,
+  // `result.rows` still points at the previous page (the cursor we already
+  // appended). If we re-render eagerly we'd flash the same rows twice. When
+  // `pendingMore` is true we suppress the result.rows append until the new
+  // page lands and a useEffect clears the flag.
+  const [pendingMore, setPendingMore] = useState(false);
 
   const result = useQuery(api.functions.documentEvents.queries.list, {
     orgId: orgClerkId,
@@ -725,13 +731,30 @@ function OrgAuditTab({ orgClerkId }: { orgClerkId: string }) {
       }
     | undefined;
 
-  // First page lives in `result.rows`; subsequent pages are appended manually.
-  const rows = cursor === undefined ? (result?.rows ?? []) : accumulated;
+  // Rows shown in the table = accumulated + current page (avoiding double-render
+  // when cursor === undefined initial page). Mirrors /platform/audit/page.tsx.
+  const rows =
+    cursor === undefined
+      ? (result?.rows ?? [])
+      : pendingMore
+        ? accumulated
+        : [...accumulated, ...(result?.rows ?? [])];
+
+  // When a new page lands (result is no longer undefined and `result.rows`
+  // belongs to the new cursor), drop the pending flag.
+  useEffect(() => {
+    if (pendingMore && result !== undefined) {
+      setPendingMore(false);
+    }
+    // We only care about the moment result becomes defined for the new cursor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   const loadMore = () => {
     if (!result || result.isDone) return;
     setAccumulated((prev) => [...prev, ...result.rows]);
     setCursor(result.cursor ?? undefined);
+    setPendingMore(true);
   };
 
   return (
