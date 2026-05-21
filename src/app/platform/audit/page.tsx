@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useState, useMemo } from "react";
+import { useOrganization } from "@clerk/nextjs";
+import { useState, useMemo, useEffect } from "react";
 import {
   FileSearch,
   Filter,
@@ -93,10 +94,24 @@ export default function AuditPage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [accumulated, setAccumulated] = useState<EventRow[]>([]);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  // Pagination guard: between the "Cargar más" click and the next Convex tick,
+  // `result.rows` still points at the previous page (the cursor we already
+  // appended). If we re-render eagerly we'd flash the same rows twice. When
+  // `pendingMore` is true we suppress the result.rows append until the new
+  // page lands and a useEffect clears the flag.
+  const [pendingMore, setPendingMore] = useState(false);
 
   const orgs = useQuery(api.functions.organizations.queries.list) as
     | OrgRow[]
     | undefined;
+
+  // Super-admin's *current* Clerk org. The Cliente dropdown is scoped to the
+  // caller's own org (multi-tenant guard on clients.queries.list), so when the
+  // audit target differs we surface a tiny note explaining the empty list.
+  const { organization } = useOrganization();
+  const callerOrgId = organization?.id ?? null;
+  const isViewingOtherOrg =
+    selectedOrgId !== "" && callerOrgId !== null && selectedOrgId !== callerOrgId;
 
   // Client filter is best-effort: it lists clients of the caller's own org
   // (multi-tenant guard on the query). When auditing a different org, the
@@ -148,16 +163,28 @@ export default function AuditPage() {
     setCursor(null);
     setAccumulated([]);
     setExpandedRow(null);
+    setPendingMore(false);
   }
 
   // Append the current page to the accumulated list when the cursor advances.
-  // We use a ref-free pattern: when result arrives for the current cursor,
-  // append fresh rows on "Cargar más" click.
+  // We flip `pendingMore` so the in-flight render skips the stale result.rows
+  // until Convex hydrates the new cursor.
   function loadMore() {
     if (!result || result.isDone) return;
     setAccumulated((prev) => [...prev, ...result.rows]);
     setCursor(result.cursor);
+    setPendingMore(true);
   }
+
+  // When a new page lands (result is no longer undefined and `result.rows`
+  // belongs to the new cursor), drop the pending flag.
+  useEffect(() => {
+    if (pendingMore && result !== undefined) {
+      setPendingMore(false);
+    }
+    // We only care about the moment result becomes defined for the new cursor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   // Rows shown in the table = accumulated + current page (avoiding double-render
   // when cursor === null initial page).
@@ -168,8 +195,12 @@ export default function AuditPage() {
       // First page — just show result.rows directly.
       return result.rows;
     }
+    if (pendingMore) {
+      // Suppress the stale current page until the new cursor's result lands.
+      return accumulated;
+    }
     return [...accumulated, ...result.rows];
-  }, [accumulated, cursor, result, selectedOrgId]);
+  }, [accumulated, cursor, result, selectedOrgId, pendingMore]);
 
   const loading = selectedOrgId && result === undefined;
 
@@ -218,28 +249,38 @@ export default function AuditPage() {
         </div>
 
         {/* Cliente */}
-        <div className="relative">
-          <select
-            value={selectedClientId}
-            onChange={(e) =>
-              resetWith(() => setSelectedClientId(e.target.value))
-            }
-            disabled={!selectedOrgId}
-            aria-label="Cliente"
-            data-testid="filter-client"
-            className="appearance-none rounded-md border border-border bg-secondary px-3 py-1.5 pr-8 text-sm text-foreground disabled:opacity-50 min-w-[160px]"
-          >
-            <option value="">Todos los clientes</option>
-            {clients?.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={14}
-            className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
+        <div className="relative flex flex-col">
+          <div className="relative">
+            <select
+              value={selectedClientId}
+              onChange={(e) =>
+                resetWith(() => setSelectedClientId(e.target.value))
+              }
+              disabled={!selectedOrgId}
+              aria-label="Cliente"
+              data-testid="filter-client"
+              className="appearance-none rounded-md border border-border bg-secondary px-3 py-1.5 pr-8 text-sm text-foreground disabled:opacity-50 min-w-[160px]"
+            >
+              <option value="">Todos los clientes</option>
+              {clients?.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+          </div>
+          {isViewingOtherOrg && (
+            <p
+              data-testid="filter-client-other-org-note"
+              className="mt-1 text-[10px] text-muted-foreground"
+            >
+              Solo lista clientes de tu organización actual.
+            </p>
+          )}
         </div>
 
         {/* Entidad */}
@@ -416,11 +457,22 @@ function FragmentRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const detailsId = `audit-details-${event._id}`;
   return (
     <>
       <tr
-        className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer"
+        className="border-b border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/40"
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
         data-testid={`audit-row-${event._id}`}
       >
         <td className="px-4 py-2.5 text-muted-foreground">
@@ -447,7 +499,7 @@ function FragmentRow({
         <td className="px-4 py-2.5">{event.message}</td>
       </tr>
       {expanded && (
-        <tr className="border-b border-border/50 bg-secondary/10">
+        <tr className="border-b border-border/50 bg-secondary/10" id={detailsId}>
           <td colSpan={5} className="px-4 py-3">
             <div className="space-y-2 text-xs">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

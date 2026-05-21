@@ -125,6 +125,39 @@ describe("/platform/audit — row expansion", () => {
     expect(source).toMatch(/data-testid=\{`audit-metadata-\$\{event\._id\}`\}/);
     expect(source).toMatch(/JSON\.stringify\(event\.metadata,\s*null,\s*2\)/);
   });
+
+  it("audit row is keyboard-accessible (Enter/Space toggles expansion)", () => {
+    // Fix #6: row must be reachable via Tab and respond to Enter/Space.
+    expect(source).toMatch(/tabIndex=\{0\}/);
+    expect(source).toMatch(/role="button"/);
+    expect(source).toMatch(/aria-expanded=\{expanded\}/);
+    expect(source).toMatch(/aria-controls=\{detailsId\}/);
+    // onKeyDown handles Enter and Space + prevents default scroll.
+    expect(source).toMatch(/onKeyDown=\{\(e\)\s*=>\s*\{[\s\S]*?Enter[\s\S]*?" "[\s\S]*?preventDefault/);
+  });
+});
+
+describe("/platform/audit — pagination flash guard", () => {
+  it("uses a pendingMore flag so 'Cargar más' never flashes the same page twice", () => {
+    // Fix #5: between the click and the next Convex tick, result.rows is
+    // stale (= current page). We render only `accumulated` while pendingMore
+    // is true, then drop the flag once a new result lands.
+    expect(source).toMatch(/pendingMore/);
+    expect(source).toMatch(/setPendingMore\(true\)/);
+    expect(source).toMatch(/setPendingMore\(false\)/);
+  });
+});
+
+describe("/platform/audit — cliente cross-org note", () => {
+  it("shows the 'Solo lista clientes de tu organización actual' note when viewing another org", () => {
+    // Fix #8: small muted note appears when the selected audit-target org
+    // does not match the caller's current Clerk org.
+    expect(source).toContain("Solo lista clientes de tu organización actual.");
+    expect(source).toMatch(/isViewingOtherOrg/);
+    expect(source).toContain('data-testid="filter-client-other-org-note"');
+    // The check must use the caller's *current* Clerk org id.
+    expect(source).toMatch(/useOrganization/);
+  });
 });
 
 describe("/platform/audit — datetime helper", () => {
