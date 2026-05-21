@@ -126,14 +126,34 @@ describe("/facturacion — Upload dialog wiring", () => {
     expect(source).toMatch(/useState<number>\(assignment\.amount\)/);
   });
 
-  it("includes a notify-client checkbox", () => {
-    expect(source).toContain("Notificar cliente");
-    expect(source).toMatch(/type="checkbox"/);
+  it("does NOT render the legacy notify-client checkbox (deceptive UI removed)", () => {
+    // V1 always notifies via the backend action; the checkbox was dead UI.
+    expect(source).not.toMatch(/id="invoice-notify"/);
+    expect(source).not.toMatch(/setNotify\(/);
+    expect(source).not.toMatch(/Notificar cliente con signed URL/);
+    // The inline disclaimer is shown instead.
+    expect(source).toContain(
+      "El cliente recibirá un correo con la factura automáticamente."
+    );
+  });
+
+  it("rejects zero-amount invoices on the client (server still re-validates)", () => {
+    expect(source).toMatch(/amount\s*<=\s*0/);
+    expect(source).toContain("El monto debe ser mayor a $0");
+    // The number input min must be >= 0.01 (not 0).
+    expect(source).toMatch(/min=\{0\.01\}/);
   });
 
   it("shows a warning when the upload returns duplicateOf", () => {
     expect(source).toMatch(/result\.duplicateOf/);
     expect(source).toContain("Ya existe factura previa");
+  });
+
+  it("auto-close after duplicateOf is tracked via useEffect cleanup (no leaked timer)", () => {
+    // The previous implementation called setTimeout(() => onClose(), 2500)
+    // inline. The fix wraps it in a useEffect whose cleanup clears the timer.
+    expect(source).toMatch(/useEffect\(\(\)\s*=>\s*\{[\s\S]*?duplicateOf[\s\S]*?clearTimeout/);
+    expect(source).toMatch(/setDuplicateOf\(true\)/);
   });
 });
 
@@ -156,6 +176,32 @@ describe("/facturacion — MarkPaid confirm wiring", () => {
     // 30_000 ms timeout per spec §4.1.
     expect(source).toMatch(/30_000|30000/);
     expect(source).toMatch(/paidPendingGen/);
+  });
+
+  it("tracks the 30s fallback timer in a ref so unmount cancels it", () => {
+    // Map<invoiceId, timeoutId> stored in a ref — see Fix #1.
+    expect(source).toMatch(/paidGenTimersRef/);
+    expect(source).toMatch(/useRef<Map<[^>]+, number>>/);
+    // Cleanup on unmount clears every outstanding timer.
+    expect(source).toMatch(/clearTimeout/);
+  });
+
+  it("subscribes to deliverables.listByOrg to clear the optimistic badge early", () => {
+    // When a deliverable with `triggerInvoiceId === pendingInvoiceId` arrives
+    // via the live query, we clear the badge without waiting the full 30s.
+    expect(source).toMatch(
+      /useQuery\(\s*\n?\s*api\.functions\.deliverables\.queries\.listByOrg/
+    );
+    expect(source).toMatch(/triggerInvoiceId/);
+  });
+});
+
+describe("/facturacion — non-mutating sort", () => {
+  it("uses a spread copy before .sort() to avoid mutating grouped[] in place", () => {
+    // Fix #7: `[...items].sort(...)` instead of `items.sort(...)`.
+    expect(source).toMatch(/\[\.\.\.items\]\s*\.sort\(/);
+    // Be sure the mutating form is gone.
+    expect(source).not.toMatch(/^\s*items\.sort\(/m);
   });
 });
 

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { useOrganization } from "@clerk/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Receipt,
   Filter,
@@ -128,6 +128,58 @@ export default function FacturacionPage() {
   const [pendingMarkPaid, setPendingMarkPaid] = useState<InvoiceRow | null>(null);
   const [pendingVoid, setPendingVoid] = useState<InvoiceRow | null>(null);
   const [paidPendingGen, setPaidPendingGen] = useState<Set<string>>(new Set());
+
+  // Track active 30s fallback timers (one per pending invoice) so they can be
+  // cancelled on unmount or when the deliverables subscription confirms early.
+  const paidGenTimersRef = useRef<Map<string, number>>(new Map());
+
+  // Subscribe to deliverables for the selected period. When one appears whose
+  // `triggerInvoiceId` matches a pending invoice id, clear the optimistic badge
+  // immediately (no need to wait for the 30s fallback).
+  const deliverablesForPeriod = useQuery(
+    api.functions.deliverables.queries.listByOrg,
+    { year: selectedYear, month: selectedMonth }
+  ) as { triggerInvoiceId?: Id<"invoices"> }[] | undefined;
+
+  // Reconcile: any pending invoice whose deliverable is now visible → clear.
+  useEffect(() => {
+    if (!deliverablesForPeriod || paidPendingGen.size === 0) return;
+    const seen = new Set<string>();
+    for (const d of deliverablesForPeriod) {
+      if (d.triggerInvoiceId) {
+        seen.add(d.triggerInvoiceId as unknown as string);
+      }
+    }
+    const toClear: string[] = [];
+    for (const invId of paidPendingGen) {
+      if (seen.has(invId)) toClear.push(invId);
+    }
+    if (toClear.length === 0) return;
+    // Cancel the matching fallback timers + remove ids from the set.
+    for (const invId of toClear) {
+      const tid = paidGenTimersRef.current.get(invId);
+      if (tid !== undefined) {
+        window.clearTimeout(tid);
+        paidGenTimersRef.current.delete(invId);
+      }
+    }
+    setPaidPendingGen((prev) => {
+      const next = new Set(prev);
+      for (const invId of toClear) next.delete(invId);
+      return next;
+    });
+  }, [deliverablesForPeriod, paidPendingGen]);
+
+  // Cleanup all outstanding timers on unmount.
+  useEffect(() => {
+    const timers = paidGenTimersRef.current;
+    return () => {
+      for (const tid of timers.values()) {
+        window.clearTimeout(tid);
+      }
+      timers.clear();
+    };
+  }, []);
 
   const serviceNames = assignments
     ? [...new Set(assignments.map((a) => a.serviceName))].sort()
@@ -321,7 +373,7 @@ export default function FacturacionPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {items
+                    {[...items]
                       .sort((a, b) => a.clientName.localeCompare(b.clientName))
                       .map((item) => {
                         const invoice = invoiceByMaId.get(
@@ -388,19 +440,26 @@ export default function FacturacionPage() {
           invoice={pendingMarkPaid}
           onClose={() => setPendingMarkPaid(null)}
           onOptimisticTrack={(invoiceId) => {
+            const key = invoiceId as unknown as string;
             setPaidPendingGen((prev) => {
               const next = new Set(prev);
-              next.add(invoiceId as unknown as string);
+              next.add(key);
               return next;
             });
-            // Clear the optimistic marker after 30s (spec §4.1).
-            setTimeout(() => {
+            // Schedule a 30s fallback in case the deliverables subscription
+            // never confirms (spec §4.1). Timer id stored in the ref so it
+            // can be cancelled early (deliverable arrived) or on unmount.
+            const existing = paidGenTimersRef.current.get(key);
+            if (existing !== undefined) window.clearTimeout(existing);
+            const tid = window.setTimeout(() => {
+              paidGenTimersRef.current.delete(key);
               setPaidPendingGen((prev) => {
                 const next = new Set(prev);
-                next.delete(invoiceId as unknown as string);
+                next.delete(key);
                 return next;
               });
             }, 30_000);
+            paidGenTimersRef.current.set(key, tid);
           }}
         />
       )}
@@ -582,10 +641,18 @@ function UploadInvoiceDialog({
   const [file, setFile] = useState<File | null>(null);
   const [amount, setAmount] = useState<number>(assignment.amount);
   const [notes, setNotes] = useState("");
-  const [notify, setNotify] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [duplicateOf, setDuplicateOf] = useState(false);
+
+  // Auto-close after duplicate warning; tracked so unmount or `duplicateOf`
+  // change cancels the timer (prevents double-onClose + unmount warnings).
+  useEffect(() => {
+    if (!duplicateOf) return;
+    const id = window.setTimeout(() => onClose(), 2500);
+    return () => window.clearTimeout(id);
+  }, [duplicateOf, onClose]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -601,8 +668,8 @@ function UploadInvoiceDialog({
       setError("Solo se aceptan archivos PDF.");
       return;
     }
-    if (!Number.isFinite(amount) || amount < 0) {
-      setError("Monto inválido.");
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("El monto debe ser mayor a $0");
       return;
     }
 
@@ -629,15 +696,10 @@ function UploadInvoiceDialog({
           "Ya existe factura previa para este mes-servicio. Verifica antes de marcar pagada."
         );
         // Hold the dialog open briefly so the operator sees the warning.
-        setTimeout(() => onClose(), 2500);
+        // Auto-close timer is tracked via useEffect below so unmount is safe.
+        setDuplicateOf(true);
       } else {
         onClose();
-      }
-      // Note: "Notificar cliente" — backend always schedules notify-on-upload in
-      // V1 (spec §3.1.1 step 5). The checkbox is a UI hint only; opting out is
-      // a no-op in beta (out of scope for A3 backend).
-      if (!notify) {
-        // future: pass `notify: false` to upload action when backend supports it.
       }
     } catch (err) {
       setError((err as Error).message ?? "Error al subir factura.");
@@ -703,7 +765,7 @@ function UploadInvoiceDialog({
               id="invoice-amount"
               type="number"
               required
-              min={0}
+              min={0.01}
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
@@ -722,18 +784,9 @@ function UploadInvoiceDialog({
               className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="invoice-notify"
-              type="checkbox"
-              checked={notify}
-              onChange={(e) => setNotify(e.target.checked)}
-              className="rounded border-border cursor-pointer"
-            />
-            <label htmlFor="invoice-notify" className="text-sm cursor-pointer">
-              Notificar cliente con signed URL
-            </label>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            El cliente recibirá un correo con la factura automáticamente.
+          </p>
 
           {error && (
             <p role="alert" className="text-sm text-red-400">
