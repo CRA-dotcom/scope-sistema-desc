@@ -383,6 +383,17 @@ export default defineSchema({
     templateId: v.optional(v.id("deliverableTemplates")),
     templateVersion: v.optional(v.number()),
     templateHtmlSnapshot: v.optional(v.string()),
+    // A3: origen del trigger (R1 decisión #5). Legacy rows tienen undefined.
+    triggerSource: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("cron"),
+        v.literal("invoice_paid"),
+        v.literal("api")
+      )
+    ),
+    // A3: factura origen cuando triggerSource === "invoice_paid".
+    triggerInvoiceId: v.optional(v.id("invoices")),
     auditStatus: v.union(
       v.literal("pending"),
       v.literal("approved"),
@@ -412,7 +423,9 @@ export default defineSchema({
     .index("by_orgId_auditStatus", ["orgId", "auditStatus"])
     .index("by_orgId_year_month", ["orgId", "year", "month"])
     // A2: "qué deliverables usan esta plantilla" para banner y restoreToGlobal
-    .index("by_templateId", ["templateId"]),
+    .index("by_templateId", ["templateId"])
+    // A3: idempotencia en generateFromInvoice
+    .index("by_triggerInvoiceId", ["triggerInvoiceId"]),
 
   orgConfigs: defineTable({
     orgId: v.string(),
@@ -434,6 +447,10 @@ export default defineSchema({
     currency: v.optional(v.string()),
     fiscalYearStartMonth: v.optional(v.number()),
     notificationEmail: v.optional(v.string()),
+    // A3 (R1 decisión #13): IANA timezone (ej. "America/Mexico_City").
+    // Default UTC si null/undefined. Usado por el cron de eligibility para
+    // computar "hoy" en zona local de cada org (sáb-dom skip).
+    timezone: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_orgId", ["orgId"]),
@@ -725,6 +742,103 @@ export default defineSchema({
     .index("by_claveProdServ", ["claveProdServ"])
     .index("by_orgId_active", ["orgId", "isActive"])
     .index("by_orgId_isDefault", ["orgId", "isDefault"]),
+
+  // A3: lifecycle de facturas V1 manuales. PDF en Railway bucket; metadata aquí.
+  // Per docs/superpowers/specs/2026-05-23-document-lifecycle-design.md §2.1
+  invoices: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    projectionId: v.id("projections"),
+    projServiceId: v.optional(v.id("projectionServices")),
+    subserviceId: v.optional(v.id("subservices")),
+    serviceName: v.string(),
+    monthlyAssignmentId: v.optional(v.id("monthlyAssignments")),
+    month: v.number(),                 // 1-12 calendario
+    year: v.number(),
+    amount: v.number(),                // MXN
+    // Blob storage (Railway)
+    bucketKey: v.string(),
+    contentType: v.string(),           // "application/pdf"
+    sizeBytes: v.number(),
+    filename: v.string(),
+    // Lifecycle
+    status: v.union(
+      v.literal("uploaded"),
+      v.literal("paid"),
+      v.literal("void")
+    ),
+    uploadedAt: v.number(),
+    uploadedBy: v.string(),
+    paidAt: v.optional(v.number()),
+    paidBy: v.optional(v.string()),
+    voidedAt: v.optional(v.number()),
+    voidedBy: v.optional(v.string()),
+    voidReason: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    // V2 hooks
+    facturapiInvoiceId: v.optional(v.string()),
+    cfdiUuid: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_orgId", ["orgId"])
+    .index("by_orgId_clientId", ["orgId", "clientId"])
+    .index("by_orgId_clientId_year_month", ["orgId", "clientId", "year", "month"])
+    .index("by_orgId_status", ["orgId", "status"])
+    .index("by_projServiceId", ["projServiceId"])
+    .index("by_monthlyAssignmentId", ["monthlyAssignmentId"]),
+
+  // A3: append-only audit log of document lifecycle events.
+  // Per docs/superpowers/specs/2026-05-23-document-lifecycle-design.md §2.3
+  documentEvents: defineTable({
+    orgId: v.string(),
+    clientId: v.optional(v.id("clients")),
+    entityType: v.union(
+      v.literal("deliverable"),
+      v.literal("invoice"),
+      v.literal("quotation"),
+      v.literal("contract"),
+      v.literal("template"),
+      v.literal("subservice"),
+      v.literal("questionnaire")
+    ),
+    entityId: v.string(),
+    eventType: v.union(
+      v.literal("created"),
+      v.literal("updated"),
+      v.literal("sent"),
+      v.literal("signed"),
+      v.literal("paid"),
+      v.literal("generated"),
+      v.literal("audited"),
+      v.literal("deleted"),
+      v.literal("personalized"),
+      v.literal("restored"),
+      v.literal("reminder_sent"),
+      v.literal("uploaded"),
+      v.literal("voided"),
+      v.literal("error")
+    ),
+    severity: v.union(
+      v.literal("info"),
+      v.literal("warning"),
+      v.literal("error")
+    ),
+    actorUserId: v.optional(v.string()),
+    actorType: v.union(
+      v.literal("user"),
+      v.literal("cron"),
+      v.literal("system"),
+      v.literal("client_link")
+    ),
+    message: v.string(),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_orgId_createdAt", ["orgId", "createdAt"])
+    .index("by_orgId_clientId_createdAt", ["orgId", "clientId", "createdAt"])
+    .index("by_orgId_entityType_entityId", ["orgId", "entityType", "entityId"])
+    .index("by_orgId_severity_createdAt", ["orgId", "severity", "createdAt"])
+    .index("by_orgId_eventType_createdAt", ["orgId", "eventType", "createdAt"]),
 
   // C5: in-app notifications for dashboard
   notifications: defineTable({

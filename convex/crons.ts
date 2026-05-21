@@ -27,4 +27,13 @@ crons.daily(
   internal.functions.projections.cron.notifyFiscalCloseEvents,
 );
 
+// A3: Daily eligibility scan. NEVER generates (R1 §12.9), only sends
+// reminders to operators about pending invoices for the current month.
+crons.daily(
+  "deliverable-eligibility-scan",
+  { hourUTC: 13, minuteUTC: 0 },
+  internal.functions.cron.deliverableEligibility.run,
+  {},
+);
+
 export default crons;

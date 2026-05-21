@@ -1,8 +1,9 @@
 "use node";
 
 import { action, internalAction } from "../../_generated/server";
-import { internal } from "../../_generated/api";
+import { internal, api } from "../../_generated/api";
 import { v } from "convex/values";
+import type { Id } from "../../_generated/dataModel";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractPlaceholders } from "../../lib/deliverableEngine/placeholders";
 import {
@@ -181,6 +182,28 @@ export const generateDeliverable = action({
       v.literal("deliverable_short"),
       v.literal("deliverable_long")
     ),
+    // A3: trigger metadata (R1 #5). UI-driven manual generation passes
+    // nothing → defaults to "manual". generateFromInvoice passes "invoice_paid".
+    triggerSource: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("cron"),
+        v.literal("invoice_paid"),
+        v.literal("api")
+      )
+    ),
+    triggerInvoiceId: v.optional(v.id("invoices")),
+    // A3: when set, skip getResolvedForGeneration and use this snapshot.
+    // Used by generateFromInvoice (caller already resolved via
+    // selectDeliverableForMonth) to lock in the exact snapshot for audit
+    // reproducibility.
+    templateOverride: v.optional(
+      v.object({
+        templateId: v.id("deliverableTemplates"),
+        templateVersion: v.number(),
+        templateHtmlSnapshot: v.string(),
+      })
+    ),
   },
   handler: async (ctx, args): Promise<string> => {
     // 1. Fetch all required data in parallel
@@ -200,32 +223,59 @@ export const generateDeliverable = action({
     if (!client) throw new Error("Cliente no encontrado.");
     if (!projService) throw new Error("Servicio de proyeccion no encontrado.");
 
-    const [projection, questionnaire, orgBranding, template] = await Promise.all([
-      ctx.runQuery(
-        internal.functions.deliverables.internalQueries.getProjectionByProjService,
-        { projectionId: projService.projectionId }
-      ),
-      ctx.runQuery(
-        internal.functions.deliverables.internalQueries.getQuestionnaireForClient,
-        { clientId: args.clientId, projectionId: projService.projectionId }
-      ),
-      ctx.runQuery(internal.functions.deliverables.internalQueries.getOrgBranding, {
-        orgId: assignment.orgId,
-      }),
-      // A2: dual-matching resolver con subserviceId preferido sobre legacy
-      // serviceId/serviceName. El internal wrapper no aplica auth guard
-      // porque este action ya corre autenticado.
-      ctx.runQuery(
-        internal.functions.deliverables.internalQueries.getResolvedForGeneration,
-        {
-          orgId: assignment.orgId,
-          type: args.templateType,
-          subserviceId: projService.subserviceId,
-          serviceId: projService.serviceId,
-          serviceName: projService.serviceName,
-        },
-      ),
-    ]);
+    const [projection, questionnaire, orgBranding, resolvedTemplate] =
+      await Promise.all([
+        ctx.runQuery(
+          internal.functions.deliverables.internalQueries.getProjectionByProjService,
+          { projectionId: projService.projectionId }
+        ),
+        ctx.runQuery(
+          internal.functions.deliverables.internalQueries.getQuestionnaireForClient,
+          { clientId: args.clientId, projectionId: projService.projectionId }
+        ),
+        ctx.runQuery(
+          internal.functions.deliverables.internalQueries.getOrgBranding,
+          { orgId: assignment.orgId }
+        ),
+        // A2/A3: when templateOverride is supplied (generateFromInvoice path),
+        // skip the resolver — the caller already picked the snapshot. The
+        // optional chain below applies the override or falls back to the
+        // dual-matching resolver from A2.
+        args.templateOverride
+          ? Promise.resolve(null)
+          : ctx.runQuery(
+              internal.functions.deliverables.internalQueries
+                .getResolvedForGeneration,
+              {
+                orgId: assignment.orgId,
+                type: args.templateType,
+                subserviceId: projService.subserviceId,
+                serviceId: projService.serviceId,
+                serviceName: projService.serviceName,
+              }
+            ),
+      ]);
+
+    // A3: synthesize the template shape from override (kept compatible with
+    // the rest of the action which only reads {_id, version, htmlTemplate}).
+    type ResolvedTemplate = {
+      _id: Id<"deliverableTemplates">;
+      version: number;
+      htmlTemplate: string;
+    };
+    const template: ResolvedTemplate | null = args.templateOverride
+      ? {
+          _id: args.templateOverride.templateId,
+          version: args.templateOverride.templateVersion,
+          htmlTemplate: args.templateOverride.templateHtmlSnapshot,
+        }
+      : resolvedTemplate
+        ? {
+            _id: resolvedTemplate._id,
+            version: resolvedTemplate.version,
+            htmlTemplate: resolvedTemplate.htmlTemplate,
+          }
+        : null;
 
     const aiLogs: AiLogEntry[] = [];
     let unfilledKeys: string[] = [];
@@ -386,6 +436,9 @@ export const generateDeliverable = action({
         templateId: template?._id,
         templateVersion: template?.version,
         templateHtmlSnapshot: template?.htmlTemplate,
+        // A3: trigger trail.
+        triggerSource: args.triggerSource ?? "manual",
+        triggerInvoiceId: args.triggerInvoiceId,
       }
     );
 
@@ -793,5 +846,312 @@ export const regenerateDeliverable = internalAction({
     } catch (err) {
       console.error("[AI Pipeline] Regeneration failed:", err);
     }
+  },
+});
+
+// ─── A3 ──────────────────────────────────────────────────────────────
+
+/**
+ * Internal: orchestrate deliverable generation triggered by a paid invoice.
+ *
+ * Flow (R1 §12.5, §12.9; doc-lifecycle §3.2):
+ *  1. Load invoice; abort if missing / not paid.
+ *  2. Idempotency check via `findByTriggerInvoiceId`.
+ *  3. Resolve projection.
+ *  4. Run the frequency-aware selector (`selectDeliverableForMonth`).
+ *     If no template: log warning + email operator + return early.
+ *  5. Resolve `monthlyAssignment`.
+ *  6. Delegate to `generateDeliverable` with `templateOverride` so the
+ *     snapshot used is the one the selector picked.
+ *  7. Log success + notify executive.
+ *
+ * This is the ONLY non-manual path that creates a deliverable. The cron
+ * NEVER calls this (R1 §12.9).
+ */
+export const generateFromInvoice = internalAction({
+  args: { invoiceId: v.id("invoices") },
+  handler: async (
+    ctx,
+    { invoiceId }
+  ): Promise<{
+    ok: boolean;
+    reason?: string;
+    deliverableId?: Id<"deliverables">;
+    error?: string;
+  }> => {
+    // 1. Load invoice.
+    const invoice = await ctx.runQuery(
+      internal.functions.invoices.internalQueries.getInvoiceForGeneration,
+      { invoiceId }
+    );
+    if (!invoice) {
+      console.warn(
+        `[generateFromInvoice] invoice ${invoiceId} not found — race with void?`
+      );
+      return { ok: false, reason: "invoice_not_found" };
+    }
+    if (invoice.status !== "paid") {
+      console.warn(
+        `[generateFromInvoice] invoice ${invoiceId} status=${invoice.status} — abort`
+      );
+      return { ok: false, reason: "invoice_not_paid" };
+    }
+
+    // 2. Idempotency.
+    const existing = await ctx.runQuery(
+      internal.functions.deliverables.internalQueries.findByTriggerInvoiceId,
+      { invoiceId }
+    );
+    if (existing) {
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: invoice.orgId,
+          clientId: invoice.clientId,
+          entityType: "invoice" as const,
+          entityId: invoiceId,
+          eventType: "generated" as const,
+          severity: "warning" as const,
+          actorType: "system" as const,
+          message: `Idempotencia: deliverable ${existing._id} ya existe para invoice ${invoiceId}; skip.`,
+          metadata: { existingDeliverableId: existing._id },
+        }
+      );
+      return {
+        ok: true,
+        reason: "idempotent_skip",
+        deliverableId: existing._id,
+      };
+    }
+
+    // 3. Resolve projection.
+    const projection = await ctx.runQuery(
+      internal.functions.deliverables.internalQueries.getProjectionByProjService,
+      { projectionId: invoice.projectionId }
+    );
+    if (!projection) {
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: invoice.orgId,
+          clientId: invoice.clientId,
+          entityType: "invoice" as const,
+          entityId: invoiceId,
+          eventType: "error" as const,
+          severity: "error" as const,
+          actorType: "system" as const,
+          message: `Proyección ${invoice.projectionId} no encontrada.`,
+        }
+      );
+      return { ok: false, reason: "projection_missing" };
+    }
+
+    // 4. Frequency-aware selector.
+    const selected = await ctx.runQuery(
+      internal.functions.deliverables.internalQueries.selectDeliverableForMonth,
+      {
+        orgId: invoice.orgId,
+        clientId: invoice.clientId,
+        subserviceId: invoice.subserviceId,
+        serviceId: undefined,
+        serviceName: invoice.serviceName,
+        month: invoice.month,
+        year: invoice.year,
+        projectionMode: projection.projectionMode ?? "rolling",
+        templateType: "deliverable_short" as const,
+      }
+    );
+
+    if (!selected) {
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: invoice.orgId,
+          clientId: invoice.clientId,
+          entityType: "invoice" as const,
+          entityId: invoiceId,
+          eventType: "error" as const,
+          severity: "warning" as const,
+          actorType: "system" as const,
+          message: `No hay plantilla aplicable para ${invoice.serviceName} en ${invoice.month}/${invoice.year}. Operador puede generar manualmente.`,
+          metadata: {
+            subserviceId: invoice.subserviceId,
+            month: invoice.month,
+            year: invoice.year,
+          },
+        }
+      );
+      await ctx.scheduler.runAfter(
+        0,
+        internal.functions.invoices.internalActions.notifyOperatorNoTemplate,
+        { invoiceId }
+      );
+      return { ok: false, reason: "no_template" };
+    }
+
+    // 5. Resolve monthlyAssignment.
+    let assignmentId: Id<"monthlyAssignments"> | null =
+      invoice.monthlyAssignmentId ?? null;
+    let projServiceId: Id<"projectionServices"> | null =
+      invoice.projServiceId ?? null;
+    if (!assignmentId) {
+      const ma = await ctx.runQuery(
+        internal.functions.deliverables.internalQueries.findAssignmentForInvoice,
+        {
+          orgId: invoice.orgId,
+          clientId: invoice.clientId,
+          projServiceId: invoice.projServiceId,
+          month: invoice.month,
+          year: invoice.year,
+        }
+      );
+      if (!ma) {
+        await ctx.runMutation(
+          internal.functions.documentEvents.internal.logEventMutation,
+          {
+            orgId: invoice.orgId,
+            clientId: invoice.clientId,
+            entityType: "invoice" as const,
+            entityId: invoiceId,
+            eventType: "error" as const,
+            severity: "error" as const,
+            actorType: "system" as const,
+            message:
+              "No se encontró monthlyAssignment compatible para la factura.",
+          }
+        );
+        return { ok: false, reason: "no_assignment" };
+      }
+      assignmentId = ma._id;
+      projServiceId = ma.projServiceId;
+    }
+
+    if (!projServiceId) {
+      // Should not happen if monthlyAssignment exists, but defensive.
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: invoice.orgId,
+          clientId: invoice.clientId,
+          entityType: "invoice" as const,
+          entityId: invoiceId,
+          eventType: "error" as const,
+          severity: "error" as const,
+          actorType: "system" as const,
+          message: "Factura sin projServiceId resoluble.",
+        }
+      );
+      return { ok: false, reason: "no_proj_service" };
+    }
+
+    // 6. Delegate to the engine with the snapshot we picked.
+    let deliverableId: Id<"deliverables">;
+    try {
+      const result = await ctx.runAction(
+        api.functions.deliverables.actions.generateDeliverable,
+        {
+          assignmentId,
+          projServiceId,
+          clientId: invoice.clientId,
+          templateType: "deliverable_short" as const,
+          triggerSource: "invoice_paid" as const,
+          triggerInvoiceId: invoiceId,
+          templateOverride: {
+            templateId: selected.template._id,
+            templateVersion: selected.template.version ?? 1,
+            templateHtmlSnapshot: selected.template.htmlTemplate,
+          },
+        }
+      );
+      deliverableId = result as Id<"deliverables">;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: invoice.orgId,
+          clientId: invoice.clientId,
+          entityType: "invoice" as const,
+          entityId: invoiceId,
+          eventType: "error" as const,
+          severity: "error" as const,
+          actorType: "system" as const,
+          message: `Generación falló: ${msg}`,
+          metadata: { error: msg },
+        }
+      );
+      return { ok: false, reason: "generation_failed", error: msg };
+    }
+
+    // 7. Log success + notify executive.
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId: invoice.orgId,
+        clientId: invoice.clientId,
+        entityType: "deliverable" as const,
+        entityId: deliverableId,
+        eventType: "generated" as const,
+        severity: "info" as const,
+        actorType: "system" as const,
+        message: `Entregable generado desde factura ${invoice.filename}.`,
+        metadata: {
+          triggerInvoiceId: invoiceId,
+          templateId: selected.template._id,
+          templateVersion: selected.template.version,
+        },
+      }
+    );
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.functions.deliverables.actions.notifyExecutiveGenerated,
+      { deliverableId }
+    );
+
+    return { ok: true, deliverableId };
+  },
+});
+
+/**
+ * Internal: notify the operator/ejecutivo that a deliverable was generated.
+ * Honours the notification recipient resolution spec (2026-05-19) —
+ * resolves via `resolveOrgNotificationEmail`, env fallback, then skip+warn.
+ */
+type ExecutiveNotifyResult = {
+  sent: boolean;
+  reason?: string;
+  id?: string;
+};
+
+export const notifyExecutiveGenerated = internalAction({
+  args: { deliverableId: v.id("deliverables") },
+  handler: async (ctx, args): Promise<ExecutiveNotifyResult> => {
+    const deliverable = await ctx.runQuery(
+      internal.functions.deliverables.internalQueries.getDeliverableData,
+      { deliverableId: args.deliverableId }
+    );
+    if (!deliverable) return { sent: false, reason: "deliverable_not_found" };
+
+    const recipient: string | null = await ctx.runQuery(
+      internal.functions.email.resolveRecipients.resolveOrgNotificationEmail,
+      { orgId: deliverable.orgId }
+    );
+    if (!recipient) {
+      console.warn(
+        `[notifyExecutiveGenerated] no notificationEmail for org ${deliverable.orgId} — skip`
+      );
+      return { sent: false, reason: "no_recipient" };
+    }
+
+    const subject = `Entregable generado — ${deliverable.serviceName} ${deliverable.month}/${deliverable.year}`;
+    const html = `<p>Un entregable nuevo se generó automáticamente para ${deliverable.serviceName} (${deliverable.month}/${deliverable.year}).</p>
+<p>Revísalo en el panel de Projex.</p>`;
+
+    const result = (await ctx.runAction(
+      internal.functions.email.send.sendEmailInternal,
+      { to: recipient, subject, html }
+    )) as ExecutiveNotifyResult;
+    return result;
   },
 });

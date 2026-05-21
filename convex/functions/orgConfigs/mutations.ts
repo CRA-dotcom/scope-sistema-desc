@@ -2,6 +2,31 @@ import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { requireSuperAdmin } from "../../lib/authHelpers";
 
+/**
+ * Validate an IANA timezone string. Uses `Intl.supportedValuesOf` when
+ * available (Node 18+), with a lightweight fallback that attempts to
+ * format with the candidate tz — if it throws, the tz is invalid.
+ */
+function isValidTimezone(tz: string): boolean {
+  if (!tz || typeof tz !== "string") return false;
+  const intlAny = Intl as unknown as {
+    supportedValuesOf?: (key: string) => string[];
+  };
+  if (typeof intlAny.supportedValuesOf === "function") {
+    try {
+      return intlAny.supportedValuesOf("timeZone").includes(tz);
+    } catch {
+      /* fall through */
+    }
+  }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const upsert = mutation({
   args: {
     orgId: v.string(),
@@ -20,9 +45,17 @@ export const upsert = mutation({
     currency: v.optional(v.string()),
     fiscalYearStartMonth: v.optional(v.number()),
     notificationEmail: v.optional(v.string()),
+    // A3 (R1 #13): IANA timezone, validated server-side.
+    timezone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireSuperAdmin(ctx);
+
+    if (args.timezone !== undefined && !isValidTimezone(args.timezone)) {
+      throw new Error(
+        `Timezone inválida: "${args.timezone}". Usa un identificador IANA, ej. "America/Mexico_City".`
+      );
+    }
 
     const existing = await ctx.db
       .query("orgConfigs")
@@ -40,6 +73,7 @@ export const upsert = mutation({
         currency: args.currency,
         fiscalYearStartMonth: args.fiscalYearStartMonth,
         notificationEmail: args.notificationEmail,
+        timezone: args.timezone,
         updatedAt: now,
       });
       return existing._id;
@@ -54,6 +88,7 @@ export const upsert = mutation({
       currency: args.currency,
       fiscalYearStartMonth: args.fiscalYearStartMonth,
       notificationEmail: args.notificationEmail,
+      timezone: args.timezone,
       updatedAt: now,
     });
   },
