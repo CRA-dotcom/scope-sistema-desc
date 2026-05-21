@@ -2,15 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Briefcase, ArrowLeft, Shield, FileText, FileSearch } from "lucide-react";
+import {
+  Building2,
+  Briefcase,
+  ArrowLeft,
+  Shield,
+  FileText,
+  FileSearch,
+  Activity,
+  DollarSign,
+  Layers,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton } from "@clerk/nextjs";
 
+// Keep in sync with the super-admin block in src/components/layout/sidebar.tsx.
+// Both menus must offer the same 7 entries so super-admin sees consistent nav
+// whether they're inside the dashboard route group or the /platform layout.
 const navigation = [
-  { name: "Organizaciones", href: "/platform", icon: Building2 },
-  { name: "Servicios", href: "/platform/servicios", icon: Briefcase },
-  { name: "Templates", href: "/platform/templates", icon: FileText },
-  { name: "Audit log", href: "/platform/audit", icon: FileSearch },
+  { name: "Organizaciones", href: "/platform", icon: Building2, exact: true },
+  { name: "Métricas", href: "/platform/metrics", icon: Activity, exact: false },
+  { name: "Billing", href: "/platform/billing", icon: DollarSign, exact: false },
+  { name: "Audit log", href: "/platform/audit", icon: FileSearch, exact: false },
+  { name: "Subservicios", href: "/platform/subservices", icon: Layers, exact: false },
+  { name: "Servicios (padre)", href: "/platform/servicios", icon: Briefcase, exact: false },
+  { name: "Plantillas", href: "/platform/templates", icon: FileText, exact: false },
 ];
 
 export default function PlatformLayout({
@@ -35,10 +51,10 @@ export default function PlatformLayout({
         {/* Navigation */}
         <nav className="flex-1 space-y-1 px-2 py-4">
           {navigation.map((item) => {
-            const isActive =
-              item.href === "/platform"
-                ? pathname === "/platform"
-                : pathname.startsWith(item.href);
+            const isActive = item.exact
+              ? pathname === item.href
+              : pathname === item.href ||
+                pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.name}
