@@ -180,66 +180,68 @@ export function MatrixCellDetail({
           </p>
         </div>
 
-        <div className="border-t border-border pt-4">
-          <button
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            Avanzado · override manual
-          </button>
-          {showAdvanced && (
-            <div className="mt-4 space-y-5">
-              <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
-                <p className="flex items-start gap-2 text-xs text-warning leading-relaxed">
-                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                  <span>
-                    Estos botones <strong>no</strong> generan entregable. Solo cambian el estado mostrado al equipo. Para activar la generación real, sube la factura en{" "}
-                    <Link href="/facturacion" className="underline">/facturacion</Link>.
-                  </span>
-                </p>
-              </div>
+        {canOverride && (
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              Avanzado · override manual
+            </button>
+            {showAdvanced && (
+              <div className="mt-4 space-y-5">
+                <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+                  <p className="flex items-start gap-2 text-xs text-warning leading-relaxed">
+                    <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                    <span>
+                      Estos botones <strong>no</strong> generan entregable. Solo cambian el estado mostrado al equipo. Para activar la generación real, sube la factura en{" "}
+                      <Link href="/facturacion" className="underline">/facturacion</Link>.
+                    </span>
+                  </p>
+                </div>
 
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Status de Entrega</p>
-                <div className="flex flex-wrap gap-2">
-                  {STATUS_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => updateStatus({ id: assignment._id, status: opt.value })}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                        assignment.status === opt.value
-                          ? opt.color
-                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Status de Entrega</p>
+                  <div className="flex flex-wrap gap-2">
+                    {STATUS_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => updateStatus({ id: assignment._id, status: opt.value })}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                          assignment.status === opt.value
+                            ? opt.color
+                            : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Status de Facturación (legacy)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {INVOICE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => updateInvoice({ id: assignment._id, invoiceStatus: opt.value })}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                          assignment.invoiceStatus === opt.value
+                            ? "bg-accent/20 text-accent"
+                            : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Status de Facturación (legacy)</p>
-                <div className="flex flex-wrap gap-2">
-                  {INVOICE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => updateInvoice({ id: assignment._id, invoiceStatus: opt.value })}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                        assignment.invoiceStatus === opt.value
-                          ? "bg-accent/20 text-accent"
-                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
