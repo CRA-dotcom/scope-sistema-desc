@@ -46,34 +46,6 @@ export const getQuestionnaireForClient = internalQuery({
   },
 });
 
-export const findTemplate = internalQuery({
-  args: {
-    serviceName: v.string(),
-    type: v.union(v.literal("deliverable_short"), v.literal("deliverable_long")),
-    orgId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const allTemplates = await ctx.db
-      .query("deliverableTemplates")
-      .withIndex("by_type", (q) => q.eq("type", args.type))
-      .collect();
-
-    // Prefer org-specific, then global, matching service name
-    const orgMatch = allTemplates.find(
-      (t) => t.isActive && t.orgId === args.orgId && t.serviceName === args.serviceName
-    );
-    if (orgMatch) return orgMatch;
-
-    const globalMatch = allTemplates.find(
-      (t) => t.isActive && !t.orgId && t.serviceName === args.serviceName
-    );
-    if (globalMatch) return globalMatch;
-
-    // Fallback: any active template of this type
-    return allTemplates.find((t) => t.isActive) ?? null;
-  },
-});
-
 /**
  * A2 envoltorio sin guard: el action que llama esta query ya está
  * autenticado, así que no aplicamos `requireAuth`. Replica la lógica
@@ -82,6 +54,7 @@ export const findTemplate = internalQuery({
  * pueden correr en background donde el JWT del operador no aplica).
  *
  * Per docs/superpowers/specs/2026-05-22-templates-operator-access-design.md §5.
+ * Replaces the legacy `findTemplate` (R3.3 del doc-lifecycle design).
  */
 export const getResolvedForGeneration = internalQuery({
   args: {
