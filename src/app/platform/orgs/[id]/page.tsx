@@ -1,12 +1,14 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Save, Loader2, Palette } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { formatLocalDateTime } from "@/lib/datetime";
 
 type FeatureFlags = {
   advancedConfigVisible: boolean;
@@ -29,9 +31,21 @@ const featureFlagLabels: Record<keyof FeatureFlags, string> = {
   manualOverrideAllowed: "Override manual permitido",
 };
 
+type TabId = "details" | "metrics" | "billing" | "audit";
+
+const TAB_LABELS: Record<TabId, string> = {
+  details: "Detalles",
+  metrics: "Métricas",
+  billing: "Billing",
+  audit: "Audit",
+};
+
+const TAB_ORDER: TabId[] = ["details", "metrics", "billing", "audit"];
+
 export default function OrgDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const orgId = params.id as string;
 
   const isNew = orgId === "new";
@@ -41,6 +55,117 @@ export default function OrgDetailPage() {
     isNew ? "skip" : { id: orgId as Id<"organizations"> }
   );
 
+  // Active tab from `?tab=` (default details).
+  const rawTab = searchParams.get("tab");
+  const activeTab: TabId = (
+    TAB_ORDER.includes(rawTab as TabId) ? rawTab : "details"
+  ) as TabId;
+
+  // Loading state.
+  if (!isNew && org === undefined) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!isNew && org === null) {
+    return (
+      <div className="py-20 text-center text-sm text-red-400">
+        Organización no encontrada o sin permisos.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Link
+          href="/platform"
+          className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+        >
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-foreground">
+            {isNew ? "Nueva Organización" : org?.name}
+          </h1>
+          {!isNew && (
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+              {org?.clerkOrgId}
+            </p>
+          )}
+        </div>
+        {!isNew && (
+          <Link
+            href={`/platform/orgs/${orgId}/branding`}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-secondary px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            <Palette size={16} />
+            Branding
+          </Link>
+        )}
+      </div>
+
+      {/* Tabs — only for existing orgs */}
+      {!isNew && (
+        <div className="border-b border-border">
+          <nav className="-mb-px flex gap-1" aria-label="Tabs">
+            {TAB_ORDER.map((t) => (
+              <Link
+                key={t}
+                href={`/platform/orgs/${orgId}?tab=${t}`}
+                scroll={false}
+                aria-current={activeTab === t ? "page" : undefined}
+                className={cn(
+                  "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                  activeTab === t
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                )}
+              >
+                {TAB_LABELS[t]}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      )}
+
+      {/* Tab content */}
+      {isNew || activeTab === "details" ? (
+        <DetailsTab isNew={isNew} org={org} router={router} />
+      ) : activeTab === "metrics" && org ? (
+        <OrgMetricsTab orgClerkId={org.clerkOrgId} />
+      ) : activeTab === "billing" && org ? (
+        <OrgBillingTab orgClerkId={org.clerkOrgId} />
+      ) : activeTab === "audit" && org ? (
+        <OrgAuditTab orgClerkId={org.clerkOrgId} />
+      ) : null}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  DetailsTab — the existing form, untouched in behavior.                    */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+type OrgRow = NonNullable<
+  ReturnType<
+    typeof useQuery<typeof api.functions.organizations.queries.getByIdForAdmin>
+  >
+>;
+
+function DetailsTab({
+  isNew,
+  org,
+  router,
+}: {
+  isNew: boolean;
+  org: OrgRow | null | undefined;
+  router: ReturnType<typeof useRouter>;
+}) {
   const config = useQuery(
     api.functions.orgConfigs.queries.getByOrgIdForAdmin,
     isNew || !org ? "skip" : { orgId: org.clerkOrgId }
@@ -50,27 +175,33 @@ export default function OrgDetailPage() {
 
   const updateOrg = useMutation(api.functions.organizations.mutations.update);
   const createOrg = useMutation(api.functions.organizations.mutations.create);
-  const updateStatus = useMutation(api.functions.organizations.mutations.updateStatus);
+  const updateStatus = useMutation(
+    api.functions.organizations.mutations.updateStatus
+  );
   const upsertConfig = useMutation(api.functions.orgConfigs.mutations.upsert);
 
-  // Form state
   const [name, setName] = useState("");
   const [clerkOrgId, setClerkOrgId] = useState("");
   const [plan, setPlan] = useState<"basic" | "pro" | "enterprise">("basic");
-  const [status, setStatus] = useState<"active" | "inactive" | "suspended">("active");
+  const [status, setStatus] = useState<"active" | "inactive" | "suspended">(
+    "active"
+  );
   const [assignedServiceIds, setAssignedServiceIds] = useState<string[]>([]);
 
-  // Config state
-  const [calculationMode, setCalculationMode] = useState<"weighted" | "fixed">("weighted");
-  const [commissionMode, setCommissionMode] = useState<"proportional" | "fixed_monthly">("proportional");
+  const [calculationMode, setCalculationMode] = useState<"weighted" | "fixed">(
+    "weighted"
+  );
+  const [commissionMode, setCommissionMode] = useState<
+    "proportional" | "fixed_monthly"
+  >("proportional");
   const [seasonalityEnabled, setSeasonalityEnabled] = useState(true);
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(defaultFeatureFlags);
+  const [featureFlags, setFeatureFlags] =
+    useState<FeatureFlags>(defaultFeatureFlags);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Initialize form from loaded data
   const initForm = useCallback(() => {
     if (org) {
       setName(org.name);
@@ -123,7 +254,6 @@ export default function OrgDetailPage() {
           plan,
         });
 
-        // Also create config
         await upsertConfig({
           orgId: clerkOrgId.trim(),
           calculationMode,
@@ -138,7 +268,6 @@ export default function OrgDetailPage() {
 
       if (!org) return;
 
-      // Update org
       await updateOrg({
         id: org._id,
         name: name.trim(),
@@ -146,7 +275,6 @@ export default function OrgDetailPage() {
         assignedServiceIds: assignedServiceIds as Id<"services">[],
       });
 
-      // Update status if changed
       if (status !== org.status) {
         await updateStatus({
           id: org._id,
@@ -154,7 +282,6 @@ export default function OrgDetailPage() {
         });
       }
 
-      // Upsert config
       await upsertConfig({
         orgId: org.clerkOrgId,
         calculationMode,
@@ -172,57 +299,10 @@ export default function OrgDetailPage() {
     }
   };
 
-  // Loading state
-  if (!isNew && org === undefined) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (!isNew && org === null) {
-    return (
-      <div className="py-20 text-center text-sm text-red-400">
-        Organización no encontrada o sin permisos.
-      </div>
-    );
-  }
-
   const defaultServices = (allServices ?? []).filter((s) => s.isDefault);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/platform"
-          className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">
-            {isNew ? "Nueva Organización" : org?.name}
-          </h1>
-          {!isNew && (
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-              {org?.clerkOrgId}
-            </p>
-          )}
-        </div>
-        {!isNew && (
-          <Link
-            href={`/platform/orgs/${orgId}/branding`}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-secondary px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
-          >
-            <Palette size={16} />
-            Branding
-          </Link>
-        )}
-      </div>
-
-      {/* Error / Success banners */}
+    <div className="space-y-8">
       {error && (
         <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {error}
@@ -234,7 +314,6 @@ export default function OrgDetailPage() {
         </div>
       )}
 
-      {/* Org Info Section */}
       <section className="rounded-lg border border-border bg-card p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">
           Información General
@@ -303,15 +382,15 @@ export default function OrgDetailPage() {
         </div>
       </section>
 
-      {/* Service Assignment Section */}
       {!isNew && (
         <section className="rounded-lg border border-border bg-card p-6 space-y-4">
           <h2 className="text-lg font-semibold text-foreground">
             Servicios Asignados
           </h2>
           <p className="text-sm text-muted-foreground">
-            Selecciona los servicios disponibles para esta organizacion. Si no se
-            selecciona ninguno, tendra acceso a todos los servicios por defecto.
+            Selecciona los servicios disponibles para esta organizacion. Si no
+            se selecciona ninguno, tendra acceso a todos los servicios por
+            defecto.
           </p>
 
           {defaultServices.length === 0 ? (
@@ -321,7 +400,9 @@ export default function OrgDetailPage() {
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {defaultServices.map((service) => {
-                const checked = assignedServiceIds.includes(service._id as string);
+                const checked = assignedServiceIds.includes(
+                  service._id as string
+                );
                 return (
                   <label
                     key={service._id}
@@ -330,7 +411,9 @@ export default function OrgDetailPage() {
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => handleServiceToggle(service._id as string)}
+                      onChange={() =>
+                        handleServiceToggle(service._id as string)
+                      }
                       className="h-4 w-4 rounded border-border accent-accent"
                     />
                     <div>
@@ -349,7 +432,6 @@ export default function OrgDetailPage() {
         </section>
       )}
 
-      {/* Config Section */}
       <section className="rounded-lg border border-border bg-card p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Configuración</h2>
 
@@ -387,7 +469,6 @@ export default function OrgDetailPage() {
           </div>
         </div>
 
-        {/* Seasonality toggle */}
         <label className="flex cursor-pointer items-center gap-3">
           <div
             role="switch"
@@ -409,17 +490,20 @@ export default function OrgDetailPage() {
         </label>
       </section>
 
-      {/* Feature Flags Section */}
       <section className="rounded-lg border border-border bg-card p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Feature Flags</h2>
         <p className="text-sm text-muted-foreground">
-          Controla que funcionalidades estan disponibles para esta organizacion.
+          Controla que funcionalidades estan disponibles para esta
+          organizacion.
         </p>
 
         <div className="space-y-3">
           {(Object.keys(featureFlagLabels) as (keyof FeatureFlags)[]).map(
             (flag) => (
-              <label key={flag} className="flex cursor-pointer items-center gap-3">
+              <label
+                key={flag}
+                className="flex cursor-pointer items-center gap-3"
+              >
                 <div
                   role="switch"
                   aria-checked={featureFlags[flag]}
@@ -443,7 +527,6 @@ export default function OrgDetailPage() {
         </div>
       </section>
 
-      {/* Save Button */}
       <div className="flex justify-end pb-8">
         <button
           onClick={handleSave}
@@ -458,6 +541,298 @@ export default function OrgDetailPage() {
           {isNew ? "Crear Organización" : "Guardar Cambios"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  Drill-down tabs                                                           */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function OrgMetricsTab({ orgClerkId }: { orgClerkId: string }) {
+  const details = useQuery(api.functions.superAdmin.metrics.getOrgDetails, {
+    orgId: orgClerkId,
+  });
+
+  if (!details) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        <Stat
+          label="Deliverables (mes)"
+          value={details.monthTotals.deliverables}
+        />
+        <Stat
+          label="Clientes activos"
+          value={details.monthTotals.clientsActive}
+        />
+        <Stat
+          label="Costo IA (USD)"
+          value={`$${details.monthTotals.aiCostUsd.toFixed(2)}`}
+        />
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-6">
+        <h2 className="mb-4 text-sm font-semibold text-foreground">
+          Top clientes (mes)
+        </h2>
+        {details.topClients.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Sin deliverables este mes.
+          </p>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <th className="py-2">Cliente</th>
+                <th className="py-2">Deliverables</th>
+                <th className="py-2">Costo IA (USD)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {details.topClients.map((c) => (
+                <tr key={c.clientId}>
+                  <td className="py-2 text-sm text-foreground">
+                    {c.clientName}
+                  </td>
+                  <td className="py-2 text-sm">{c.deliverablesMonth}</td>
+                  <td className="py-2 text-sm">
+                    ${c.aiCostUsdMonth.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {details.distributionBySubservice.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-6">
+          <h2 className="mb-4 text-sm font-semibold text-foreground">
+            Distribución por subservicio
+          </h2>
+          <ul className="space-y-1">
+            {details.distributionBySubservice.map((d) => (
+              <li
+                key={d.key}
+                className="flex items-center justify-between text-sm"
+              >
+                <span className="text-muted-foreground">{d.key}</span>
+                <span className="font-medium text-foreground">{d.count}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrgBillingTab({ orgClerkId }: { orgClerkId: string }) {
+  const data = useQuery(api.functions.superAdmin.billing.getUsage, {
+    orgId: orgClerkId,
+  });
+
+  if (!data) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const row = data.rows[0];
+  if (!row) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
+        Sin datos de billing.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Stat
+          label="Deliverables / Mes"
+          value={`${row.deliverablesMonth} / ${row.deliverablesCap}`}
+        />
+        <Stat
+          label="Clientes activos / Cap"
+          value={`${row.clientsActive} / ${row.clientsCap}`}
+        />
+        <Stat
+          label="A cobrar (MXN)"
+          value={`$${row.billableMxn.toLocaleString("es-MX")}`}
+        />
+        <Stat
+          label="Costo IA"
+          value={`$${row.aiCostMxn.toFixed(0)} MXN · $${row.aiCostUsd.toFixed(2)} USD`}
+        />
+      </div>
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="text-xs text-muted-foreground">Margen estimado</div>
+        <div className="mt-1 text-xl font-bold text-foreground">
+          ${row.marginMxn.toLocaleString("es-MX")} MXN
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Info-only — no procesa pagos en beta. Plan: {row.plan}. Status:{" "}
+          {row.status}.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function OrgAuditTab({ orgClerkId }: { orgClerkId: string }) {
+  // documentEvents.queries.list is cursor-based but NOT a standard Convex
+  // paginated query (returns { rows, cursor, isDone }), so we drive the
+  // pagination manually with local accumulator state, same pattern as
+  // /platform/audit/page.tsx.
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [accumulated, setAccumulated] = useState<
+    Array<{
+      _id: string;
+      createdAt: number;
+      severity: "info" | "warning" | "error";
+      entityType: string;
+      message: string;
+    }>
+  >([]);
+  // Pagination guard: between the "Cargar más" click and the next Convex tick,
+  // `result.rows` still points at the previous page (the cursor we already
+  // appended). If we re-render eagerly we'd flash the same rows twice. When
+  // `pendingMore` is true we suppress the result.rows append until the new
+  // page lands and a useEffect clears the flag.
+  const [pendingMore, setPendingMore] = useState(false);
+
+  const result = useQuery(api.functions.documentEvents.queries.list, {
+    orgId: orgClerkId,
+    cursor,
+    pageSize: 25,
+  }) as
+    | {
+        rows: Array<{
+          _id: string;
+          createdAt: number;
+          severity: "info" | "warning" | "error";
+          entityType: string;
+          message: string;
+        }>;
+        cursor: string | null;
+        isDone: boolean;
+      }
+    | undefined;
+
+  // Rows shown in the table = accumulated + current page (avoiding double-render
+  // when cursor === undefined initial page). Mirrors /platform/audit/page.tsx.
+  const rows =
+    cursor === undefined
+      ? (result?.rows ?? [])
+      : pendingMore
+        ? accumulated
+        : [...accumulated, ...(result?.rows ?? [])];
+
+  // When a new page lands (result is no longer undefined and `result.rows`
+  // belongs to the new cursor), drop the pending flag.
+  useEffect(() => {
+    if (pendingMore && result !== undefined) {
+      setPendingMore(false);
+    }
+    // We only care about the moment result becomes defined for the new cursor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  const loadMore = () => {
+    if (!result || result.isDone) return;
+    setAccumulated((prev) => [...prev, ...result.rows]);
+    setCursor(result.cursor ?? undefined);
+    setPendingMore(true);
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      {result === undefined ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+          Sin eventos para esta organización.
+        </div>
+      ) : (
+        <>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30 text-left text-xs">
+                <th className="px-4 py-2 font-medium">Fecha</th>
+                <th className="px-4 py-2 font-medium">Sev</th>
+                <th className="px-4 py-2 font-medium">Entidad</th>
+                <th className="px-4 py-2 font-medium">Mensaje</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.map((ev) => (
+                <tr key={ev._id} className="hover:bg-secondary/30">
+                  <td className="px-4 py-2 text-xs text-muted-foreground">
+                    {formatLocalDateTime(ev.createdAt)}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-xs",
+                        ev.severity === "info" &&
+                          "bg-muted text-muted-foreground",
+                        ev.severity === "warning" &&
+                          "bg-amber-500/10 text-amber-400",
+                        ev.severity === "error" &&
+                          "bg-red-500/10 text-red-400"
+                      )}
+                    >
+                      {ev.severity}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground capitalize">
+                    {ev.entityType}
+                  </td>
+                  <td className="px-4 py-2">{ev.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {result && !result.isDone && (
+            <button
+              type="button"
+              onClick={loadMore}
+              className="w-full border-t border-border py-2.5 text-xs text-accent hover:bg-secondary/50"
+            >
+              Cargar más
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-xl font-bold text-foreground">{value}</div>
     </div>
   );
 }

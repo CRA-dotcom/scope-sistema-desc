@@ -13,8 +13,11 @@ import {
   FileSignature,
   FileOutput,
   Receipt,
-  Shield,
+  Building2,
+  Activity,
+  DollarSign,
   FileSearch,
+  Layers,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -101,34 +104,47 @@ export function Sidebar() {
           );
         })}
 
-        {/* Super Admin Button */}
+        {/* Super Admin block — D1 7-entry menu (replaces the single-link panel). */}
         {isSuperAdmin && (
           <>
             <div className="my-3 border-t border-border" />
-            <Link
-              href="/platform"
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
-                "bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
-              )}
-              title={collapsed ? "Panel de Plataforma" : undefined}
-            >
-              <Shield size={20} />
-              {!collapsed && <span>Panel de Plataforma</span>}
-            </Link>
-            <Link
-              href="/platform/audit"
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
-                pathname.startsWith("/platform/audit")
-                  ? "bg-purple-500/20 text-purple-300"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-              title={collapsed ? "Audit log" : undefined}
-            >
-              <FileSearch size={20} />
-              {!collapsed && <span>Audit log</span>}
-            </Link>
+            {!collapsed && (
+              <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-purple-400/60">
+                Plataforma
+              </p>
+            )}
+            {(
+              [
+                { href: "/platform", label: "Organizaciones", icon: Building2, exact: true },
+                { href: "/platform/metrics", label: "Métricas", icon: Activity, exact: false },
+                { href: "/platform/billing", label: "Billing", icon: DollarSign, exact: false },
+                { href: "/platform/audit", label: "Audit log", icon: FileSearch, exact: false },
+                { href: "/platform/subservices", label: "Subservicios", icon: Layers, exact: false },
+                { href: "/platform/servicios", label: "Servicios (padre)", icon: Briefcase, exact: false },
+                { href: "/platform/templates", label: "Plantillas", icon: FileText, exact: false },
+              ] as const
+            ).map((item) => {
+              const isActive = item.exact
+                ? pathname === item.href
+                : pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+                    isActive
+                      ? "bg-purple-500/15 text-purple-300"
+                      : "text-purple-400/80 hover:bg-purple-500/10 hover:text-purple-300"
+                  )}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <item.icon size={18} />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
           </>
         )}
       </nav>

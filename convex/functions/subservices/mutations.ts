@@ -5,8 +5,9 @@ import { getOrgId, requireAdmin } from "../../lib/authHelpers";
 
 /**
  * Internal helper: derive a stable kebab-case slug from a name.
+ * Exported so D1's `globalMutations.ts` can reuse the same algorithm.
  */
-function slugify(name: string): string {
+export function slugify(name: string): string {
   return name
     .toLowerCase()
     .normalize("NFD")
