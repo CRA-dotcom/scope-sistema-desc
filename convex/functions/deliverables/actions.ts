@@ -220,6 +220,11 @@ export const generateDeliverable = action({
     ]);
 
     if (!assignment) throw new Error("Asignacion no encontrada.");
+    if (!assignment.subserviceId) {
+      throw new Error(
+        "Selecciona el subservicio del mes antes de generar el entregable. La planificación se hace desde la matriz de la proyección."
+      );
+    }
     if (!client) throw new Error("Cliente no encontrado.");
     if (!projService) throw new Error("Servicio de proyeccion no encontrado.");
 

@@ -11,6 +11,8 @@ import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { MatrixCellDetail } from "@/components/projections/matrix-cell-detail";
+import { SubserviceCellPicker } from "@/components/projections/subservice-cell-picker";
+import { useOrganization } from "@clerk/nextjs";
 import { resolveProjectionContext, resolveProjectionMonths } from "../../../../../convex/lib/projectionContext";
 import { usePdfGenerator } from "@/lib/usePdfGenerator";
 import { buildProjectionPdfHtml } from "@/lib/projectionPdfBuilder";
@@ -66,6 +68,13 @@ export default function ProjectionDetailPage() {
       return new Map(list.map((s) => [s._id, s]));
     },
     [subservices]
+  );
+
+  const { membership } = useOrganization();
+  const isAdmin = membership?.role === "org:admin";
+
+  const setMonthSubservice = useMutation(
+    api.functions.monthlyAssignments.mutations.setSubservice
   );
 
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
@@ -320,38 +329,47 @@ export default function ProjectionDetailPage() {
                   </td>
                   {months.map((monthNum, i) => {
                     const ma = svcAssignments.find((a) => a.month === monthNum);
+                    if (!ma) {
+                      return (
+                        <td key={`${monthNum}-${i}`} className="px-2 py-2 text-center">
+                          <span className="text-muted-foreground">—</span>
+                        </td>
+                      );
+                    }
+
+                    const cellSubservice = ma.subserviceId
+                      ? subservicesById.get(ma.subserviceId)
+                      : null;
+
+                    const optionsForRow = (subservices ?? []).filter(
+                      (s) => s.parentServiceId === svc.serviceId && s.isActive
+                    );
+
                     return (
                       <td
                         key={`${monthNum}-${i}`}
                         className={cn(
-                          "px-2 py-2 text-center",
-                          ma && "cursor-pointer hover:bg-accent/5 transition-colors"
+                          "px-2 py-2 text-center cursor-pointer hover:bg-accent/5 transition-colors",
+                          !cellSubservice && "border border-destructive/40 bg-destructive/5"
                         )}
-                        onClick={() => ma && setSelectedAssignmentId(ma._id)}
+                        onClick={() => setSelectedAssignmentId(ma._id)}
                       >
-                        {ma ? (
-                          <div className="space-y-1">
-                            <p className="text-xs">
-                              {formatCurrency(ma.amount)}
-                            </p>
-                            <span
-                              className={cn(
-                                "inline-block rounded-full px-1.5 py-0.5 text-[10px]",
-                                STATUS_COLORS[ma.status]
-                              )}
-                            >
-                              {ma.status === "pending"
-                                ? "Pend."
-                                : ma.status === "info_received"
-                                  ? "Info"
-                                  : ma.status === "in_progress"
-                                    ? "Prog."
-                                    : "Ent."}
+                        <div className="space-y-1">
+                          <p className="text-xs">{formatCurrency(ma.amount)}</p>
+                          {isAdmin ? (
+                            <SubserviceCellPicker
+                              current={cellSubservice ?? null}
+                              options={optionsForRow}
+                              onPick={(subId) =>
+                                setMonthSubservice({ id: ma._id, subserviceId: subId })
+                              }
+                            />
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">
+                              {cellSubservice?.name ?? "Sin asignar"}
                             </span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                          )}
+                        </div>
                       </td>
                     );
                   })}
