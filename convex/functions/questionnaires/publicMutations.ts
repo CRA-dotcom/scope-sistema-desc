@@ -1,5 +1,7 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../../_generated/api";
+import { getOrgNotificationEmail } from "../email/resolveRecipients";
 
 // NO auth required - uses token for verification
 export const updateResponsesByToken = mutation({
@@ -79,6 +81,33 @@ export const submitByToken = mutation({
       status: "completed",
       completedAt: Date.now(),
     });
+
+    // Notif por email al responsable del org (espejo de markCompleted en
+    // mutations.ts:200+). El cliente termina via token publico, no hay
+    // auth — same recipient resolution: orgConfigs.notificationEmail.
+    const client = await ctx.db.get(questionnaire.clientId);
+    const clientName = client?.name ?? "Cliente";
+    const assignedTo = client?.assignedTo;
+    if (assignedTo) {
+      const notifyTo = await getOrgNotificationEmail(ctx, questionnaire.orgId);
+      if (!notifyTo) {
+        console.warn(
+          "[questionnaire/public] Sin email de notificacion para org " +
+            `${questionnaire.orgId}; omitiendo notificacion de cuestionario ` +
+            "completado por cliente."
+        );
+      } else {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.functions.email.send.sendEmailInternal,
+          {
+            to: notifyTo,
+            subject: `Cuestionario completado - ${clientName}`,
+            html: `<p>El cliente <strong>${clientName}</strong> ha completado su cuestionario.</p><p>Revisa las respuestas en la plataforma.</p>`,
+          }
+        );
+      }
+    }
 
     return { success: true };
   },
