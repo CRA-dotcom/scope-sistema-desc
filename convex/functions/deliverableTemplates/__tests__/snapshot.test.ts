@@ -86,12 +86,25 @@ async function seedFixture(
       annualAmount: 18,
       normalizedWeight: 0.18,
     });
+    const subserviceId = await ctx.db.insert("subservices", {
+      orgId: ORG_ID,
+      parentServiceId: serviceId,
+      name: "Test Subservice",
+      slug: "test-subservice",
+      defaultFrequency: "mensual",
+      isActive: true,
+      isDefault: true,
+      sortOrder: 10,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
     const assignmentId = await ctx.db.insert("monthlyAssignments", {
       orgId: ORG_ID,
       projServiceId,
       projectionId,
       clientId,
       serviceName: "Marketing",
+      subserviceId,
       month: 5,
       year: 2026,
       amount: 1,
