@@ -208,6 +208,29 @@ export const generateFromInvoice = internalAction({
       return { ok: false, reason: "no_proj_service" };
     }
 
+    // 5b. Guard: monthly cell must have a subservice picked. Per spec 2026-05-22.
+    const assignment = await ctx.runQuery(
+      internal.functions.deliverables.internalQueries.getAssignmentData,
+      { assignmentId }
+    );
+    if (!assignment?.subserviceId) {
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: invoice.orgId,
+          clientId: invoice.clientId,
+          entityType: "invoice" as const,
+          entityId: invoiceId,
+          eventType: "error" as const,
+          severity: "warning" as const,
+          actorType: "system" as const,
+          message: `Generacion abortada: la celda ${invoice.month}/${invoice.year} no tiene subservicio asignado. Pide al operador planificar en la matriz.`,
+          metadata: { reason: "missing_subservice", assignmentId },
+        }
+      );
+      return { ok: false, reason: "missing_subservice" };
+    }
+
     // 6. Delegate to the engine with the snapshot we picked.
     let deliverableId: Id<"deliverables">;
     try {

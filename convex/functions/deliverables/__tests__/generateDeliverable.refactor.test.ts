@@ -109,12 +109,26 @@ async function seedFixture(t: ReturnType<typeof setupTest>): Promise<SeededIds> 
       normalizedWeight: 0.18,
     });
 
+    const subserviceId = await ctx.db.insert("subservices", {
+      orgId: ORG_ID,
+      parentServiceId: serviceId,
+      name: "Estrategia Digital",
+      slug: "estrategia-digital",
+      defaultFrequency: "mensual",
+      isActive: true,
+      isDefault: true,
+      sortOrder: 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
     const assignmentId = await ctx.db.insert("monthlyAssignments", {
       orgId: ORG_ID,
       projServiceId,
       projectionId,
       clientId,
       serviceName: "Marketing",
+      subserviceId,
       month: 5,
       year: 2026,
       amount: 67_500,
