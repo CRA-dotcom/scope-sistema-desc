@@ -53,11 +53,6 @@ describe("MatrixCellDetail — override manual block", () => {
     expect(SOURCE).toMatch(/\/entregables\/\$\{deliverable\._id\}/);
   });
 
-  it("disables the button when assignment.status is pending", () => {
-    expect(SOURCE).toMatch(/assignment\.status\s*===\s*"pending"/);
-    expect(SOURCE).toContain("Cliente no ha respondido");
-  });
-
   it("renders inline banner with link to plantillas when template is missing", () => {
     expect(SOURCE).toContain('"missing-template"');
     expect(SOURCE).toMatch(/\/configuracion\/plantillas/);

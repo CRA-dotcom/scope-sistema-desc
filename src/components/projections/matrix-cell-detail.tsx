@@ -237,7 +237,6 @@ export function MatrixCellDetail({
 
                 <ManualGenerateButton
                   deliverable={deliverable}
-                  assignment={assignment}
                   generating={generating}
                   onGenerate={handleManualGenerate}
                 />
@@ -398,12 +397,10 @@ function StepRow({ step }: { step: Step }) {
 
 function ManualGenerateButton({
   deliverable,
-  assignment,
   generating,
   onGenerate,
 }: {
   deliverable: Doc<"deliverables"> | null | undefined;
-  assignment: Doc<"monthlyAssignments">;
   generating: boolean;
   onGenerate: () => void;
 }) {
@@ -421,18 +418,9 @@ function ManualGenerateButton({
       </Link>
     );
   }
-  if (assignment.status === "pending") {
-    return (
-      <button
-        disabled
-        title="Cliente no ha respondido el cuestionario"
-        className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted px-4 py-3 text-sm font-medium text-muted-foreground cursor-not-allowed"
-      >
-        <Clock size={16} />
-        Cliente no ha respondido el cuestionario
-      </button>
-    );
-  }
+  // Nota: ya NO bloqueamos por assignment.status === "pending" — ese chip
+  // legacy nunca se auto-actualiza cuando el cuestionario se completa
+  // (sub-spec pendiente). Override es admin-only, asume juicio del operador.
   return (
     <button
       onClick={onGenerate}
