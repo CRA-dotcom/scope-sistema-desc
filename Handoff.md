@@ -1,258 +1,133 @@
-# Handoff — Debugging Session (Sprint v2 post-merge)
+# Handoff — 22-may tasks
 
-**Sesión origen:** 2026-05-20 noche
-**Sesión target:** próxima sesión, debugging visual de las páginas nuevas
-**Estado código:** Sprint v2 beta ✅ completo, 6 sub-specs mergeados a main
-**Estado prod:** ⛔ NO pusheado todavía (54 commits ahead de origin/main)
+**Sesión origen:** 2026-05-21 (override manual + subservicios + email notif + 6 fixes)
+**Sesión target:** hoy 2026-05-22 — ejecutar las 3 tareas con due 22-may
+**Estado código:** main al día con todo de ayer mergeado
+**Estado prod:** ⛔ 77 commits ahead de `origin/main`, sin push
 
 ---
 
 ## Cómo arrancar
 
-1. **Leer este archivo** (estás aquí).
-2. **Pre-flight**:
+1. **Leer este archivo.**
+2. **Pre-flight (paralelo):**
    ```bash
-   git status                              # working tree limpio o solo Handoff.md
-   git log --oneline -5                    # main con 54 commits del sprint
-   npm test 2>&1 | tail -3                 # baseline: 781 passed | 1 skipped
+   git status                              # solo AGENTS.md + CLAUDE.md (GitNexus auto-refresh, no urgente)
+   git log --oneline -10                   # ver merges recientes de ayer
+   npm test 2>&1 | tail -3                 # baseline: 796 passed | 1 skipped
    npx tsc --noEmit 2>&1 | grep -v useDebouncedAutosave | head -5   # clean
-   lsof -i :3002 2>&1 | head -3            # verificar si Next sigue corriendo
+   lsof -i :3000 2>&1 | head -3            # verificar Next dev
    ```
-3. **Si los servers ya no corren**:
+3. **Si servers no corren:**
    ```bash
-   npx convex dev          # terminal 1, espera "Convex functions ready"
-   npm run dev             # terminal 2, NextJS turbopack, levanta en :3000 o :3002 si ocupado
+   npx convex dev          # terminal 1
+   npm run dev             # terminal 2 (puerto :3000 default)
    ```
-4. **Abrir** `http://localhost:3002` (o el puerto que tomó Next).
+4. **Abrir** http://localhost:3000.
+5. **Verificar la rotación de ANTHROPIC_API_KEY:**
+   ```bash
+   diff <(~/.claude/bin/get-secret anthropic-api-key) <(npx convex env get ANTHROPIC_API_KEY) && echo OK || echo "MISMATCH — re-sync"
+   ```
+   Si MISMATCH: `npx convex env set ANTHROPIC_API_KEY "$(~/.claude/bin/get-secret anthropic-api-key)"`.
 
 ---
 
-## Cambios visuales recientes (desde sprint merge)
+## Lo que se shipeó ayer (contexto, 11 commits)
 
-| Cambio | Archivo | Estado |
-|---|---|---|
-| QA Service borrado del DB | `convex/functions/quotations/qaCleanup.ts` (already-run) | ✅ ejecutado, 18 filas |
-| Subservicios seed corrido | `convex/functions/subservices/seed.ts` | ✅ 33 globales creados |
-| Templates seed corrido | `convex/functions/deliverableTemplates/seedDefaults.ts` | ✅ 1 plantilla global |
-| Drawer matrix-cell redesigned | `src/components/projections/matrix-cell-detail.tsx` | 🆕 **no committed todavía** |
-| `/facturacion` acepta `?year=&month=` deep-link | `src/app/(dashboard)/facturacion/page.tsx` | 🆕 **no committed todavía** |
-
-**Pending commits** (working tree dirty):
-```bash
-git diff --stat HEAD
-# src/app/(dashboard)/facturacion/page.tsx     | ~6 lines
-# src/components/projections/matrix-cell-detail.tsx | full rewrite (~330 LOC)
-```
-
-Decisión: ¿commitearlos antes de seguir debug? El user dijo redesign quedó listo, conviene commit para tener checkpoint estable.
-
----
-
-## Lo que el user dijo el 20-may noche
-
-1. **"Quita lo de QA Service"** → ✅ Hecho.
-2. **"Estos botones no me dicen absolutamente nada"** (status Pendiente/Info/Progreso/Entregado + Sin Facturar/Facturado/Pagado en el drawer):
-   - Eran chips legacy de `monthlyAssignments.invoiceStatus` que NO disparan generación.
-   - Redesign hecho: stepper visual + CTA contextual + manual override colapsado bajo "Avanzado" con warning.
-3. **"No veo dónde se suben las facturas"** → flow correcto es `/facturacion` (A3 Phase 2). Drawer ahora tiene CTA primaria que linkea ahí con deep-link.
-4. **"Carga todo lo nuevo"** → seeds corridos (subservicios 33, templates 1).
-
----
-
-## URLs a probar visualmente
-
-Sign-in con cualquier user del org `org_3Bc04Ld76zZeepkBpOLRSK9XLOg` (Org1, plan enterprise). Clientes existentes: Katimi, ACME SA CV.
-
-| Ruta | Validar |
+| Commit | Qué |
 |---|---|
-| `/configuracion` | Hub 9 cards en 5 secciones (Catálogo/Equipo/Comunicación/Identidad/Proveedores) |
-| `/configuracion/subservicios` | Lista 33 subservicios globales agrupados por servicio padre |
-| `/configuracion/plantillas` | Árbol Servicio→Subservicio→Plantilla |
-| `/configuracion/usuarios` | Memberships Clerk + drawer + invitar |
-| `/configuracion/branding` | Editor org-admin con preview |
-| `/configuracion/integraciones` | Resend / Firmame / Railway chips |
-| `/configuracion/notificaciones` | Form + test send |
-| `/configuracion/frecuencias` | Read-only redirect |
-| `/facturacion` | Columna PDF + modal upload + markPaid + admin void |
-| `/facturacion?year=2026&month=5` | Deep-link debe pre-seleccionar Mayo 2026 |
-| `/clientes/[id]` | Panel "Servicios contratados" (B1) + modal "Agregar subservicio mid-year" |
-| `/cotizaciones/[id]` | Si tiene `parentQuotationId`, banner suplementaria |
-| `/proyecciones/[id]` | Matrix cell click → drawer nuevo con stepper + CTA |
-| `/platform/metrics` | KPIs + LineChart 30d + tabla per-org (super-admin) |
-| `/platform/billing` | Tabla billing + plan filter + totals |
-| `/platform/audit` | Filtros org/cliente/entidad/severidad + paginación |
-| `/platform/subservices` | CRUD globales con clones modal |
-| `/platform/orgs/[id]?tab=metrics` | 4 tabs Detalles/Métricas/Billing/Audit |
+| `4685594` | feat: email notif al completar cuestionario via token público (cierra `86ahmwqjt`) |
+| `f17891f` | fix: remove pending status gate del override (chip legacy no se auto-actualiza) |
+| `866ea99` | fix: override default a deliverable_long (era short) |
+| `ca32887` | fix: empty state en /entregables cuando short/long es null |
+| `f7f93a3` | fix: PDF gen `networkidle0` → DCL + `document.fonts.ready` (timeout 30s) |
+| `531a615` | fix: deliverable HTML en `<iframe srcDoc sandbox="">` (CSS leak) |
+| `ab205c5` | merge: subservicios visibles en matriz + drawer header |
+| `40852dc` | refactor: remove chips legacy del bloque Avanzado |
+| `4844a41` | merge: override manual (cierra ClickUp `86ahfh6f5`) |
+
+**Sub-specs nuevos en `docs/superpowers/specs/`:**
+- `2026-05-21-deliverable-manual-override-design.md`
+- `2026-05-21-subservices-visible-in-matrix-design.md`
+
+**ClickUp cerrados ayer:** `86ahfh6f5`, `86ahmwqjt`.
 
 ---
 
-## Cosas que pueden romper visualmente
+## Lo que falta — queue 22-may (3 tareas)
 
-1. **Drawer nuevo MatrixCellDetail**:
-   - No probado en browser end-to-end (solo TSC + unit tests).
-   - Verificar que `deliverable === undefined` (loading) no rompa el stepper.
-   - Verificar que el deep-link funcione (`?year=&month=`).
-   - Verificar que el override avanzado todavía funcione (mutations updateStatus / updateInvoiceStatus).
-2. **Subservicios vacíos por org**:
-   - Los 33 son globales (`orgId: undefined`). Las orgs no tienen clones aún.
-   - `/configuracion/subservicios` debería mostrarlos como "Globales" / readonly.
-3. **Plantillas vacías por org**:
-   - Solo 1 plantilla global. Si abres `/configuracion/plantillas` puede verse muy vacío.
-4. **Sidebar super-admin**:
-   - `/platform/layout.tsx` y `src/components/layout/sidebar.tsx` ambos tienen el group de 7 entries — verificar que no se dupliquen.
-5. **`/facturacion` deep-link**:
-   - Solo lee `searchParams` en mount inicial. Si el user cambia el dropdown, el URL NO se sincroniza (acceptable — el deep-link es one-way del drawer).
+| ID | Pri | Tarea | Notas |
+|---|---|---|---|
+| [`86ahk8pnx`](https://app.clickup.com/t/86ahk8pnx) | **high** | Configurar recepción de mail en `businessinteligencehub.com` | Infra: DNS/MX + Resend domain verify. Acción manual (no código) + setup en Resend dashboard. ~30 min. |
+| [`86ahfh6fy`](https://app.clickup.com/t/86ahfh6fy) | **high** | [Servicios] Banco de servicios específicos por área | **Sustancial.** Schema + seed + CRUD UI por subservicio. ~2-3h. Needs brainstorming antes de tocar código — alcance no claro. |
+| [`86ahfh6g2`](https://app.clickup.com/t/86ahfh6g2) | normal | [Entregables] Selección de entregables dentro de proyección | **Brainstorming territory.** "Selección" = ¿multi-select de subservicios al crear proyección? ¿O override por mes? Confirmar con Christian. ~1-2h. |
+
+### Orden recomendado
+
+1. **`86ahk8pnx` primero** — independiente, infra externa, sin código. Puedes hacerlo en paralelo mientras revisas las otras.
+2. **`86ahfh6g2`** — brainstorming corto + impl chico si scope se aclara rápido.
+3. **`86ahfh6fy`** — más grande, dejar para el final del día. Probable sub-spec con writing-plans + subagentes.
 
 ---
 
-## Sub-features que NO se probaron en código aunque tests pasan
+## Decisiones pendientes para Christian
 
-- **Upload PDF real**: el modal `UploadInvoiceDialog` lee file como ArrayBuffer y llama `invoices.upload` action. Probar con un PDF de 100-500KB real.
-- **markPaid → generateFromInvoice**: requiere `ANTHROPIC_API_KEY` válida en `.env.local` para que Claude llene placeholders. Si key inválida → log error pero NO crash.
-- **Cron eligibility**: solo testeable forzándolo via Convex dashboard (`Run scheduled function`). Probar que NO genera, solo notifica.
-- **Firmame**: stub. `testFirmameConnection` retorna `{ok: false, reason: "Backlog post-beta..."}`.
-- **Resend test send**: si no hay `RESEND_API_KEY` en env, retorna `{sent: false, reason}` graceful.
-- **Invite-user Clerk**: requiere `CLERK_SECRET_KEY` en `.env.local`. Si no, 500.
+Estas necesitan input ANTES de tocar código:
 
----
+1. **Servicios por área** (`86ahfh6fy`):
+   - ¿Es una tabla nueva (`services_by_area`) o se reutiliza `subservices` con un campo de área?
+   - ¿Las áreas son las 9 hardcodeadas (Legal, Contable, etc.) o configurables?
+   - ¿UI: árbol en `/configuracion/servicios`, o flat list filtrable por área?
 
-## Datos en DB (dev deployment)
+2. **Selección de entregables en proyección** (`86ahfh6g2`):
+   - ¿Significa: al crear proyección, picker de cuáles subservicios entregables se generarán?
+   - ¿O un calendar editor por mes para forzar/saltar generación?
+   - ¿Bloqueante para arranque o "nice to have"?
 
-```
-organizations: 2 (Org1 active enterprise, otra legacy)
-clients: 5 (Katimi, ACME SA CV, Empresa test, etc.)
-services: 9 globales (los padre originales)
-subservices: 33 globales (recién seedados)
-deliverableTemplates: 5 (4 originales + 1 nueva seed)
-projections: varias por cliente
-projectionServices: varias por proyección
-monthlyAssignments: ~12/projection/year
-deliverables: cero por ahora (no invoice flow corrido aún)
-invoices: cero
-documentEvents: algunos eventos de seed/configuración
-```
-
-`org_qa_screenshot` y `Cliente QA` ya NO existen (purgados).
+3. **Push a origin/main:**
+   - 77 commits ahead. ¿Push hoy o seguir local?
+   - Si hay CI/Vercel, el push dispara deploys.
 
 ---
 
-## Si encuentras un bug
+## Queue post-hoy (planeación)
 
-1. Reproducirlo en browser, capturar consola DevTools.
-2. Verificar si es regresión: `git diff HEAD~1 -- <archivo>` (último commit antes del trabajo del 20-may).
-3. Bug de tipos/runtime: `npx tsc --noEmit` + ver el archivo afectado.
-4. Bug de query: `npx convex logs --dev` para ver errores backend.
-5. Bug de schema: `npx convex codegen` por si quedó stale.
-6. Para bugs visuales: pegar screenshot + ruta exacta del browser donde ocurrió.
-
----
-
-## Próximos pasos (cuando termine el debug)
-
-1. Commitear el redesign del drawer si quedó bien: `feat(projections): rediseñar drawer matrix cell con stepper + CTAs`.
-2. Push a origin/main (`git push origin main`).
-3. `npx convex deploy --prod` con env vars verificadas.
-4. E2E manual checklist completo de `docs/superpowers/specs/2026-05-31-beta-e2e-checklist.md` §2.
-5. Catálogo subservicios validado con papá → re-correr `subservices/seed:seedDefaultSubservices` en prod (idempotente).
-6. Branch `feature/client-documents-tab` (38e0579) → refactor filtro Servicio→Subservicio antes de merge.
+| Due | Pri | Ticket | Bloqueante hoy |
+|---|---|---|---|
+| 25-may | low | `86ahfh6g7` Módulo contrato post-cotización | No, grande, sub-spec aparte |
+| 25-may | high | `86ahfh6fr` WhatsApp via Gowa | No, depende Gowa |
+| 27-may | high | `86ahjaqtq` Railway prod (env vars + DNS + TLS) | No, infra |
+| 28-may | normal | `86ahjar1x` SSRF en `/api/generate-pdf` + headers | No, security fix |
+| 28-may | normal | `86ahfh6g0` Cuestionario subcampos gastos variables | No, schema work |
+| 29-may | low | `86ahfh6g6` Signos $ y % en proyección | No, UI polish |
+| 30-may | high | `86agucmh4` Test E2E completo del ciclo | QA — al final |
 
 ---
 
-## Features nuevas a diseñar/implementar (post-debug)
+## Known limitations (documentar si surgen durante smoke)
 
-### F1 — Fechas de generación por servicio en proyección
-
-**Problema:** Hoy la proyección agenda entregables/cotizaciones a granularidad **mes** (`selectDeliverableForMonth` evalúa por mes calendario). No se puede decir "este servicio genera entregable el día 5 de cada mes" — solo "este mes sí, este mes no".
-
-**Requerimiento del operador:** Definir el **día exacto del mes** en que cada servicio dispara su deliverable/cotización dentro de la vigencia de la proyección. Permite agendas tipo:
-- Plan Anual Marketing → genera entregable el día 1 de cada mes
-- Cotización inicial → se manda el día 15 del primer mes de proyección
-- EE.FF. Mensuales → día 10 del mes siguiente al cierre
-
-**Esbozo de scope:**
-- **Schema:** `projectionServices.generationDayOfMonth` opcional `v.number()` (1–28 para evitar problemas con febrero; meses cortos clampean al último día).
-  - Opcional: separar `quotationDayOfMonth` vs `deliverableDayOfMonth` si el caso lo amerita; default mismo día si solo se setea uno.
-- **Selector A3:** `selectDeliverableForMonth` ya filtra por mes; añadir gate de día. Si hoy < día y mes coincide → todavía no toca; si hoy ≥ día → elegible.
-- **Cron eligibility (A3 §3.4):** revisa día en TZ local de la org (no UTC) — reusar `getLocalToday` helper. Sat/Sun skip sigue aplicando.
-- **UI wizard `/proyecciones/nueva`:** control de fecha por cada servicio agregado. Si no se setea, default = "cualquier día del mes" (comportamiento actual).
-- **UI panel "Servicios contratados" (B1) en `/clientes/[id]`:** mostrar "Próximo: día N de mes M" en cada row, no solo "mes M".
-- **Tests:** day clamp (día 31 en feb → 28/29), TZ-local edge cases, override per cliente diferido a junio (mantener consistente con R1 §5.2).
-
-**Dependencias:** A3 selector ya respeta `applicableMonths` + `startMonth/endMonth` (B1). Day gate es una extensión natural en el mismo lugar (después de `applicableMonths`, antes de frequency).
-
-### F2 — Empresa emitente por servicio en proyección
-
-**Problema:** Hoy `issuingCompanies` (tabla pre-existente) existe a nivel org — el operador puede tener N empresas que él emite. Pero NO está linkeado a servicios específicos en proyecciones. Toda la facturación/cotización/contrato sale con la empresa default del org.
-
-**Requerimiento del operador:** Asignar con qué empresa emitente se factura cada servicio durante toda la vigencia de la proyección. Permite casos tipo:
-- Cliente Acme tiene 3 servicios; Legal sale de "Despacho Legal SC", Marketing de "Marketing Studio SA de CV", Contable de la principal.
-- La proyección preserva ese mapping todo el año.
-- Si el cliente firma nuevo contrato anual, el operador puede mantener o cambiar la empresa por servicio.
-
-**Esbozo de scope:**
-- **Schema:** `projectionServices.issuingCompanyId` opcional `v.id("issuingCompanies")`. Backward-compat: rows sin valor → usa default del org (comportamiento actual).
-- **Mutation:** `projections.create` y `recalculate` aceptan `issuingCompanyId` por servicio; `addSubserviceMidYear` también (B1).
-- **Selector PDF:** `generateFromInvoice` y `quotations.generate` y `contracts.send` leen el `issuingCompanyId` del `projectionService`. PDF header usa **branding + RFC + dirección + footer** de esa empresa, NO del org default.
-- **Invoice flow A3:** `invoices.upload` debe prellenar `issuingCompanyId` desde el projectionService asociado (operador puede override en el modal si necesario).
-- **UI wizard `/proyecciones/nueva`:** dropdown de empresa emitente por cada servicio en el step de configuración. Default = primera empresa del org.
-- **UI panel "Servicios contratados" (B1):** mostrar badge "Emitido por: {empresa}" en cada row.
-- **UI `/configuracion/empresas-emitentes`:** ya existe (no se toca). Solo se consume.
-- **Multi-tenant:** verificar que `issuingCompanyId` referencia siempre del mismo org (`requireSameOrg` guard en mutations).
-- **Tests:** mapping per-service preserved across recalculate, multi-tenant cross-org rejected, PDF render con branding correcto.
-
-**Dependencias:** A2 (snapshot por valor en deliverables — debería extenderse para snapshotear `issuingCompanyName` + `rfc` + `branding` también, para que un PDF generado en marzo siga reproducible si la empresa cambia en agosto). Reusa la pattern de `templateVersion`/`templateHtmlSnapshot`.
-
-**Decisión pendiente:** ¿qué pasa cuando una `issuingCompany` se borra y hay projectionServices referenciándola? Mirror A1 pattern (`subservices.remove` bloquea si hay refs).
+- **`assignment.status` legacy nunca se auto-actualiza.** Lo confirmamos ayer. Si surge una tarea de "estado real del ciclo", abrir sub-spec separado para sincronizar el field con questionnaire/invoice events. Hoy NO se necesita.
+- **El override genera solo `deliverable_long`.** Si Christian pide alternar short/long, agregar dropdown (out-of-scope confirmado ayer).
+- **El error banner del override muestra mensajes crudos del backend.** Ayer salió un stack trace feo. Polish menor pendiente: branch por código de error (401, network, etc.) → mensaje friendly.
+- **`generate-pdf` route hardcodea Chrome path para Mac.** Funciona vía `CHROMIUM_PATH` en `.env.local`. Para que otro dev en otra Mac no tope este bug, agregar fallback `darwin → /Applications/Google Chrome.app/...` en el código. Quick win.
 
 ---
 
-### Cronograma estimado
+## Rules of engagement (Christian recordatorios)
 
-| Feature | Días est. | Bloqueante |
-|---|---|---|
-| F1 fechas generación | 1.5 (schema + selector + cron + UI + tests) | No bloquea beta del 31-may; junio fit |
-| F2 empresa emitente per service | 2 (schema + mutations + UI + PDF render + snapshot extension) | Útil pre-beta si papá tiene multi-entity (caso QWave) |
-
-**Sugerencia priorización:** F2 primero si papá factura desde 2+ empresas. F1 después porque hoy "fin del mes" + gate humano via markPaid ya da control suficiente al operador para 90% de los casos.
-
----
-
-## Memorias / contexto
-
-- `project_sprint_v2_timeline` — sprint v2 cerrado, 11 días buffer.
-- `project_firma_provider` — Firmame.com (NO MiFiel).
-- `project_blob_storage` — Railway S3 para PDFs.
-- `reference_anthropic_api_key` — Keychain account `christian`, rotar after 2026-05-14.
+- Para cualquier tarea sustancial: **brainstorming → spec → writing-plans → subagentes** (no skip).
+- Default a commit en branch + merge con `--no-ff` cuando sea feature. Fixes pequeños van directo a main.
+- Tras cada merge: `npx gitnexus analyze` para mantener el index fresco.
+- Antes de cualquier edit a un símbolo: `gitnexus_impact({ target: "X", direction: "upstream" })` (per CLAUDE.md).
+- Antes de commit: `gitnexus_detect_changes()` (per CLAUDE.md).
+- WhatsApp queda explícitamente fuera hasta Gowa (lunes 25).
+- Smoke E2E manual requiere browser → Christian lo hace, no el agente.
 
 ---
 
-## Comandos útiles durante debug
+## Si algo se rompe
 
-```bash
-# Logs convex
-npx convex logs --dev | tail -30
-
-# Inspect tabla específica
-npx convex data invoices
-npx convex data deliverables
-
-# Re-correr seed (idempotente)
-npx convex run functions/subservices/seed:seedDefaultSubservices
-
-# Limpiar bucket Railway (si experimentos dejan blobs huérfanos)
-# Manual — no hay script CLI todavía (R8 R1 §10)
-
-# Ver estado git en dev
-git log --oneline -10
-git diff --stat HEAD
-
-# GitNexus refresh si el índice se queda stale
-npx gitnexus analyze
-```
-
----
-
-**No improvises lógica de negocio.** Si te atoras en algo ambiguo, los specs son fuente de verdad:
-- `docs/superpowers/specs/2026-05-20-prod-readiness-revision.md` — R1 maestro
-- `docs/superpowers/specs/2026-05-2{1,2,3,6,7,8}-*.md` — los 6 sub-specs (A1, A2, A3, B1, D1, D2)
-- `docs/superpowers/specs/2026-05-31-beta-e2e-checklist.md` — E2E
+- **Tests fallan en baseline:** revisar último merge, probable problema de Convex codegen — corre `npx convex dev` 1 min para regenerar `api.d.ts`.
+- **PDF generation falla:** revisar `CHROMIUM_PATH` en `.env.local` y `lsof "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`.
+- **Email no llega al completar cuestionario:** verificar `orgConfigs.notificationEmail` del org en Convex dashboard. Si está vacío, cae al fallback `OPS_NOTIFICATION_EMAIL` (env).
+- **Override manual no aparece en drawer:** verificar `orgConfigs.featureFlags.manualOverrideAllowed = true` Y que el user sea `org:admin`.
