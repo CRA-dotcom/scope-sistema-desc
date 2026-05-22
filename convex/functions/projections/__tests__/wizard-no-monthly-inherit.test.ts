@@ -15,6 +15,6 @@ const SOURCE = readFileSync(
 
 describe("projections create — monthlyAssignments no longer inherits subserviceId", () => {
   it("does not pass subserviceId: serviceConfig.subserviceId in any monthlyAssignments insert", () => {
-    expect(SOURCE).not.toMatch(/subserviceId:\s*serviceConfig\.subserviceId/);
+    expect(SOURCE).not.toMatch(/insert\(\s*"monthlyAssignments"[\s\S]+?subserviceId:\s*serviceConfig\.subserviceId/);
   });
 });

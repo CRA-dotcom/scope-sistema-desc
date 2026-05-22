@@ -98,12 +98,11 @@ describe("projections.create mutation — subserviceId propagation", () => {
     );
   });
 
-  it("persists subserviceId on the monthlyAssignments insert", () => {
-    expect(PROJECTIONS_MUT_SOURCE).toMatch(
+  it("does NOT persist subserviceId on monthlyAssignments insert (per spec 2026-05-22 — operator picks per-cell)", () => {
+    expect(PROJECTIONS_MUT_SOURCE).not.toMatch(
       /insert\(\s*"monthlyAssignments"[\s\S]+?subserviceId:\s*serviceConfig\.subserviceId/
     );
   });
-
   it("wizard submit forwards subserviceId in each serviceConfigs entry", () => {
     expect(WIZARD_SOURCE).toMatch(
       /serviceConfigs:\s*serviceStates\.map\(\(s\)\s*=>\s*\(\{[\s\S]+?subserviceId:\s*s\.subserviceId/

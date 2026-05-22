@@ -253,7 +253,8 @@ export const create = mutation({
             projectionId,
             clientId: args.clientId,
             serviceName: svc.serviceName,
-            subserviceId: serviceConfig.subserviceId,
+            // subserviceId: undefined — operator picks per-cell from matrix.
+            // Spec: docs/superpowers/specs/2026-05-22-monthly-subservice-selection-design.md
             month: ma.month,
             year: args.year,
             amount: ma.adjustedAmount,
