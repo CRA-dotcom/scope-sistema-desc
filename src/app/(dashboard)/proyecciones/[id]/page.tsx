@@ -12,7 +12,6 @@ import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { MatrixCellDetail } from "@/components/projections/matrix-cell-detail";
 import { SubserviceCellPicker } from "@/components/projections/subservice-cell-picker";
-import { useOrganization } from "@clerk/nextjs";
 import { resolveProjectionContext, resolveProjectionMonths } from "../../../../../convex/lib/projectionContext";
 import { usePdfGenerator } from "@/lib/usePdfGenerator";
 import { buildProjectionPdfHtml } from "@/lib/projectionPdfBuilder";
@@ -70,8 +69,6 @@ export default function ProjectionDetailPage() {
     [subservices]
   );
 
-  const { membership } = useOrganization();
-  const isAdmin = membership?.role === "org:admin";
 
   const setMonthSubservice = useMutation(
     api.functions.monthlyAssignments.mutations.setSubservice
@@ -356,19 +353,13 @@ export default function ProjectionDetailPage() {
                       >
                         <div className="space-y-1">
                           <p className="text-xs">{formatCurrency(ma.amount)}</p>
-                          {isAdmin ? (
-                            <SubserviceCellPicker
-                              current={cellSubservice ?? null}
-                              options={optionsForRow}
-                              onPick={(subId) =>
-                                setMonthSubservice({ id: ma._id, subserviceId: subId })
-                              }
-                            />
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground">
-                              {cellSubservice?.name ?? "Sin asignar"}
-                            </span>
-                          )}
+                          <SubserviceCellPicker
+                            current={cellSubservice ?? null}
+                            options={optionsForRow}
+                            onPick={(subId) =>
+                              setMonthSubservice({ id: ma._id, subserviceId: subId })
+                            }
+                          />
                         </div>
                       </td>
                     );

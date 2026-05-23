@@ -65,7 +65,13 @@ export const setSubservice = mutation({
     subserviceId: v.union(v.id("subservices"), v.null()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    // 2026-05-22: abierto a cualquier miembro autenticado (no admin-only).
+    // Razon: picking subservice es PLANIFICACION del mes, no una accion
+    // sensible que altere generacion. La generacion sigue gated por
+    // markPaid (admin via invoices/mutations) o override manual (admin via
+    // matrix-cell-detail). El operator que captura el mes a mes no necesita
+    // ser admin.
+    await requireAuth(ctx);
     const orgId = await getOrgId(ctx);
 
     const assignment = await ctx.db.get(args.id);

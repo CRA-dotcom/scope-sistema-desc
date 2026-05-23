@@ -17,8 +17,11 @@ describe("monthlyAssignments.setSubservice", () => {
     expect(SOURCE).toMatch(/export const setSubservice\s*=\s*mutation/);
   });
 
-  it("requires admin role", () => {
-    expect(SOURCE).toContain("requireAdmin(ctx)");
+  it("requires authentication (any member; not admin-only per 2026-05-22 update)", () => {
+    // Picking subservice es planificacion, no accion sensible — abierto a
+    // cualquier miembro autenticado. Generacion sigue gated por markPaid /
+    // override manual (admin).
+    expect(SOURCE).toContain("requireAuth(ctx)");
   });
 
   it("validates subservice parentServiceId matches assignment's parent service", () => {

@@ -29,9 +29,9 @@ function readPickerOrEmpty(): string {
 const PICKER = readPickerOrEmpty();
 
 describe("/proyecciones/[id] — monthly subservice picker integration", () => {
-  it("derives isAdmin from useOrganization membership role", () => {
-    expect(PAGE).toContain('membership?.role === "org:admin"');
-  });
+  // Removido 2026-05-22: el admin gate se quito (picking subservice es
+  // planificacion, no accion sensible). El picker es visible para cualquier
+  // miembro autenticado.
 
   it("imports SubserviceCellPicker", () => {
     expect(PAGE).toContain("SubserviceCellPicker");
