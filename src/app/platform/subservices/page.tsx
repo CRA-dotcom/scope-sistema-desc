@@ -53,6 +53,16 @@ export default function GlobalSubservicesPage() {
   const services = useQuery(
     api.functions.services.queries.listAllForAdmin
   ) as ParentService[] | undefined;
+  // 2026-05-22: contar deliverable templates por subservicio para badge UX
+  const templates = useQuery(
+    api.functions.deliverableTemplates.queries.list,
+    {}
+  ) as Array<{
+    _id: Id<"deliverableTemplates">;
+    subserviceId?: Id<"subservices">;
+    type: string;
+    isActive: boolean;
+  }> | undefined;
 
   const createGlobal = useMutation(
     api.functions.subservices.globalMutations.createGlobal
@@ -199,6 +209,12 @@ export default function GlobalSubservicesPage() {
                               {FREQUENCY_LABELS[sub.defaultFrequency]}
                             </td>
                             <td className="px-6 py-3 text-xs">
+                              <TemplateCountChip
+                                subId={sub._id}
+                                templates={templates}
+                              />
+                            </td>
+                            <td className="px-6 py-3 text-xs">
                               <CloneCountChip
                                 subId={sub._id}
                                 onClick={() => setClonesModalFor(sub._id)}
@@ -251,6 +267,46 @@ export default function GlobalSubservicesPage() {
         />
       )}
     </div>
+  );
+}
+
+function TemplateCountChip({
+  subId,
+  templates,
+}: {
+  subId: Id<"subservices">;
+  templates:
+    | Array<{
+        _id: Id<"deliverableTemplates">;
+        subserviceId?: Id<"subservices">;
+        type: string;
+        isActive: boolean;
+      }>
+    | undefined;
+}) {
+  if (templates === undefined) {
+    return <span className="text-muted-foreground">…</span>;
+  }
+  const forThisSub = templates.filter(
+    (t) =>
+      t.subserviceId === subId &&
+      t.isActive &&
+      (t.type === "deliverable_short" || t.type === "deliverable_long")
+  );
+  const short = forThisSub.filter((t) => t.type === "deliverable_short").length;
+  const long = forThisSub.filter((t) => t.type === "deliverable_long").length;
+  if (short + long === 0) {
+    return (
+      <span className="text-xs text-destructive">Sin plantillas</span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-muted-foreground">
+      <Layers size={12} className="text-accent" />
+      {short > 0 && <span>{short} corto</span>}
+      {short > 0 && long > 0 && <span>·</span>}
+      {long > 0 && <span>{long} largo</span>}
+    </span>
   );
 }
 
