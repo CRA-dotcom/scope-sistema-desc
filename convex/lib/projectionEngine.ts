@@ -287,7 +287,17 @@ export function calculateProjection(
     // Normal service: weight-based distribution over effectiveBudget.
     const normalizedWeight = totalWeight > 0 ? service.chosenPct / totalWeight : 0;
     const annualAmount = remainingBudget * normalizedWeight;
-    const monthlyBase = annualAmount / ctx.monthCount;
+    // 2026-05-22: dynamic monthlyBase. Garantiza sum(adjustedAmount) ===
+    // annualAmount independiente de la calibracion de feFactor. Si
+    // sum(feFactor)===monthCount (caso comun), el resultado es identico al
+    // viejo. Si sum(feFactor) esta calibrado relativo al annualSales/12 con
+    // datos inconsistentes (bug Katimi 2026-05-22 — sum(feFactor in slice)=1.04
+    // cuando monthCount=8), el factor adaptativo evita concentracion patologica
+    // del drift en un solo mes via Step 5b.
+    // Spec: docs/superpowers/specs/2026-05-22-engine-fefactor-rescale-design.md
+    const sumFE = effectiveSeasonality.reduce((s, m) => s + m.feFactor, 0);
+    const monthlyBase =
+      sumFE > 0 ? annualAmount / sumFE : annualAmount / ctx.monthCount;
 
     const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
       month: m.month,
@@ -335,16 +345,24 @@ export function calculateProjection(
       heaviest.annualAmount += drift;
     }
 
-    // (2) Monthly drift: reconcile EACH active service on its highest-feFactor month.
+    // (2) Drift residual: con el monthlyBase dinamico de Step 5, drift teorico = 0.
+    // Solo queda drift IEEE 754 (sub-cent). Distribuir proporcional por feFactor
+    // (no all-to-heaviest) para que ningun mes absorba magnitudes inesperadas
+    // — esto era el bug Katimi pre-2026-05-22 cuando feFactors estaban mal calibrados.
+    // Spec: docs/superpowers/specs/2026-05-22-engine-fefactor-rescale-design.md
     for (const svc of baseAllocations) {
       if (svc.monthlyAmounts.length === 0) continue;
       const monthlySum = svc.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
       const monthlyDrift = svc.annualAmount - monthlySum;
-      if (Math.abs(monthlyDrift) > 0) {
-        const heaviestMonth = svc.monthlyAmounts.reduce((max, m) =>
-          m.feFactor > max.feFactor ? m : max
-        );
-        heaviestMonth.adjustedAmount += monthlyDrift;
+      if (Math.abs(monthlyDrift) === 0) continue;
+      const svcSumFE = svc.monthlyAmounts.reduce((s, m) => s + m.feFactor, 0);
+      if (svcSumFE > 0) {
+        for (const m of svc.monthlyAmounts) {
+          m.adjustedAmount += monthlyDrift * (m.feFactor / svcSumFE);
+        }
+      } else {
+        const perMonth = monthlyDrift / svc.monthlyAmounts.length;
+        for (const m of svc.monthlyAmounts) m.adjustedAmount += perMonth;
       }
     }
   }

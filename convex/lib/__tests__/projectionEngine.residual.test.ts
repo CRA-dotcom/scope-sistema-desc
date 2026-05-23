@@ -163,4 +163,61 @@ describe("projectionEngine — residual reconciliation", () => {
     const sumMonthlyTotals = result.monthlyTotals.reduce((a, m) => a + m.total, 0);
     expect(Math.abs(sumMonthlyTotals - result.remainingBudget)).toBeLessThan(0.01);
   });
+
+  it("Katimi 2026-05-22: sum(feFactor in slice) << monthCount no concentra todo en un mes", () => {
+    // Reproducción del bug observado en jx71c2jwm9h62vcax242sctf4186pdg9.
+    // feFactors calibrados al annualSales/12 cuando las monthlySales reales
+    // suman al totalBudget (no al annualSales) — sum(feFactor in 8-month slice)
+    // ≈ 1.04, no 8. Pre-fix: Mayo absorbe ~90% del budget vía drift dumped en
+    // heaviestMonth. Post-fix: distribución refleja el feFactor de cada mes.
+    const annualSales = 66_000_000;
+    const totalBudget = 5_700_000;
+    const meanMonthly = annualSales / 12;
+    const sliceSales: Record<number, number> = {
+      5: 1_500_000,
+      6: 850_000,
+      7: 1_000_000,
+      8: 0,
+      9: 950_000,
+      10: 600_000,
+      11: 0,
+      12: 800_000,
+    };
+    const seasonality = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const sales = sliceSales[month] ?? 0;
+      return { month, monthlySales: sales, feFactor: sales / meanMonthly };
+    });
+
+    const result = calculateProjection({
+      annualSales,
+      totalBudget,
+      commissionRate: 0,
+      services: makeServices(2, [0.3125, 0.6875]), // Legal + TI weights de Katimi
+      seasonalityData: seasonality,
+      startMonth: 5,
+      monthCount: 8,
+      projectionMode: "fiscal",
+    });
+
+    // Sum monthly == annualAmount per servicio.
+    for (const svc of result.services) {
+      if (svc.normalizedWeight === 0) continue;
+      const monthlySum = svc.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
+      expect(Math.abs(monthlySum - svc.annualAmount)).toBeLessThan(0.01);
+    }
+
+    // Ningún mes absorbe más del 50% del annualAmount de su servicio.
+    // Pre-fix: Mayo era >90%. Post-fix: máximo ~26% (matching feFactor share).
+    for (const svc of result.services) {
+      if (svc.normalizedWeight === 0) continue;
+      for (const m of svc.monthlyAmounts) {
+        const share = svc.annualAmount > 0 ? m.adjustedAmount / svc.annualAmount : 0;
+        expect(
+          share,
+          `mes ${m.month} de ${svc.serviceName} debe ser < 50% del annualAmount`
+        ).toBeLessThan(0.5);
+      }
+    }
+  });
 });
