@@ -180,6 +180,14 @@ export default defineSchema({
       v.literal("anual"),
       v.literal("una_vez")
     ),
+    defaultPricingModel: v.optional(
+      v.union(
+        v.literal("fixed_retainer"),
+        v.literal("dynamic_retainer"),
+        v.literal("commission"),
+        v.literal("one_time")
+      )
+    ),
     applicableMonths: v.optional(v.array(v.number())),
     cooldownMonths: v.optional(v.number()),
     defaultPricingHint: v.optional(v.number()),
@@ -207,6 +215,14 @@ export default defineSchema({
     serviceId: v.id("services"),
     serviceName: v.string(),
     subserviceId: v.optional(v.id("subservices")),
+    pricingModel: v.optional(
+      v.union(
+        v.literal("fixed_retainer"),
+        v.literal("dynamic_retainer"),
+        v.literal("commission"),
+        v.literal("one_time")
+      )
+    ),
     chosenPct: v.number(),
     isActive: v.boolean(),
     annualAmount: v.number(),
@@ -248,6 +264,7 @@ export default defineSchema({
       v.literal("invoiced"),
       v.literal("paid")
     ),
+    isManuallyOverridden: v.optional(v.boolean()),
   })
     .index("by_orgId", ["orgId"])
     .index("by_projServiceId", ["projServiceId"])
