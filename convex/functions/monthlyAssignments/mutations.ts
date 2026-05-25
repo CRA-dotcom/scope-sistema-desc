@@ -49,7 +49,10 @@ export const updateAmount = mutation({
     const orgId = await getOrgId(ctx);
     const ma = await ctx.db.get(args.id);
     if (!ma || ma.orgId !== orgId) throw new Error("No encontrado.");
-    await ctx.db.patch(args.id, { amount: args.amount });
+    await ctx.db.patch(args.id, {
+      amount: args.amount,
+      isManuallyOverridden: true,
+    });
   },
 });
 
