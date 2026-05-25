@@ -464,6 +464,13 @@ export const recalculate = mutation({
         }
       }
 
+      // KNOWN LIMITATION: when a service is toggled inactive via recalculate,
+      // the recreate loop below is skipped (svc.isActive check), so any
+      // overridden cells with invoiceStatus="paid" or status="delivered" are
+      // permanently destroyed. This is pre-existing behavior amplified by
+      // Sub-spec 0 (overrides are now first-class). Follow-up: refuse the
+      // toggle when overrideMap contains any invoiceStatus !== "not_invoiced".
+
       // Delete all existing — we'll recreate using engine output, overlaying
       // overrides where they existed.
       for (const ma of existingMAs) {
@@ -489,6 +496,22 @@ export const recalculate = mutation({
             subserviceId: overridden?.subserviceId,
             isManuallyOverridden: !!overridden,
           });
+        }
+
+        // If any cell was overridden, re-patch annualAmount to match the
+        // actual sum of cells (override amount or engine value). This keeps
+        // the matrix row header consistent with the row totals — critical for
+        // dynamic_retainer rows where ALL 12 cells are seeded with
+        // isManuallyOverridden=true (seed-then-freeze, Task 5), causing the
+        // engine's new annualAmount to diverge from the frozen cells.
+        // The reduce mirrors the amount-selection logic in the recreate loop
+        // above — keep them in sync.
+        if (overrideMap.size > 0) {
+          const actualAnnualAmount = svc.monthlyAmounts.reduce((sum, ma) => {
+            const overridden = overrideMap.get(ma.month);
+            return sum + (overridden ? overridden.amount : ma.adjustedAmount);
+          }, 0);
+          await ctx.db.patch(existingPS._id, { annualAmount: actualAnnualAmount });
         }
       }
     }
