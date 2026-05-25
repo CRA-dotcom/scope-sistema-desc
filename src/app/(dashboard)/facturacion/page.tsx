@@ -5,7 +5,7 @@ import { useOrganization } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import {
   Receipt,
   Filter,
@@ -70,7 +70,18 @@ type AssignmentRow = {
   invoiceStatus: MaInvoiceStatus;
 };
 
+// Next 15: pages that read URL params via useSearchParams must be rendered
+// inside a Suspense boundary so the build can statically prerender the shell
+// while deferring the param-dependent body to client-side hydration.
 export default function FacturacionPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Cargando…</div>}>
+      <FacturacionPageInner />
+    </Suspense>
+  );
+}
+
+function FacturacionPageInner() {
   const searchParams = useSearchParams();
   const currentYear = new Date().getFullYear();
   const initialYear = Number(searchParams.get("year")) || currentYear;

@@ -4,7 +4,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Save, Loader2, Palette } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,18 @@ const TAB_LABELS: Record<TabId, string> = {
 
 const TAB_ORDER: TabId[] = ["details", "metrics", "billing", "audit"];
 
+// Next 15: useSearchParams() must be rendered inside a Suspense boundary so
+// the build can statically prerender the shell while deferring the
+// param-dependent body to client-side hydration.
 export default function OrgDetailPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Cargando…</div>}>
+      <OrgDetailPageInner />
+    </Suspense>
+  );
+}
+
+function OrgDetailPageInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
