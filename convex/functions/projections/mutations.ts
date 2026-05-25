@@ -11,6 +11,7 @@ import {
   type EngineConfig,
 } from "../../lib/projectionEngine";
 import { seasonalityDataFromDeltas } from "../../lib/seasonality";
+import type { PricingModel } from "../../lib/pricingModel";
 // Note: convex/lib/seasonality.ts is a pure TS file with no browser-only APIs,
 // safe to import in Convex server functions.
 
@@ -38,6 +39,14 @@ export const create = mutation({
         // the validator so legacy callers + transitional cases (no
         // subservices configured yet) keep working.
         subserviceId: v.optional(v.id("subservices")),
+        pricingModel: v.optional(
+          v.union(
+            v.literal("fixed_retainer"),
+            v.literal("dynamic_retainer"),
+            v.literal("commission"),
+            v.literal("one_time")
+          )
+        ),
       })
     ),
     seasonalityDeltas: v.optional(
@@ -232,6 +241,19 @@ export const create = mutation({
       );
       if (!serviceConfig) continue;
 
+      // Resolve pricingModel: explicit override on serviceConfig > subservice.defaultPricingModel
+      //                    > derive from service.isCommission
+      let resolvedPricingModel: PricingModel | undefined =
+        serviceConfig.pricingModel;
+      if (!resolvedPricingModel && serviceConfig.subserviceId) {
+        const sub = await ctx.db.get(serviceConfig.subserviceId);
+        resolvedPricingModel = sub?.defaultPricingModel;
+      }
+      if (!resolvedPricingModel) {
+        const svcRow = await ctx.db.get(serviceConfig.serviceId);
+        resolvedPricingModel = svcRow?.isCommission ? "commission" : "fixed_retainer";
+      }
+
       const projServiceId = await ctx.db.insert("projectionServices", {
         orgId,
         projectionId,
@@ -242,6 +264,7 @@ export const create = mutation({
         isActive: svc.isActive,
         annualAmount: svc.annualAmount,
         normalizedWeight: svc.normalizedWeight,
+        pricingModel: resolvedPricingModel,
       });
 
       // Create monthly assignments for active services
@@ -261,6 +284,7 @@ export const create = mutation({
             feFactor: ma.feFactor,
             status: "pending",
             invoiceStatus: "not_invoiced",
+            isManuallyOverridden: resolvedPricingModel === "dynamic_retainer",
           });
         }
       }
