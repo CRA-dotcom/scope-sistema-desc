@@ -51,6 +51,7 @@ import type * as functions_issuingCompanies_helpers from "../functions/issuingCo
 import type * as functions_issuingCompanies_mutations from "../functions/issuingCompanies/mutations.js";
 import type * as functions_issuingCompanies_queries from "../functions/issuingCompanies/queries.js";
 import type * as functions_issuingCompanies_resolve from "../functions/issuingCompanies/resolve.js";
+import type * as functions_migrations_pricingModel from "../functions/migrations/pricingModel.js";
 import type * as functions_monthlyAssignments_billingQueries from "../functions/monthlyAssignments/billingQueries.js";
 import type * as functions_monthlyAssignments_mutations from "../functions/monthlyAssignments/mutations.js";
 import type * as functions_monthlyAssignments_queries from "../functions/monthlyAssignments/queries.js";
@@ -116,6 +117,7 @@ import type * as lib_deliverableEngine_aiBatchFill from "../lib/deliverableEngin
 import type * as lib_deliverableEngine_errors from "../lib/deliverableEngine/errors.js";
 import type * as lib_deliverableEngine_placeholders from "../lib/deliverableEngine/placeholders.js";
 import type * as lib_deliverableEngine_staticResolver from "../lib/deliverableEngine/staticResolver.js";
+import type * as lib_pricingModel from "../lib/pricingModel.js";
 import type * as lib_projectionContext from "../lib/projectionContext.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
 import type * as lib_questionnaireMappings from "../lib/questionnaireMappings.js";
@@ -175,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "functions/issuingCompanies/mutations": typeof functions_issuingCompanies_mutations;
   "functions/issuingCompanies/queries": typeof functions_issuingCompanies_queries;
   "functions/issuingCompanies/resolve": typeof functions_issuingCompanies_resolve;
+  "functions/migrations/pricingModel": typeof functions_migrations_pricingModel;
   "functions/monthlyAssignments/billingQueries": typeof functions_monthlyAssignments_billingQueries;
   "functions/monthlyAssignments/mutations": typeof functions_monthlyAssignments_mutations;
   "functions/monthlyAssignments/queries": typeof functions_monthlyAssignments_queries;
@@ -240,6 +243,7 @@ declare const fullApi: ApiFromModules<{
   "lib/deliverableEngine/errors": typeof lib_deliverableEngine_errors;
   "lib/deliverableEngine/placeholders": typeof lib_deliverableEngine_placeholders;
   "lib/deliverableEngine/staticResolver": typeof lib_deliverableEngine_staticResolver;
+  "lib/pricingModel": typeof lib_pricingModel;
   "lib/projectionContext": typeof lib_projectionContext;
   "lib/projectionEngine": typeof lib_projectionEngine;
   "lib/questionnaireMappings": typeof lib_questionnaireMappings;
