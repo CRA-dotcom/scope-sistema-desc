@@ -435,7 +435,8 @@ export const recalculate = mutation({
         normalizedWeight: svc.normalizedWeight,
       });
 
-      // Delete existing monthly assignments for this service
+      // Read existing monthlyAssignments. Capture overridden cells by month
+      // so we can preserve their amount + flag through the recompute.
       const existingMAs = await ctx.db
         .query("monthlyAssignments")
         .withIndex("by_projServiceId", (q) =>
@@ -443,6 +444,28 @@ export const recalculate = mutation({
         )
         .collect();
 
+      const overrideMap = new Map<
+        number,
+        {
+          amount: number;
+          status: typeof existingMAs[number]["status"];
+          invoiceStatus: typeof existingMAs[number]["invoiceStatus"];
+          subserviceId: typeof existingMAs[number]["subserviceId"];
+        }
+      >();
+      for (const ma of existingMAs) {
+        if (ma.isManuallyOverridden) {
+          overrideMap.set(ma.month, {
+            amount: ma.amount,
+            status: ma.status,
+            invoiceStatus: ma.invoiceStatus,
+            subserviceId: ma.subserviceId,
+          });
+        }
+      }
+
+      // Delete all existing — we'll recreate using engine output, overlaying
+      // overrides where they existed.
       for (const ma of existingMAs) {
         await ctx.db.delete(ma._id);
       }
@@ -450,6 +473,7 @@ export const recalculate = mutation({
       // Recreate monthly assignments
       if (svc.isActive) {
         for (const ma of svc.monthlyAmounts) {
+          const overridden = overrideMap.get(ma.month);
           await ctx.db.insert("monthlyAssignments", {
             orgId,
             projServiceId: existingPS._id,
@@ -458,10 +482,12 @@ export const recalculate = mutation({
             serviceName: svc.serviceName,
             month: ma.month,
             year: projection.year,
-            amount: ma.adjustedAmount,
+            amount: overridden ? overridden.amount : ma.adjustedAmount,
             feFactor: ma.feFactor,
-            status: "pending",
-            invoiceStatus: "not_invoiced",
+            status: overridden?.status ?? "pending",
+            invoiceStatus: overridden?.invoiceStatus ?? "not_invoiced",
+            subserviceId: overridden?.subserviceId,
+            isManuallyOverridden: !!overridden,
           });
         }
       }
