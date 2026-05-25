@@ -5,6 +5,7 @@
  */
 
 import { resolveProjectionContext, resolveProjectionMonths } from "./projectionContext";
+import type { PricingModel } from "./pricingModel";
 
 export type ServiceConfig = {
   serviceId: string;
@@ -16,6 +17,7 @@ export type ServiceConfig = {
   isActive: boolean;
   isCommission?: boolean;
   fixedMonthlyAmount?: number;
+  pricingModel?: PricingModel;
 };
 
 export type EngineConfig = {
@@ -259,6 +261,32 @@ export function calculateProjection(
       };
     }
 
+    if (service.pricingModel === "one_time") {
+      // one_time: annualAmount entero se cobra en el primer mes del scope.
+      // Resto de meses = 0. Sin FE adjustment (es un único cobro fijo).
+      const normalizedWeight = totalWeight > 0 ? service.chosenPct / totalWeight : 0;
+      const annualAmount = remainingBudget * normalizedWeight;
+      const firstMonth = effectiveSeasonality[0]?.month ?? 1;
+
+      const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
+        month: m.month,
+        baseAmount: m.month === firstMonth ? annualAmount : 0,
+        feFactor: m.feFactor,
+        adjustedAmount: m.month === firstMonth ? annualAmount : 0,
+      }));
+
+      return {
+        serviceId: service.serviceId,
+        serviceName: service.serviceName,
+        type: service.type,
+        chosenPct: service.chosenPct,
+        isActive: true,
+        normalizedWeight,
+        annualAmount,
+        monthlyAmounts,
+      };
+    }
+
     if (resolvedConfig.calculationMode === "fixed") {
       // Fixed mode: use fixedMonthlyAmount, no weight normalization, no FE adjustment.
       // annualAmount spans only the monthCount months covered.
@@ -333,7 +361,12 @@ export function calculateProjection(
   //
   // Filter `normalizedWeight > 0` excludes inactives (weight=0), commissions
   // (weight=0), and fixed-mode services.
-  const baseAllocations = serviceAllocations.filter((s) => s.normalizedWeight > 0);
+  const baseAllocations = serviceAllocations.filter(
+    (s) =>
+      s.normalizedWeight > 0 &&
+      // one_time concentra en un solo mes — excluir del reconciler de drift mensual.
+      !(input.services.find((cfg) => cfg.serviceId === s.serviceId)?.pricingModel === "one_time")
+  );
   if (baseAllocations.length > 0) {
     // (1) Annual drift: adjust the heaviest service only.
     const sumBase = baseAllocations.reduce((acc, s) => acc + s.annualAmount, 0);
