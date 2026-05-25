@@ -266,7 +266,7 @@ export function calculateProjection(
       // Resto de meses = 0. Sin FE adjustment (es un único cobro fijo).
       const normalizedWeight = totalWeight > 0 ? service.chosenPct / totalWeight : 0;
       const annualAmount = remainingBudget * normalizedWeight;
-      const firstMonth = effectiveSeasonality[0]?.month ?? 1;
+      const firstMonth = effectiveSeasonality[0].month;
 
       const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
         month: m.month,
@@ -361,16 +361,28 @@ export function calculateProjection(
   //
   // Filter `normalizedWeight > 0` excludes inactives (weight=0), commissions
   // (weight=0), and fixed-mode services.
+  // one_time services are excluded from baseAllocations because their share of
+  // remainingBudget is already concentrated in month 1 — the drift target for
+  // base allocations must subtract their sum to avoid inflating the heaviest
+  // retainer with the one_time portion.
+  const oneTimeServiceIds = new Set<string>(
+    input.services
+      .filter((cfg) => cfg.pricingModel === "one_time")
+      .map((cfg) => cfg.serviceId)
+  );
   const baseAllocations = serviceAllocations.filter(
-    (s) =>
-      s.normalizedWeight > 0 &&
-      // one_time concentra en un solo mes — excluir del reconciler de drift mensual.
-      !(input.services.find((cfg) => cfg.serviceId === s.serviceId)?.pricingModel === "one_time")
+    (s) => s.normalizedWeight > 0 && !oneTimeServiceIds.has(s.serviceId)
   );
   if (baseAllocations.length > 0) {
     // (1) Annual drift: adjust the heaviest service only.
+    // Subtract one_time allocations from the target so the drift is measured
+    // only against the portion of remainingBudget owned by base allocations.
+    const oneTimeSum = serviceAllocations
+      .filter((s) => oneTimeServiceIds.has(s.serviceId))
+      .reduce((acc, s) => acc + s.annualAmount, 0);
     const sumBase = baseAllocations.reduce((acc, s) => acc + s.annualAmount, 0);
-    const drift = remainingBudget - sumBase;
+    const expectedBase = remainingBudget - oneTimeSum;
+    const drift = expectedBase - sumBase;
     if (Math.abs(drift) > 0) {
       const heaviest = baseAllocations.reduce((max, s) =>
         s.normalizedWeight > max.normalizedWeight ? s : max
