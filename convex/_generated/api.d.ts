@@ -21,6 +21,7 @@ import type * as functions_cron_monthlyCheck from "../functions/cron/monthlyChec
 import type * as functions_cron_overdueCheck from "../functions/cron/overdueCheck.js";
 import type * as functions_dashboard_documentCycle from "../functions/dashboard/documentCycle.js";
 import type * as functions_dashboard_queries from "../functions/dashboard/queries.js";
+import type * as functions_deliverableTemplates_bulkImport from "../functions/deliverableTemplates/bulkImport.js";
 import type * as functions_deliverableTemplates_mutations from "../functions/deliverableTemplates/mutations.js";
 import type * as functions_deliverableTemplates_queries from "../functions/deliverableTemplates/queries.js";
 import type * as functions_deliverableTemplates_seed from "../functions/deliverableTemplates/seed.js";
@@ -51,6 +52,7 @@ import type * as functions_issuingCompanies_helpers from "../functions/issuingCo
 import type * as functions_issuingCompanies_mutations from "../functions/issuingCompanies/mutations.js";
 import type * as functions_issuingCompanies_queries from "../functions/issuingCompanies/queries.js";
 import type * as functions_issuingCompanies_resolve from "../functions/issuingCompanies/resolve.js";
+import type * as functions_migrations_templateContentStatus from "../functions/migrations/templateContentStatus.js";
 import type * as functions_monthlyAssignments_billingQueries from "../functions/monthlyAssignments/billingQueries.js";
 import type * as functions_monthlyAssignments_mutations from "../functions/monthlyAssignments/mutations.js";
 import type * as functions_monthlyAssignments_queries from "../functions/monthlyAssignments/queries.js";
@@ -121,6 +123,7 @@ import type * as lib_projectionEngine from "../lib/projectionEngine.js";
 import type * as lib_questionnaireMappings from "../lib/questionnaireMappings.js";
 import type * as lib_seasonality from "../lib/seasonality.js";
 import type * as lib_templateAccess from "../lib/templateAccess.js";
+import type * as lib_templateContent from "../lib/templateContent.js";
 import type * as lib_templatePlaceholders from "../lib/templatePlaceholders.js";
 import type * as lib_templateVariables from "../lib/templateVariables.js";
 import type * as lib_validators from "../lib/validators.js";
@@ -145,6 +148,7 @@ declare const fullApi: ApiFromModules<{
   "functions/cron/overdueCheck": typeof functions_cron_overdueCheck;
   "functions/dashboard/documentCycle": typeof functions_dashboard_documentCycle;
   "functions/dashboard/queries": typeof functions_dashboard_queries;
+  "functions/deliverableTemplates/bulkImport": typeof functions_deliverableTemplates_bulkImport;
   "functions/deliverableTemplates/mutations": typeof functions_deliverableTemplates_mutations;
   "functions/deliverableTemplates/queries": typeof functions_deliverableTemplates_queries;
   "functions/deliverableTemplates/seed": typeof functions_deliverableTemplates_seed;
@@ -175,6 +179,7 @@ declare const fullApi: ApiFromModules<{
   "functions/issuingCompanies/mutations": typeof functions_issuingCompanies_mutations;
   "functions/issuingCompanies/queries": typeof functions_issuingCompanies_queries;
   "functions/issuingCompanies/resolve": typeof functions_issuingCompanies_resolve;
+  "functions/migrations/templateContentStatus": typeof functions_migrations_templateContentStatus;
   "functions/monthlyAssignments/billingQueries": typeof functions_monthlyAssignments_billingQueries;
   "functions/monthlyAssignments/mutations": typeof functions_monthlyAssignments_mutations;
   "functions/monthlyAssignments/queries": typeof functions_monthlyAssignments_queries;
@@ -245,6 +250,7 @@ declare const fullApi: ApiFromModules<{
   "lib/questionnaireMappings": typeof lib_questionnaireMappings;
   "lib/seasonality": typeof lib_seasonality;
   "lib/templateAccess": typeof lib_templateAccess;
+  "lib/templateContent": typeof lib_templateContent;
   "lib/templatePlaceholders": typeof lib_templatePlaceholders;
   "lib/templateVariables": typeof lib_templateVariables;
   "lib/validators": typeof lib_validators;

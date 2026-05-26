@@ -50,6 +50,7 @@ type Template = {
   variables: Variable[];
   version: number;
   isActive: boolean;
+  contentStatus?: "placeholder" | "ready";
   parentTemplateId?: Id<"deliverableTemplates">;
   originalVersionAtClone?: number;
   createdAt: number;
@@ -179,6 +180,15 @@ export default function PlantillasPage() {
     }));
   }, [services, subservices, templates]);
 
+  const placeholderCount = useMemo(() => {
+    if (!tree) return 0;
+    return tree.flatMap(({ subservices: subs }) =>
+      subs.flatMap((sub) =>
+        sub.templates.filter((row) => row.template.contentStatus !== "ready")
+      )
+    ).length;
+  }, [tree]);
+
   function toggleService(id: string) {
     setExpandedServices((prev) => {
       const next = new Set(prev);
@@ -278,7 +288,14 @@ export default function PlantillasPage() {
       <div className="flex items-center gap-3">
         <FileText className="text-accent" size={28} />
         <div>
-          <h1 className="text-2xl font-bold">Plantillas</h1>
+          <div className="flex items-center">
+            <h1 className="text-2xl font-bold">Plantillas</h1>
+            {placeholderCount > 0 && (
+              <span className="ml-3 text-sm text-amber-300">
+                {placeholderCount} sin contenido
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             Edita las plantillas que tu org usa para generar entregables,
             cotizaciones y contratos.
@@ -544,6 +561,12 @@ function TemplateRow({
           {!template.isActive && (
             <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
               Inactivo
+            </span>
+          )}
+          {template.contentStatus !== "ready" && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              <AlertTriangle className="h-3 w-3" />
+              Sin contenido
             </span>
           )}
         </div>

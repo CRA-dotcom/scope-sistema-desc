@@ -183,6 +183,14 @@ export default defineSchema({
     applicableMonths: v.optional(v.array(v.number())),
     cooldownMonths: v.optional(v.number()),
     defaultPricingHint: v.optional(v.number()),
+    defaultPricingModel: v.optional(
+      v.union(
+        v.literal("fixed_retainer"),
+        v.literal("dynamic_retainer"),
+        v.literal("commission"),
+        v.literal("one_time")
+      )
+    ),
     isCommission: v.optional(v.boolean()),
     isActive: v.boolean(),
     isDefault: v.boolean(),
@@ -221,6 +229,14 @@ export default defineSchema({
     addOnOfProjectionServiceId: v.optional(v.id("projectionServices")),
     // Referencia inversa a la cotización suplementaria que originó el row.
     supplementaryQuotationId: v.optional(v.id("quotations")),
+    pricingModel: v.optional(
+      v.union(
+        v.literal("fixed_retainer"),
+        v.literal("dynamic_retainer"),
+        v.literal("commission"),
+        v.literal("one_time")
+      )
+    ),
   })
     .index("by_projectionId", ["projectionId"])
     .index("by_orgId", ["orgId"])
@@ -248,6 +264,7 @@ export default defineSchema({
       v.literal("invoiced"),
       v.literal("paid")
     ),
+    isManuallyOverridden: v.optional(v.boolean()),
   })
     .index("by_orgId", ["orgId"])
     .index("by_projServiceId", ["projServiceId"])
@@ -538,6 +555,12 @@ export default defineSchema({
     ),
     version: v.number(),
     isActive: v.boolean(),
+    contentStatus: v.optional(
+      v.union(
+        v.literal("placeholder"),
+        v.literal("ready")
+      )
+    ),
     // A2: copy-on-write tracking — apunta al global del que se clonó (R1 #2)
     parentTemplateId: v.optional(v.id("deliverableTemplates")),
     originalVersionAtClone: v.optional(v.number()),
@@ -550,7 +573,8 @@ export default defineSchema({
     // A2: dual-matching resolver (org-scoped → global por subserviceId)
     .index("by_orgId_subserviceId", ["orgId", "subserviceId"])
     // A2: banner "hay vN global disponible" + idempotencia personalizeGlobal
-    .index("by_parentTemplateId", ["parentTemplateId"]),
+    .index("by_parentTemplateId", ["parentTemplateId"])
+    .index("by_subservice_contentStatus", ["subserviceId", "contentStatus"]),
 
   issuingCompanies: defineTable({
     orgId: v.string(),

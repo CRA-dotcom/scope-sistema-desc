@@ -335,6 +335,15 @@ export default function EditarPlantillaPage() {
               {form.serviceName} · {TYPE_LABELS[form.type]} · v{savedVersion}
             </p>
           </div>
+          {data.template?.contentStatus === "ready" ? (
+            <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+              Ready
+            </span>
+          ) : (
+            <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+              Placeholder · borrar el bloque <code>{'<div class="placeholder">'}</code> y guardar lo marca como Ready
+            </span>
+          )}
         </div>
       </div>
 

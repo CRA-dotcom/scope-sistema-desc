@@ -9,6 +9,7 @@ import {
 } from "../../lib/authHelpers";
 import { requireTemplateEditAccess } from "../../lib/templateAccess";
 import { validatePlaceholdersDeclared } from "../../lib/templatePlaceholders";
+import { detectContentStatus } from "../../lib/templateContent";
 
 const variableValidator = v.object({
   key: v.string(),
@@ -70,6 +71,8 @@ export const create = mutation({
 
     validatePlaceholdersDeclared(args.htmlTemplate, args.variables);
 
+    const contentStatus = detectContentStatus(args.htmlTemplate);
+
     const now = Date.now();
     return await ctx.db.insert("deliverableTemplates", {
       orgId: resolvedOrgId,
@@ -82,6 +85,7 @@ export const create = mutation({
       variables: args.variables,
       version: 1,
       isActive: args.isActive,
+      contentStatus,
       parentTemplateId: undefined,
       originalVersionAtClone: undefined,
       createdAt: now,
@@ -128,9 +132,12 @@ export const update = mutation({
     const nextVars = args.patch.variables ?? tpl.variables;
     validatePlaceholdersDeclared(nextHtml, nextVars);
 
+    const contentStatus = detectContentStatus(nextHtml);
+
     await ctx.db.patch(args.id, {
       ...args.patch,
       version: tpl.version + 1,
+      contentStatus,
       updatedAt: Date.now(),
     });
     return args.id;
@@ -178,6 +185,7 @@ export const personalizeGlobal = mutation({
       variables: source.variables,
       version: 1,
       isActive: source.isActive,
+      contentStatus: source.contentStatus,
       parentTemplateId: source._id,
       originalVersionAtClone: source.version,
       createdAt: now,
