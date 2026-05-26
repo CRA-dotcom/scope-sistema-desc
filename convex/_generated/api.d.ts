@@ -21,6 +21,7 @@ import type * as functions_cron_monthlyCheck from "../functions/cron/monthlyChec
 import type * as functions_cron_overdueCheck from "../functions/cron/overdueCheck.js";
 import type * as functions_dashboard_documentCycle from "../functions/dashboard/documentCycle.js";
 import type * as functions_dashboard_queries from "../functions/dashboard/queries.js";
+import type * as functions_deliverableTemplates_bulkImport from "../functions/deliverableTemplates/bulkImport.js";
 import type * as functions_deliverableTemplates_mutations from "../functions/deliverableTemplates/mutations.js";
 import type * as functions_deliverableTemplates_queries from "../functions/deliverableTemplates/queries.js";
 import type * as functions_deliverableTemplates_seed from "../functions/deliverableTemplates/seed.js";
@@ -147,6 +148,7 @@ declare const fullApi: ApiFromModules<{
   "functions/cron/overdueCheck": typeof functions_cron_overdueCheck;
   "functions/dashboard/documentCycle": typeof functions_dashboard_documentCycle;
   "functions/dashboard/queries": typeof functions_dashboard_queries;
+  "functions/deliverableTemplates/bulkImport": typeof functions_deliverableTemplates_bulkImport;
   "functions/deliverableTemplates/mutations": typeof functions_deliverableTemplates_mutations;
   "functions/deliverableTemplates/queries": typeof functions_deliverableTemplates_queries;
   "functions/deliverableTemplates/seed": typeof functions_deliverableTemplates_seed;
