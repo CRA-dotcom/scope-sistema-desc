@@ -15,6 +15,7 @@ import { SubserviceCellPicker } from "@/components/projections/subservice-cell-p
 import { resolveProjectionContext, resolveProjectionMonths } from "../../../../../convex/lib/projectionContext";
 import { usePdfGenerator } from "@/lib/usePdfGenerator";
 import { buildProjectionPdfHtml } from "@/lib/projectionPdfBuilder";
+import { MissingContentBanner } from "@/components/projections/missing-content-banner";
 
 const MONTH_NAMES = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -285,6 +286,8 @@ export default function ProjectionDetailPage() {
           )}
         </div>
       </div>
+
+      <MissingContentBanner projectionId={projectionId} />
 
       {/* Projection Matrix — N columns driven by startMonth + monthCount */}
       <div className="rounded-lg border border-border bg-card overflow-x-auto">
