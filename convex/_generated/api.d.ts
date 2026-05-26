@@ -51,6 +51,7 @@ import type * as functions_issuingCompanies_helpers from "../functions/issuingCo
 import type * as functions_issuingCompanies_mutations from "../functions/issuingCompanies/mutations.js";
 import type * as functions_issuingCompanies_queries from "../functions/issuingCompanies/queries.js";
 import type * as functions_issuingCompanies_resolve from "../functions/issuingCompanies/resolve.js";
+import type * as functions_migrations_templateContentStatus from "../functions/migrations/templateContentStatus.js";
 import type * as functions_monthlyAssignments_billingQueries from "../functions/monthlyAssignments/billingQueries.js";
 import type * as functions_monthlyAssignments_mutations from "../functions/monthlyAssignments/mutations.js";
 import type * as functions_monthlyAssignments_queries from "../functions/monthlyAssignments/queries.js";
@@ -176,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "functions/issuingCompanies/mutations": typeof functions_issuingCompanies_mutations;
   "functions/issuingCompanies/queries": typeof functions_issuingCompanies_queries;
   "functions/issuingCompanies/resolve": typeof functions_issuingCompanies_resolve;
+  "functions/migrations/templateContentStatus": typeof functions_migrations_templateContentStatus;
   "functions/monthlyAssignments/billingQueries": typeof functions_monthlyAssignments_billingQueries;
   "functions/monthlyAssignments/mutations": typeof functions_monthlyAssignments_mutations;
   "functions/monthlyAssignments/queries": typeof functions_monthlyAssignments_queries;
