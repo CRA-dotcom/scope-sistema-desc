@@ -1,6 +1,7 @@
 import { mutation, MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../../_generated/dataModel";
+import { internal } from "../../_generated/api";
 import { getOrgId, requireAdmin } from "../../lib/authHelpers";
 
 /**
@@ -48,7 +49,7 @@ export const create = mutation({
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const parent = await ctx.db.get(args.parentServiceId);
     if (!parent) throw new Error("Servicio padre no encontrado.");
@@ -76,7 +77,7 @@ export const create = mutation({
     }
 
     const now = Date.now();
-    return await ctx.db.insert("subservices", {
+    const newId = await ctx.db.insert("subservices", {
       orgId,
       parentServiceId: args.parentServiceId,
       name: args.name,
@@ -93,8 +94,21 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
-    // TODO Z1: emit documentEvent { type: "created", documentType: "subservice" }
-    // when the wrapper exists (A3 §8).
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "subservice" as const,
+        entityId: newId,
+        eventType: "created" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Subservicio "${args.name}" creado bajo ${parent.name}.`,
+        metadata: { parentServiceId: args.parentServiceId, slug },
+      }
+    );
+    return newId;
   },
 });
 
@@ -120,7 +134,7 @@ export const update = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
@@ -133,6 +147,20 @@ export const update = mutation({
       throw new Error("Subservicio no encontrado.");
     }
     await ctx.db.patch(args.id, { ...args.patch, updatedAt: Date.now() });
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "subservice" as const,
+        entityId: args.id,
+        eventType: "updated" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Subservicio "${sub.name}" actualizado.`,
+        metadata: { patchKeys: Object.keys(args.patch) },
+      }
+    );
     return args.id;
   },
 });
@@ -146,7 +174,7 @@ export const update = mutation({
 export const personalizeGlobal = mutation({
   args: { sourceId: v.id("subservices") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const source = await ctx.db.get(args.sourceId);
     if (!source) throw new Error("Subservicio fuente no encontrado.");
@@ -164,7 +192,7 @@ export const personalizeGlobal = mutation({
     if (existing) return existing._id;
 
     const now = Date.now();
-    return await ctx.db.insert("subservices", {
+    const newId = await ctx.db.insert("subservices", {
       orgId,
       parentServiceId: source.parentServiceId,
       name: source.name,
@@ -183,6 +211,21 @@ export const personalizeGlobal = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "subservice" as const,
+        entityId: newId,
+        eventType: "personalized" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Subservicio global "${source.name}" personalizado para esta organización.`,
+        metadata: { sourceId: args.sourceId },
+      }
+    );
+    return newId;
   },
 });
 
@@ -198,7 +241,7 @@ export const personalizeGlobal = mutation({
 export const restoreToGlobal = mutation({
   args: { id: v.id("subservices") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
@@ -220,6 +263,20 @@ export const restoreToGlobal = mutation({
     }
 
     await ctx.db.delete(args.id);
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "subservice" as const,
+        entityId: args.id,
+        eventType: "restored" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Subservicio "${sub.name}" restaurado al catálogo global.`,
+        metadata: { parentSubserviceId: sub.parentSubserviceId },
+      }
+    );
     return { ok: true };
   },
 });
@@ -231,7 +288,7 @@ export const restoreToGlobal = mutation({
 export const toggleActive = mutation({
   args: { id: v.id("subservices") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
@@ -248,6 +305,20 @@ export const toggleActive = mutation({
       isActive: next,
       updatedAt: Date.now(),
     });
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "subservice" as const,
+        entityId: args.id,
+        eventType: "updated" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Subservicio "${sub.name}" ${next ? "activado" : "desactivado"}.`,
+        metadata: { isActive: next },
+      }
+    );
     return { id: args.id, isActive: next };
   },
 });
@@ -259,7 +330,7 @@ export const toggleActive = mutation({
 export const remove = mutation({
   args: { id: v.id("subservices") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
@@ -281,6 +352,20 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(args.id);
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "subservice" as const,
+        entityId: args.id,
+        eventType: "deleted" as const,
+        severity: "warning" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Subservicio "${sub.name}" eliminado.`,
+        metadata: { slug: sub.slug, parentServiceId: sub.parentServiceId },
+      }
+    );
     return { ok: true };
   },
 });

@@ -62,7 +62,7 @@ describe("useDebouncedAutosave — implementation contracts", () => {
 
   it("sets status to error on failure", () => {
     expect(source).toContain('setStatus("error")');
-    expect(source).toMatch(/catch[^{]*{[^}]*setStatus\("error"\)/s);
+    expect(source).toMatch(/catch[^{]*{[^}]*setStatus\("error"\)/);
   });
 
   it("uses a first-render ref to skip save on initial mount (works for any value type)", () => {
@@ -72,7 +72,7 @@ describe("useDebouncedAutosave — implementation contracts", () => {
 
   it("flushes/cleanup on unmount via useEffect return", () => {
     // The effect returns a cleanup that clears the timer
-    expect(source).toMatch(/return\s*\(\)\s*=>\s*{[^}]*clearTimeout/s);
+    expect(source).toMatch(/return\s*\(\)\s*=>\s*{[^}]*clearTimeout/);
   });
 
   it("intentionally omits `save` from deps to avoid timer re-arming", () => {

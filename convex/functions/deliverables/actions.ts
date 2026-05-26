@@ -454,6 +454,42 @@ export const generateDeliverable = action({
       { deliverableId }
     );
 
+    // A3 §3.5 — log manual generation (invoice_paid path logs from invoiceFlow).
+    // Fire-and-forget via scheduler so a log-write failure does NOT roll back
+    // the deliverable (which is already persisted in saveGenerated). Without
+    // this, a transient logEvent error would surface to the caller and a UI
+    // retry would create a duplicate deliverable.
+    const effectiveTrigger = args.triggerSource ?? "manual";
+    if (effectiveTrigger !== "invoice_paid") {
+      const identity = await ctx.auth.getUserIdentity();
+      const isSystem = !identity || effectiveTrigger === "cron";
+      await ctx.scheduler.runAfter(
+        0,
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: assignment.orgId,
+          clientId: args.clientId,
+          entityType: "deliverable" as const,
+          entityId: deliverableId,
+          eventType: "generated" as const,
+          severity: "info" as const,
+          actorUserId: identity?.subject,
+          actorType: isSystem
+            ? (effectiveTrigger === "cron" ? "cron" : "system")
+            : "user",
+          message: `Entregable ${args.templateType === "deliverable_short" ? "corto" : "largo"} generado para ${projService.serviceName} (${assignment.month}/${assignment.year}).`,
+          metadata: {
+            triggerSource: effectiveTrigger,
+            templateType: args.templateType,
+            templateId: template?._id,
+            templateVersion: template?.version,
+            unfilledCount: unfilledKeys.length,
+            costUsd: totalCost,
+          },
+        }
+      );
+    }
+
     console.log(
       `[deliverableEngine] Generated ${deliverableId}: type=${args.templateType}, AI calls=${aiLogs.length}, unfilled=${unfilledKeys.length}, cost=$${totalCost.toFixed(6)}`
     );
