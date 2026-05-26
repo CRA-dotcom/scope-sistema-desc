@@ -10,16 +10,31 @@ import { detectContentStatus } from "../../lib/templateContent";
  * Run: npx convex run functions/migrations/templateContentStatus:migrate '{"dryRun": false}'
  */
 export const migrate = internalMutation({
-  args: { dryRun: v.boolean() },
-  handler: async (ctx, { dryRun }) => {
+  args: {
+    dryRun: v.boolean(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { dryRun, limit, cursor }) => {
+    const numItems = limit ?? 100;
+    const page = await ctx.db
+      .query("deliverableTemplates")
+      .paginate({ numItems, cursor: cursor ?? null });
+
     let count = 0;
-    for await (const tpl of ctx.db.query("deliverableTemplates")) {
+    for (const tpl of page.page) {
       if (tpl.contentStatus) continue;
       const status = detectContentStatus(tpl.htmlTemplate);
       if (!dryRun) await ctx.db.patch(tpl._id, { contentStatus: status });
       count++;
     }
-    return { templates: count, dryRun };
+
+    return {
+      templates: count,
+      dryRun,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
   },
 });
 
