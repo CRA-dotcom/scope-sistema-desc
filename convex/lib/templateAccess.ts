@@ -13,16 +13,16 @@ import { getOrgId, requireAdmin, requireSuperAdmin } from "./authHelpers";
 export async function requireTemplateEditAccess(
   ctx: MutationCtx,
   template: Doc<"deliverableTemplates">,
-): Promise<void> {
+) {
   if (template.orgId === undefined) {
-    await requireSuperAdmin(ctx);
-    return;
+    return await requireSuperAdmin(ctx);
   }
-  await requireAdmin(ctx);
+  const identity = await requireAdmin(ctx);
   const callerOrg = await getOrgId(ctx);
   if (template.orgId !== callerOrg) {
     throw new Error("No puedes editar plantillas de otra organización.");
   }
+  return identity;
 }
 
 /**

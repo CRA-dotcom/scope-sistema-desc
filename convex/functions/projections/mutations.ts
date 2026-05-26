@@ -11,6 +11,7 @@ import {
   type EngineConfig,
 } from "../../lib/projectionEngine";
 import { seasonalityDataFromDeltas } from "../../lib/seasonality";
+import type { PricingModel } from "../../lib/pricingModel";
 // Note: convex/lib/seasonality.ts is a pure TS file with no browser-only APIs,
 // safe to import in Convex server functions.
 
@@ -38,6 +39,14 @@ export const create = mutation({
         // the validator so legacy callers + transitional cases (no
         // subservices configured yet) keep working.
         subserviceId: v.optional(v.id("subservices")),
+        pricingModel: v.optional(
+          v.union(
+            v.literal("fixed_retainer"),
+            v.literal("dynamic_retainer"),
+            v.literal("commission"),
+            v.literal("one_time")
+          )
+        ),
       })
     ),
     seasonalityDeltas: v.optional(
@@ -232,6 +241,19 @@ export const create = mutation({
       );
       if (!serviceConfig) continue;
 
+      // Resolve pricingModel: explicit override on serviceConfig > subservice.defaultPricingModel
+      //                    > derive from service.isCommission
+      let resolvedPricingModel: PricingModel | undefined =
+        serviceConfig.pricingModel;
+      if (!resolvedPricingModel && serviceConfig.subserviceId) {
+        const sub = await ctx.db.get(serviceConfig.subserviceId);
+        resolvedPricingModel = sub?.defaultPricingModel;
+      }
+      if (!resolvedPricingModel) {
+        const svcRow = await ctx.db.get(serviceConfig.serviceId);
+        resolvedPricingModel = svcRow?.isCommission ? "commission" : "fixed_retainer";
+      }
+
       const projServiceId = await ctx.db.insert("projectionServices", {
         orgId,
         projectionId,
@@ -242,6 +264,7 @@ export const create = mutation({
         isActive: svc.isActive,
         annualAmount: svc.annualAmount,
         normalizedWeight: svc.normalizedWeight,
+        pricingModel: resolvedPricingModel,
       });
 
       // Create monthly assignments for active services
@@ -261,6 +284,7 @@ export const create = mutation({
             feFactor: ma.feFactor,
             status: "pending",
             invoiceStatus: "not_invoiced",
+            isManuallyOverridden: resolvedPricingModel === "dynamic_retainer",
           });
         }
       }
@@ -411,7 +435,8 @@ export const recalculate = mutation({
         normalizedWeight: svc.normalizedWeight,
       });
 
-      // Delete existing monthly assignments for this service
+      // Read existing monthlyAssignments. Capture overridden cells by month
+      // so we can preserve their amount + flag through the recompute.
       const existingMAs = await ctx.db
         .query("monthlyAssignments")
         .withIndex("by_projServiceId", (q) =>
@@ -419,6 +444,35 @@ export const recalculate = mutation({
         )
         .collect();
 
+      const overrideMap = new Map<
+        number,
+        {
+          amount: number;
+          status: typeof existingMAs[number]["status"];
+          invoiceStatus: typeof existingMAs[number]["invoiceStatus"];
+          subserviceId: typeof existingMAs[number]["subserviceId"];
+        }
+      >();
+      for (const ma of existingMAs) {
+        if (ma.isManuallyOverridden) {
+          overrideMap.set(ma.month, {
+            amount: ma.amount,
+            status: ma.status,
+            invoiceStatus: ma.invoiceStatus,
+            subserviceId: ma.subserviceId,
+          });
+        }
+      }
+
+      // KNOWN LIMITATION: when a service is toggled inactive via recalculate,
+      // the recreate loop below is skipped (svc.isActive check), so any
+      // overridden cells with invoiceStatus="paid" or status="delivered" are
+      // permanently destroyed. This is pre-existing behavior amplified by
+      // Sub-spec 0 (overrides are now first-class). Follow-up: refuse the
+      // toggle when overrideMap contains any invoiceStatus !== "not_invoiced".
+
+      // Delete all existing — we'll recreate using engine output, overlaying
+      // overrides where they existed.
       for (const ma of existingMAs) {
         await ctx.db.delete(ma._id);
       }
@@ -426,6 +480,7 @@ export const recalculate = mutation({
       // Recreate monthly assignments
       if (svc.isActive) {
         for (const ma of svc.monthlyAmounts) {
+          const overridden = overrideMap.get(ma.month);
           await ctx.db.insert("monthlyAssignments", {
             orgId,
             projServiceId: existingPS._id,
@@ -434,11 +489,29 @@ export const recalculate = mutation({
             serviceName: svc.serviceName,
             month: ma.month,
             year: projection.year,
-            amount: ma.adjustedAmount,
+            amount: overridden ? overridden.amount : ma.adjustedAmount,
             feFactor: ma.feFactor,
-            status: "pending",
-            invoiceStatus: "not_invoiced",
+            status: overridden?.status ?? "pending",
+            invoiceStatus: overridden?.invoiceStatus ?? "not_invoiced",
+            subserviceId: overridden?.subserviceId,
+            isManuallyOverridden: !!overridden,
           });
+        }
+
+        // If any cell was overridden, re-patch annualAmount to match the
+        // actual sum of cells (override amount or engine value). This keeps
+        // the matrix row header consistent with the row totals — critical for
+        // dynamic_retainer rows where ALL 12 cells are seeded with
+        // isManuallyOverridden=true (seed-then-freeze, Task 5), causing the
+        // engine's new annualAmount to diverge from the frozen cells.
+        // The reduce mirrors the amount-selection logic in the recreate loop
+        // above — keep them in sync.
+        if (overrideMap.size > 0) {
+          const actualAnnualAmount = svc.monthlyAmounts.reduce((sum, ma) => {
+            const overridden = overrideMap.get(ma.month);
+            return sum + (overridden ? overridden.amount : ma.adjustedAmount);
+          }, 0);
+          await ctx.db.patch(existingPS._id, { annualAmount: actualAnnualAmount });
         }
       }
     }

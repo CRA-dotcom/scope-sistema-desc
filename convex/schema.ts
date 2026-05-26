@@ -180,9 +180,6 @@ export default defineSchema({
       v.literal("anual"),
       v.literal("una_vez")
     ),
-    applicableMonths: v.optional(v.array(v.number())),
-    cooldownMonths: v.optional(v.number()),
-    defaultPricingHint: v.optional(v.number()),
     defaultPricingModel: v.optional(
       v.union(
         v.literal("fixed_retainer"),
@@ -191,6 +188,9 @@ export default defineSchema({
         v.literal("one_time")
       )
     ),
+    applicableMonths: v.optional(v.array(v.number())),
+    cooldownMonths: v.optional(v.number()),
+    defaultPricingHint: v.optional(v.number()),
     isCommission: v.optional(v.boolean()),
     isActive: v.boolean(),
     isDefault: v.boolean(),
@@ -215,6 +215,14 @@ export default defineSchema({
     serviceId: v.id("services"),
     serviceName: v.string(),
     subserviceId: v.optional(v.id("subservices")),
+    pricingModel: v.optional(
+      v.union(
+        v.literal("fixed_retainer"),
+        v.literal("dynamic_retainer"),
+        v.literal("commission"),
+        v.literal("one_time")
+      )
+    ),
     chosenPct: v.number(),
     isActive: v.boolean(),
     annualAmount: v.number(),
@@ -229,14 +237,6 @@ export default defineSchema({
     addOnOfProjectionServiceId: v.optional(v.id("projectionServices")),
     // Referencia inversa a la cotización suplementaria que originó el row.
     supplementaryQuotationId: v.optional(v.id("quotations")),
-    pricingModel: v.optional(
-      v.union(
-        v.literal("fixed_retainer"),
-        v.literal("dynamic_retainer"),
-        v.literal("commission"),
-        v.literal("one_time")
-      )
-    ),
   })
     .index("by_projectionId", ["projectionId"])
     .index("by_orgId", ["orgId"])
