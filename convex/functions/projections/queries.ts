@@ -1,6 +1,7 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgIdSafe } from "../../lib/authHelpers";
+import { Id } from "../../_generated/dataModel";
 
 export const getByClient = query({
   args: { clientId: v.id("clients") },
@@ -108,5 +109,59 @@ export const list = query({
     );
 
     return enriched.sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+});
+
+/**
+ * Lista subservicios activos en la proyección que no tienen ninguna plantilla
+ * con contentStatus="ready". Usado por <MissingContentBanner /> para advertir
+ * que se generarán entregables con HTML placeholder.
+ *
+ * Spec: docs/superpowers/specs/2026-05-25-deliverable-content-catalog-design.md §4
+ */
+export const subservicesMissingContent = query({
+  args: { projectionId: v.id("projections") },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
+
+    const projection = await ctx.db.get(args.projectionId);
+    if (!projection || projection.orgId !== orgId) return [];
+
+    const activeRows = await ctx.db
+      .query("projectionServices")
+      .withIndex("by_projectionId_active", (q) =>
+        q.eq("projectionId", args.projectionId).eq("isActive", true)
+      )
+      .collect();
+
+    const missing: Array<{
+      subserviceId: Id<"subservices">;
+      subserviceName: string;
+      serviceName: string;
+    }> = [];
+
+    for (const ps of activeRows) {
+      if (!ps.subserviceId) continue;
+      const readyTemplate = await ctx.db
+        .query("deliverableTemplates")
+        .withIndex("by_subservice_contentStatus", (q) =>
+          q.eq("subserviceId", ps.subserviceId!).eq("contentStatus", "ready")
+        )
+        .first();
+
+      if (!readyTemplate) {
+        const sub = await ctx.db.get(ps.subserviceId);
+        if (sub) {
+          missing.push({
+            subserviceId: ps.subserviceId,
+            subserviceName: sub.name,
+            serviceName: ps.serviceName,
+          });
+        }
+      }
+    }
+
+    return missing;
   },
 });
