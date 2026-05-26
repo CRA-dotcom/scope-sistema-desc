@@ -197,6 +197,42 @@ describe("projections.subservicesMissingContent", () => {
     expect(missing).toEqual([]);
   });
 
+  it("dedups subservices when multiple active projectionServices share the same subservice", async () => {
+    const t = convexTest(schema);
+    const asUser = t.withIdentity({
+      subject: "u",
+      tokenIdentifier: "t|u",
+      org_id: "org_test",
+      org_role: "org:member",
+    });
+
+    const { projectionId, subB } = await setup(t);
+
+    // Add a second active projectionService with the same subB (placeholder-only)
+    await t.run(async (ctx) => {
+      const ps = (await ctx.db.query("projectionServices").collect())[0];
+      await ctx.db.insert("projectionServices", {
+        orgId: "org_test",
+        projectionId,
+        serviceId: ps.serviceId,
+        serviceName: "TI (segundo row)",
+        subserviceId: subB,
+        chosenPct: 10,
+        isActive: true,
+        annualAmount: 12000,
+        normalizedWeight: 0.1,
+      });
+    });
+
+    const missing = await asUser.query(
+      api.functions.projections.queries.subservicesMissingContent,
+      { projectionId }
+    );
+
+    // Only ONE entry for subB even though 2 active rows reference it
+    expect(missing.filter((m) => m.subserviceId === subB)).toHaveLength(1);
+  });
+
   it("does not leak cross-org", async () => {
     const t = convexTest(schema);
     const { projectionId } = await setup(t);
