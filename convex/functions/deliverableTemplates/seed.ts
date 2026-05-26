@@ -1,5 +1,6 @@
 import { internalMutation, internalQuery } from "../../_generated/server";
 import { v } from "convex/values";
+import { detectContentStatus } from "../../lib/templateContent";
 
 export const listAll = internalQuery({
   args: {},
@@ -125,6 +126,7 @@ export const upsertTemplate = internalMutation({
     if (existing) {
       const patch: Record<string, unknown> = {
         htmlTemplate: args.htmlTemplate,
+        contentStatus: detectContentStatus(args.htmlTemplate),
         updatedAt: Date.now(),
         version: (existing.version ?? 1) + 1,
       };
@@ -142,6 +144,7 @@ export const upsertTemplate = internalMutation({
       type: args.type,
       name: args.name,
       htmlTemplate: args.htmlTemplate,
+      contentStatus: detectContentStatus(args.htmlTemplate),
       variables: args.variables ?? [],
       version: 1,
       isActive: true,
