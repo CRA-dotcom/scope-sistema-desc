@@ -183,4 +183,36 @@ describe("deliverableTemplates contentStatus hooks", () => {
     const clone = await t.run(async (ctx) => ctx.db.get(cloneId));
     expect(clone?.contentStatus).toBe("ready");
   });
+
+  it("personalizeGlobal derives contentStatus when source has undefined (pre-migration source)", async () => {
+    const t = setupTest();
+    const { serviceId, subserviceId } = await setupServiceAndSubservice(t);
+
+    // Source has htmlTemplate with marker but NO contentStatus set (pre-migration row)
+    const globalId = await t.run(async (ctx) =>
+      ctx.db.insert("deliverableTemplates", {
+        orgId: undefined,
+        serviceId,
+        serviceName: "TI",
+        subserviceId,
+        type: "deliverable_long",
+        name: "Pre-migration global",
+        htmlTemplate: PLACEHOLDER_HTML,
+        variables: STANDARD_VARS,
+        version: 1,
+        isActive: true,
+        // contentStatus intentionally absent
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }),
+    );
+
+    const cloneId = await t.withIdentity(admin("org_test")).mutation(
+      api.functions.deliverableTemplates.mutations.personalizeGlobal,
+      { globalTemplateId: globalId },
+    );
+
+    const clone = await t.run(async (ctx) => ctx.db.get(cloneId));
+    expect(clone?.contentStatus).toBe("placeholder"); // derived from HTML, NOT undefined
+  });
 });

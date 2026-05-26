@@ -1,5 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../../_generated/api";
 import {
   getOrgId,
   isSuperAdminFromIdentity,
@@ -74,7 +75,7 @@ export const create = mutation({
     const contentStatus = detectContentStatus(args.htmlTemplate);
 
     const now = Date.now();
-    return await ctx.db.insert("deliverableTemplates", {
+    const newId = await ctx.db.insert("deliverableTemplates", {
       orgId: resolvedOrgId,
       serviceId: args.serviceId,
       serviceName: args.serviceName,
@@ -91,6 +92,27 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    if (resolvedOrgId !== undefined) {
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: resolvedOrgId,
+          entityType: "template" as const,
+          entityId: newId,
+          eventType: "created" as const,
+          severity: "info" as const,
+          actorUserId: identity.subject,
+          actorType: "user" as const,
+          message: `Plantilla "${args.name}" creada.`,
+          metadata: {
+            type: args.type,
+            serviceName: args.serviceName,
+            subserviceId: args.subserviceId,
+          },
+        }
+      );
+    }
+    return newId;
   },
 });
 
@@ -120,7 +142,7 @@ export const update = mutation({
     const tpl = await ctx.db.get(args.id);
     if (!tpl) throw new Error("Plantilla no encontrada.");
 
-    await requireTemplateEditAccess(ctx, tpl);
+    const identity = await requireTemplateEditAccess(ctx, tpl);
 
     if (tpl.version !== args.expectedVersion) {
       throw new Error(
@@ -134,12 +156,29 @@ export const update = mutation({
 
     const contentStatus = detectContentStatus(nextHtml);
 
+    const nextVersion = tpl.version + 1;
     await ctx.db.patch(args.id, {
       ...args.patch,
-      version: tpl.version + 1,
+      version: nextVersion,
       contentStatus,
       updatedAt: Date.now(),
     });
+    if (tpl.orgId !== undefined) {
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: tpl.orgId,
+          entityType: "template" as const,
+          entityId: args.id,
+          eventType: "updated" as const,
+          severity: "info" as const,
+          actorUserId: identity.subject,
+          actorType: "user" as const,
+          message: `Plantilla "${tpl.name}" actualizada (v${tpl.version} → v${nextVersion}).`,
+          metadata: { patchKeys: Object.keys(args.patch), version: nextVersion },
+        }
+      );
+    }
     return args.id;
   },
 });
@@ -155,7 +194,7 @@ export const update = mutation({
 export const personalizeGlobal = mutation({
   args: { globalTemplateId: v.id("deliverableTemplates") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
 
     const source = await ctx.db.get(args.globalTemplateId);
@@ -174,7 +213,7 @@ export const personalizeGlobal = mutation({
     if (existing) return existing._id;
 
     const now = Date.now();
-    return await ctx.db.insert("deliverableTemplates", {
+    const newId = await ctx.db.insert("deliverableTemplates", {
       orgId,
       serviceId: source.serviceId,
       serviceName: source.serviceName,
@@ -185,12 +224,30 @@ export const personalizeGlobal = mutation({
       variables: source.variables,
       version: 1,
       isActive: source.isActive,
-      contentStatus: source.contentStatus,
+      contentStatus: source.contentStatus ?? detectContentStatus(source.htmlTemplate),
       parentTemplateId: source._id,
       originalVersionAtClone: source.version,
       createdAt: now,
       updatedAt: now,
     });
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "template" as const,
+        entityId: newId,
+        eventType: "personalized" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Plantilla global "${source.name}" personalizada para esta organización.`,
+        metadata: {
+          sourceTemplateId: args.globalTemplateId,
+          originalVersionAtClone: source.version,
+        },
+      }
+    );
+    return newId;
   },
 });
 
@@ -205,7 +262,7 @@ export const personalizeGlobal = mutation({
 export const restoreToGlobal = mutation({
   args: { orgTemplateId: v.id("deliverableTemplates") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
 
     const tpl = await ctx.db.get(args.orgTemplateId);
@@ -223,16 +280,30 @@ export const restoreToGlobal = mutation({
       .query("deliverables")
       .withIndex("by_templateId", (q) => q.eq("templateId", args.orgTemplateId))
       .first();
+    const mode: "soft" | "hard" = deliv ? "soft" : "hard";
     if (deliv) {
       await ctx.db.patch(args.orgTemplateId, {
         isActive: false,
         updatedAt: Date.now(),
       });
-      return { mode: "soft" as const, id: args.orgTemplateId };
+    } else {
+      await ctx.db.delete(args.orgTemplateId);
     }
-
-    await ctx.db.delete(args.orgTemplateId);
-    return { mode: "hard" as const, id: args.orgTemplateId };
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        entityType: "template" as const,
+        entityId: args.orgTemplateId,
+        eventType: "restored" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Plantilla "${tpl.name}" restaurada al default global (${mode}-delete).`,
+        metadata: { mode, parentTemplateId: tpl.parentTemplateId },
+      }
+    );
+    return { mode, id: args.orgTemplateId };
   },
 });
 
@@ -247,11 +318,28 @@ export const toggleActive = mutation({
   handler: async (ctx, args) => {
     const tpl = await ctx.db.get(args.id);
     if (!tpl) throw new Error("Plantilla no encontrada.");
-    await requireTemplateEditAccess(ctx, tpl);
+    const identity = await requireTemplateEditAccess(ctx, tpl);
+    const next = !tpl.isActive;
     await ctx.db.patch(args.id, {
-      isActive: !tpl.isActive,
+      isActive: next,
       updatedAt: Date.now(),
     });
+    if (tpl.orgId !== undefined) {
+      await ctx.runMutation(
+        internal.functions.documentEvents.internal.logEventMutation,
+        {
+          orgId: tpl.orgId,
+          entityType: "template" as const,
+          entityId: args.id,
+          eventType: "updated" as const,
+          severity: "info" as const,
+          actorUserId: identity.subject,
+          actorType: "user" as const,
+          message: `Plantilla "${tpl.name}" ${next ? "activada" : "desactivada"}.`,
+          metadata: { isActive: next },
+        }
+      );
+    }
     return args.id;
   },
 });
@@ -268,7 +356,7 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const tpl = await ctx.db.get(args.id);
     if (!tpl) throw new Error("Plantilla no encontrada.");
-    await requireTemplateEditAccess(ctx, tpl);
+    const identity = await requireTemplateEditAccess(ctx, tpl);
 
     if (tpl.orgId === undefined) {
       throw new Error(
@@ -280,16 +368,30 @@ export const remove = mutation({
       .query("deliverables")
       .withIndex("by_templateId", (q) => q.eq("templateId", args.id))
       .first();
+    const mode: "soft" | "hard" = deliv ? "soft" : "hard";
     if (deliv) {
       await ctx.db.patch(args.id, {
         isActive: false,
         updatedAt: Date.now(),
       });
-      return { mode: "soft" as const, id: args.id };
+    } else {
+      await ctx.db.delete(args.id);
     }
-
-    await ctx.db.delete(args.id);
-    return { mode: "hard" as const, id: args.id };
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId: tpl.orgId,
+        entityType: "template" as const,
+        entityId: args.id,
+        eventType: "deleted" as const,
+        severity: "warning" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Plantilla "${tpl.name}" eliminada (${mode}-delete).`,
+        metadata: { mode, type: tpl.type },
+      }
+    );
+    return { mode, id: args.id };
   },
 });
 
