@@ -24,9 +24,13 @@ Pon archivos `.html` aquí y corre el script para upsert masivo a Convex DB.
 #     variables: {{cliente.nombre}}, {{cliente.rfc}}, {{proyeccion.mes}},
 #     {{proyeccion.año}}, {{ai.diagnostico}}")
 
-# 2. Auth + run
-CONVEX_DEPLOY_KEY=$(npx convex deploy-key) \
-NEXT_PUBLIC_CONVEX_URL=$(npx convex env get NEXT_PUBLIC_CONVEX_URL 2>/dev/null || cat .env.local | grep NEXT_PUBLIC_CONVEX_URL | cut -d= -f2) \
+# 2. Obtén tu deploy key del Convex dashboard
+#    Settings → "Deploy Keys" → genera uno (Development o Production según
+#    a qué deployment quieras importar).
+#
+# 3. Auth + run (reemplaza el valor del key)
+CONVEX_DEPLOY_KEY="convex_deploy_key_aqui" \
+NEXT_PUBLIC_CONVEX_URL=$(grep NEXT_PUBLIC_CONVEX_URL .env.local | cut -d= -f2) \
   npx tsx scripts/import-templates.ts
 
 # 3. Verifica output (esperado: ✓ created / ↻ updated per file).
