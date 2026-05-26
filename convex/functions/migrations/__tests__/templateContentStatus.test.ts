@@ -120,4 +120,50 @@ describe("migrations.templateContentStatus.migrate", () => {
     );
     expect(verify.templatesPending).toBe(0);
   });
+
+  it("supports cursor-based pagination across multiple pages", async () => {
+    const t = convexTest(schema);
+    await seedFixtures(t);
+    // Add 5 more templates so we have 8 total
+    await t.run(async (ctx) => {
+      const sid = (await ctx.db.query("services").first())!._id;
+      for (let i = 0; i < 5; i++) {
+        await ctx.db.insert("deliverableTemplates", {
+          orgId: undefined,
+          serviceId: sid,
+          serviceName: "TI",
+          type: "deliverable_long",
+          name: `Extra ${i}`,
+          htmlTemplate: REAL_HTML,
+          variables: [],
+          version: 1,
+          isActive: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+    });
+
+    // First page with limit 3
+    const page1 = await t.mutation(
+      internal.functions.migrations.templateContentStatus.migrate,
+      { dryRun: false, limit: 3 }
+    );
+    expect(page1.isDone).toBe(false);
+    expect(page1.continueCursor).toBeTruthy();
+
+    // Continue with cursor
+    const page2 = await t.mutation(
+      internal.functions.migrations.templateContentStatus.migrate,
+      { dryRun: false, limit: 100, cursor: page1.continueCursor }
+    );
+    expect(page2.isDone).toBe(true);
+
+    // All non-pre-set rows should now have contentStatus
+    const verify = await t.query(
+      internal.functions.migrations.templateContentStatus.verifyComplete,
+      {}
+    );
+    expect(verify.templatesPending).toBe(0);
+  });
 });

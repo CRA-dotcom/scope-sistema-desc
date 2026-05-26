@@ -135,31 +135,55 @@ export const subservicesMissingContent = query({
       )
       .collect();
 
+    // Collect unique subserviceIds from active rows
+    const subIdsArr = activeRows
+      .map((ps) => ps.subserviceId)
+      .filter((id): id is Id<"subservices"> => !!id);
+    const uniqueSubIds = Array.from(new Set(subIdsArr));
+    if (uniqueSubIds.length === 0) return [];
+
+    // Fetch ready templates (global + org-scoped) in 2 batched scans
+    const [globalReady, orgReady] = await Promise.all([
+      ctx.db
+        .query("deliverableTemplates")
+        .withIndex("by_orgId", (q) => q.eq("orgId", undefined))
+        .collect(),
+      ctx.db
+        .query("deliverableTemplates")
+        .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+        .collect(),
+    ]);
+
+    const readySubIds = new Set<string>();
+    for (const tpl of [...globalReady, ...orgReady]) {
+      if (tpl.contentStatus === "ready" && tpl.subserviceId) {
+        readySubIds.add(tpl.subserviceId);
+      }
+    }
+
+    // Fetch subservices in parallel (still N db.get but parallelized)
+    const subDocs = await Promise.all(
+      uniqueSubIds.map((id) => ctx.db.get(id))
+    );
+
     const missing: Array<{
       subserviceId: Id<"subservices">;
       subserviceName: string;
       serviceName: string;
     }> = [];
 
-    for (const ps of activeRows) {
-      if (!ps.subserviceId) continue;
-      const readyTemplate = await ctx.db
-        .query("deliverableTemplates")
-        .withIndex("by_subservice_contentStatus", (q) =>
-          q.eq("subserviceId", ps.subserviceId!).eq("contentStatus", "ready")
-        )
-        .first();
-
-      if (!readyTemplate) {
-        const sub = await ctx.db.get(ps.subserviceId);
-        if (sub) {
-          missing.push({
-            subserviceId: ps.subserviceId,
-            subserviceName: sub.name,
-            serviceName: ps.serviceName,
-          });
-        }
-      }
+    for (let i = 0; i < uniqueSubIds.length; i++) {
+      const subId = uniqueSubIds[i];
+      if (readySubIds.has(subId)) continue;
+      const sub = subDocs[i];
+      if (!sub) continue;
+      // Find serviceName from any active row that has this subservice
+      const ps = activeRows.find((p) => p.subserviceId === subId);
+      missing.push({
+        subserviceId: subId,
+        subserviceName: sub.name,
+        serviceName: ps?.serviceName ?? "",
+      });
     }
 
     return missing;
