@@ -1,6 +1,7 @@
 import { internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { detectContentStatus } from "../../lib/templateContent";
+import { validatePlaceholdersDeclared } from "../../lib/templatePlaceholders";
 
 const STANDARD_VARIABLES = [
   {
@@ -58,12 +59,17 @@ export const upsertFromFile = internalMutation({
     htmlTemplate: v.string(),
   },
   handler: async (ctx, args) => {
-    const parentSvc = await ctx.db
+    // Collect ALL services with this name, then filter for the global one
+    // (orgId === undefined). Without this, .first() could return an org-scoped
+    // service that happens to share the same name, silently linking the global
+    // template to a tenant service ID (adversarial review issue #1).
+    const allWithName = await ctx.db
       .query("services")
       .withIndex("by_name", (q) => q.eq("name", args.parentServiceName))
-      .first();
+      .collect();
+    const parentSvc = allWithName.find((s) => s.orgId === undefined);
     if (!parentSvc) {
-      throw new Error(`Service "${args.parentServiceName}" not found.`);
+      throw new Error(`Global service "${args.parentServiceName}" not found.`);
     }
 
     const subsvc = await ctx.db
@@ -78,16 +84,22 @@ export const upsertFromFile = internalMutation({
       );
     }
 
-    // Look up existing GLOBAL template for (subservice + type)
+    // Look up existing GLOBAL template for (subservice + type).
+    // Uses by_orgId_subserviceId with orgId=undefined bound first so the index
+    // scan returns only global rows — avoids pulling cross-tenant templates into
+    // memory (adversarial review issue #3).
     const candidates = await ctx.db
       .query("deliverableTemplates")
-      .withIndex("by_subservice_contentStatus", (q) =>
-        q.eq("subserviceId", subsvc._id)
+      .withIndex("by_orgId_subserviceId", (q) =>
+        q.eq("orgId", undefined).eq("subserviceId", subsvc._id)
       )
       .collect();
-    const existing = candidates.find(
-      (t) => t.orgId === undefined && t.type === args.type
-    );
+    const existing = candidates.find((t) => t.type === args.type);
+
+    // Validate that every {{key}} in htmlTemplate is declared in STANDARD_VARIABLES.
+    // Without this, bulk-imported HTML with undeclared placeholders silently
+    // produces broken deliverable generation later (adversarial review issue #2).
+    validatePlaceholdersDeclared(args.htmlTemplate, STANDARD_VARIABLES);
 
     const contentStatus = detectContentStatus(args.htmlTemplate);
     const now = Date.now();

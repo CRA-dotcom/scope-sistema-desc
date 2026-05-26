@@ -131,6 +131,86 @@ describe("deliverableTemplates.bulkImport.upsertFromFile", () => {
         name: "x",
         htmlTemplate: REAL_HTML,
       })
-    ).rejects.toThrow(/Service .* not found/);
+    ).rejects.toThrow(/[Ss]ervice .* not found/);
+  });
+
+  it("ignores org-scoped service with same name as the global", async () => {
+    const t = convexTest(schema);
+
+    await t.run(async (ctx) => {
+      const globalSvc = await ctx.db.insert("services", {
+        orgId: undefined,
+        name: "Legal",
+        type: "base",
+        minPct: 0,
+        maxPct: 100,
+        defaultPct: 30,
+        isDefault: true,
+        sortOrder: 1,
+      });
+      // Org-scoped duplicate with the same name — must be ignored
+      await ctx.db.insert("services", {
+        orgId: "org_other",
+        name: "Legal",
+        type: "base",
+        minPct: 0,
+        maxPct: 100,
+        defaultPct: 30,
+        isDefault: false,
+        sortOrder: 2,
+      });
+      await ctx.db.insert("subservices", {
+        orgId: undefined,
+        parentServiceId: globalSvc,
+        name: "Asesoría Legal",
+        slug: "asesoria-legal",
+        defaultFrequency: "mensual",
+        isActive: true,
+        isDefault: false,
+        sortOrder: 1,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.mutation(
+      internal.functions.deliverableTemplates.bulkImport.upsertFromFile,
+      {
+        parentServiceName: "Legal",
+        subserviceSlug: "asesoria-legal",
+        type: "deliverable_long",
+        name: "Test",
+        htmlTemplate: REAL_HTML,
+      }
+    );
+
+    expect(result.action).toBe("created");
+
+    // Verify the template was linked to the GLOBAL service, not the org-scoped one
+    const tpl = await t.run(async (ctx) => ctx.db.get(result.templateId));
+    expect(tpl?.orgId).toBeUndefined();
+    const linkedSvc = await t.run(async (ctx) => ctx.db.get(tpl!.serviceId!));
+    expect(linkedSvc?.orgId).toBeUndefined();
+  });
+
+  it("throws if htmlTemplate has undeclared placeholders", async () => {
+    const t = convexTest(schema);
+    await setup(t);
+
+    // HTML uses an UNDECLARED placeholder {{undeclared_thing}} (no dot — regex
+    // only matches word chars, dots are not captured so dot-notation keys like
+    // {{cliente.nombre}} never reach the validator as undeclared)
+    await expect(
+      t.mutation(
+        internal.functions.deliverableTemplates.bulkImport.upsertFromFile,
+        {
+          parentServiceName: "Legal",
+          subserviceSlug: "asesoria-legal",
+          type: "deliverable_long",
+          name: "Bad",
+          htmlTemplate: `<h1>{{undeclared_thing}}</h1>`,
+        }
+      )
+    ).rejects.toThrow();
   });
 });
