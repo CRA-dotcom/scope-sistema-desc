@@ -2,23 +2,41 @@
 /**
  * Bulk-import HTML templates from convex/seeds/templates/ to Convex DB.
  *
+ * SECURITY:
+ * - CONVEX_DEPLOY_KEY is admin-scoped. Rotate after every import session.
+ * - This script only reads from TEMPLATES_DIR. Filename safety check
+ *   prevents path traversal and symlink escapes.
+ * - Errors are sanitized before logging (HTML tags stripped) to avoid
+ *   leaking template content into CI/log capture.
+ *
  * Naming convention: <parent-svc-slug>__<subservice-slug>[-<type>].html
- *   Default type if no suffix: deliverable_long
+ *   Default type: deliverable_long
  *   Valid suffixes: -quotation -contract -short -long -questionnaire
  *
  * Run:
- *   CONVEX_DEPLOY_KEY=$(npx convex deploy-key) npx tsx scripts/import-templates.ts
+ *   CONVEX_DEPLOY_KEY="..." NEXT_PUBLIC_CONVEX_URL="..." \
+ *     npx tsx scripts/import-templates.ts [path]
  *
  * Spec: docs/superpowers/specs/2026-05-25-deliverable-content-catalog-design.md §7
  */
 
-import { readFile, readdir } from "fs/promises";
+import { readFile, readdir, realpath } from "fs/promises";
 import { join, basename } from "path";
 import { ConvexHttpClient } from "convex/browser";
 import { type FunctionReference } from "convex/server";
 import { internal } from "../convex/_generated/api";
 
 const TEMPLATES_DIR = process.argv[2] ?? "./convex/seeds/templates";
+
+function isSafeFilename(name: string): boolean {
+  // Must end in .html, must not contain path separators or traversal
+  if (!name.endsWith(".html")) return false;
+  if (name.includes("/") || name.includes("\\") || name.includes("..")) return false;
+  // Convention: <parent>__<sub>[-<type>].html — restrict to safe chars
+  return /^[a-zA-Z0-9_-]+(__[a-zA-Z0-9_-]+)?(-(?:quotation|contract|short|long|questionnaire))?\.html$/.test(
+    name
+  );
+}
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
 const DEPLOY_KEY = process.env.CONVEX_DEPLOY_KEY;
 
@@ -101,8 +119,14 @@ async function main() {
   // setAdminAuth exists at runtime but is not yet typed in the public d.ts
   (client as unknown as { setAdminAuth(key: string): void }).setAdminAuth(DEPLOY_KEY);
 
+  const safeDir = await realpath(TEMPLATES_DIR);
+
   const all = await readdir(TEMPLATES_DIR);
-  const files = all.filter((f) => f.endsWith(".html"));
+  const files = all.filter((f) => f.endsWith(".html") && isSafeFilename(f));
+  const rejected = all.filter((f) => f.endsWith(".html") && !isSafeFilename(f));
+  for (const r of rejected) {
+    console.warn(`! skipping unsafe filename: ${r}`);
+  }
   console.log(`Found ${files.length} HTML templates in ${TEMPLATES_DIR}\n`);
 
   let created = 0;
@@ -112,7 +136,14 @@ async function main() {
   for (const file of files) {
     try {
       const { parentSvcSlug, subserviceSlug, type } = parseFilename(file);
-      const html = await readFile(join(TEMPLATES_DIR, file), "utf-8");
+      const fullPath = join(TEMPLATES_DIR, file);
+      const resolved = await realpath(fullPath);
+      if (!resolved.startsWith(safeDir + "/") && resolved !== safeDir) {
+        console.error(`✗ ${file}: path escapes templates dir`);
+        errors++;
+        continue;
+      }
+      const html = await readFile(resolved, "utf-8");
 
       const parentServiceName = SLUG_TO_NAME[parentSvcSlug];
       if (!parentServiceName) {
@@ -143,7 +174,10 @@ async function main() {
       if (result.action === "created") created++;
       else updated++;
     } catch (err) {
-      console.error(`✗ ${file}: ${(err as Error).message}`);
+      const raw = (err as Error).message ?? String(err);
+      // Strip HTML tags + truncate to keep payloads out of CI logs
+      const safe = raw.replace(/<[^>]*>/g, "[html]").slice(0, 300);
+      console.error(`✗ ${file}: ${safe}`);
       errors++;
     }
   }
