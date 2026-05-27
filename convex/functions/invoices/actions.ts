@@ -9,6 +9,7 @@ import {
   uploadBlob,
   signedDownloadUrl,
 } from "../../lib/blobStorage";
+import { parseCfdiIssueDate } from "../../lib/cfdiParser";
 
 // Authenticated, single-use download from the UI: a short TTL is enough
 // because the user is already in-session and can re-request another URL.
@@ -39,6 +40,10 @@ export const upload = action({
     contentType: v.string(),
     fileBuffer: v.bytes(),
     notes: v.optional(v.string()),
+    // SS5: optional CFDI XML buffer for auto-extracting fiscal issue date.
+    // Resolution order: XML Fecha attribute > manual issueDate > undefined.
+    xmlBuffer: v.optional(v.bytes()),
+    issueDate: v.optional(v.number()),
   },
   handler: async (
     ctx,
@@ -83,6 +88,22 @@ export const upload = action({
       }
     );
 
+    // SS5: resolve issueDate — XML Fecha > manual arg > undefined.
+    // If XML provided but parse fails, log warning and fall back to manual;
+    // do NOT abort the upload.
+    let resolvedIssueDate: number | undefined = args.issueDate;
+    if (args.xmlBuffer) {
+      const cfdiResult = parseCfdiIssueDate(args.xmlBuffer);
+      if (cfdiResult.ok) {
+        resolvedIssueDate = cfdiResult.issueDate;
+      } else {
+        console.warn(
+          `[invoice upload] CFDI parse failed: ${cfdiResult.reason}; using manual issueDate fallback`
+        );
+        // resolvedIssueDate stays as args.issueDate (manual fallback)
+      }
+    }
+
     // 3. Bucket-first: upload blob to Railway BEFORE inserting row.
     const safeFilename = args.filename
       .replace(/[^a-zA-Z0-9._-]/g, "_")
@@ -123,6 +144,7 @@ export const upload = action({
         notes: args.notes,
         uploadedBy: userId,
         duplicateOfId: duplicate?._id,
+        issueDate: resolvedIssueDate,
       }
     );
 
