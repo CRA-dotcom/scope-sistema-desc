@@ -28,6 +28,7 @@ export const insertInvoiceRow = internalMutation({
     notes: v.optional(v.string()),
     uploadedBy: v.string(),
     duplicateOfId: v.optional(v.id("invoices")),
+    issueDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -49,6 +50,7 @@ export const insertInvoiceRow = internalMutation({
       status: "uploaded" as const,
       uploadedAt: now,
       uploadedBy: args.uploadedBy,
+      issueDate: args.issueDate,
       notes: args.notes,
       createdAt: now,
     });
