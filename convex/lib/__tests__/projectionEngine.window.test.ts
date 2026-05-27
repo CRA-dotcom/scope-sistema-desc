@@ -186,6 +186,46 @@ describe("calculateProjection — contractual window [startMonth..endMonth]", ()
   });
 
   // ──────────────────────────────────────────────────────────────────────────
+  // F7: pathologically tiny FE — clamp to uniform fallback
+  // ──────────────────────────────────────────────────────────────────────────
+
+  it("F7: startMonth=5, endMonth=5 with seasonality[4]=0.001 → cell amount ≈ annualAmount (not 1000×)", () => {
+    const seasonality = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      monthlySales: 100_000,
+      feFactor: i === 4 ? 0.001 : 1.0, // month 5 is pathologically tiny
+    }));
+
+    const result = calculateProjection({
+      annualSales: 1_200_000,
+      totalBudget: 120_000,
+      commissionRate: 0,
+      services: [
+        makeSvc({
+          pricingModel: "fixed_retainer",
+          startMonth: 5,
+          endMonth: 5,
+        }),
+      ],
+      seasonalityData: seasonality,
+    });
+
+    const svc = result.services[0];
+    expect(svc.annualAmount).toBeCloseTo(120_000, 2);
+
+    // Month 5: with uniform fallback, gets annualAmount (1 eligible month)
+    const m5 = svc.monthlyAmounts.find((x) => x.month === 5)!;
+    expect(m5.adjustedAmount).toBeCloseTo(120_000, 0);
+
+    // All other months must be 0
+    for (let m = 1; m <= 12; m++) {
+      if (m === 5) continue;
+      const ma = svc.monthlyAmounts.find((x) => x.month === m)!;
+      expect(ma.adjustedAmount).toBeCloseTo(0, 5);
+    }
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Window with non-flat FE — proportional normalization test
   // ──────────────────────────────────────────────────────────────────────────
 

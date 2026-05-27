@@ -362,11 +362,18 @@ export function calculateProjection(
       isMonthInWindow(m.month, service.startMonth, service.endMonth)
     );
     const sumFE = eligibleMonthsWeighted.reduce((s, m) => s + m.feFactor, 0);
+    // F7: if sumFE is pathologically tiny (e.g. single month with FE=0.001),
+    // division would amplify annualAmount by 1000×. Fall back to uniform
+    // distribution over eligible months so no cell blows up in magnitude.
+    const MIN_SUMFE = 0.1;
     const monthlyBase =
-      sumFE > 0
+      sumFE >= MIN_SUMFE
         ? annualAmount / sumFE
         : eligibleMonthsWeighted.length > 0
-          ? annualAmount / eligibleMonthsWeighted.length
+          ? (console.warn(
+              `[projectionEngine] sumFE=${sumFE} < ${MIN_SUMFE} for service ${service.serviceId} — falling back to uniform distribution over ${eligibleMonthsWeighted.length} eligible months`
+            ),
+            annualAmount / eligibleMonthsWeighted.length)
           : 0;
 
     const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => {
