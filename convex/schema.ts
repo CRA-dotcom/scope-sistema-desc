@@ -782,6 +782,7 @@ export default defineSchema({
     provider: v.union(
       v.literal("resend"),
       v.literal("mifiel"),
+      v.literal("firmame"),
       v.literal("anthropic"),
       v.literal("other")
     ),
