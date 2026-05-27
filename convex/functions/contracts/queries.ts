@@ -1,6 +1,6 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgIdSafe } from "../../lib/authHelpers";
+import { getOrgIdSafe, requireAdmin } from "../../lib/authHelpers";
 
 export const getById = query({
   args: { id: v.id("contracts") },
@@ -79,5 +79,56 @@ export const listByOrg = query({
     }
 
     return contracts.sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+export const getContractsForPipeline = query({
+  args: {
+    statusFilter: v.optional(
+      v.union(
+        v.literal("all"),
+        v.literal("draft"),
+        v.literal("sent"),
+        v.literal("signed"),
+        v.literal("cancelled")
+      )
+    ),
+    minDaysWithoutSigning: v.optional(v.number()),
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+    clientId: v.optional(v.id("clients")),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
+
+    let rows = await ctx.db
+      .query("contracts")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .collect();
+
+    if (args.statusFilter && args.statusFilter !== "all") {
+      rows = rows.filter((r) => r.status === args.statusFilter);
+    }
+    if (args.clientId) {
+      rows = rows.filter((r) => r.clientId === args.clientId);
+    }
+    const now = Date.now();
+    if (args.minDaysWithoutSigning !== undefined) {
+      const cutoff = args.minDaysWithoutSigning * 24 * 3600 * 1000;
+      rows = rows.filter(
+        (r) => r.status === "sent" && r.sentAt !== undefined && now - r.sentAt >= cutoff
+      );
+    }
+
+    rows.sort((a, b) => {
+      if (a.status === "sent" && b.status === "sent") {
+        // Oldest sentAt first (largest days-unsigned first)
+        return (a.sentAt ?? 0) - (b.sentAt ?? 0);
+      }
+      return b.createdAt - a.createdAt;
+    });
+
+    return rows;
   },
 });
