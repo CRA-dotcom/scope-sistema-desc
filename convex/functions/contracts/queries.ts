@@ -130,6 +130,12 @@ export const getContractsForPipeline = query({
       return b.createdAt - a.createdAt;
     });
 
-    return rows;
+    // Enrich each row with clientName (single db.get per row — acceptable for pipeline view)
+    return Promise.all(
+      rows.map(async (r) => {
+        const client = await ctx.db.get(r.clientId);
+        return { ...r, clientName: client?.name ?? r.clientId };
+      })
+    );
   },
 });
