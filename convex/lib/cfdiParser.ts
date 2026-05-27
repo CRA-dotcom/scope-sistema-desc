@@ -2,7 +2,7 @@ export type CfdiParseResult =
   | { ok: true; issueDate: number }
   | { ok: false; reason: string };
 
-const FECHA_REGEX = /\bFecha\s*=\s*"([^"]+)"/;
+const FECHA_REGEX = /\bFecha\s*=\s*(?:"([^"]+)"|'([^']+)')/;
 const COMPROBANTE_ROOT_REGEX = /<(?:[a-zA-Z][\w-]*:)?Comprobante\b[^>]*>/;
 
 /**
@@ -29,7 +29,8 @@ export function parseCfdiIssueDate(buffer: ArrayBuffer): CfdiParseResult {
     return { ok: false, reason: "missing Fecha attribute on Comprobante root" };
   }
 
-  const fechaStr = fechaMatch[1];
+  // Group 1 = double-quoted, group 2 = single-quoted
+  const fechaStr = fechaMatch[1] ?? fechaMatch[2];
   // CFDI Fecha is a naive datetime (no timezone suffix). SAT specifies Mexican
   // local time but for consistent storage we treat it as UTC (no offset applied).
   // Append "Z" only when the string has no timezone info already.

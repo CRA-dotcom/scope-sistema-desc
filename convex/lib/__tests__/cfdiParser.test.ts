@@ -75,4 +75,24 @@ describe("parseCfdiIssueDate", () => {
     const r = parseCfdiIssueDate(new ArrayBuffer(0));
     expect(r.ok).toBe(false);
   });
+
+  // F5: single-quoted Fecha attribute (some PACs emit this)
+  it("extracts Fecha from CFDI with single-quoted attribute", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>` +
+      `<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0" Fecha='2026-01-15T10:30:00' Total="1000.00">` +
+      `</cfdi:Comprobante>`;
+    const r = parseCfdiIssueDate(toBuffer(xml));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(new Date(r.issueDate).toISOString()).toMatch(/^2026-01-15T10:30:00/);
+    }
+  });
+
+  it("double-quoted Fecha still works after regex change (regression guard)", () => {
+    const r = parseCfdiIssueDate(toBuffer(CFDI_40_VALID));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(new Date(r.issueDate).toISOString()).toMatch(/^2026-01-15T10:30:00/);
+    }
+  });
 });
