@@ -52,6 +52,7 @@ import type * as functions_issuingCompanies_helpers from "../functions/issuingCo
 import type * as functions_issuingCompanies_mutations from "../functions/issuingCompanies/mutations.js";
 import type * as functions_issuingCompanies_queries from "../functions/issuingCompanies/queries.js";
 import type * as functions_issuingCompanies_resolve from "../functions/issuingCompanies/resolve.js";
+import type * as functions_migrations_firmameProvider from "../functions/migrations/firmameProvider.js";
 import type * as functions_migrations_pricingModel from "../functions/migrations/pricingModel.js";
 import type * as functions_migrations_templateContentStatus from "../functions/migrations/templateContentStatus.js";
 import type * as functions_monthlyAssignments_billingQueries from "../functions/monthlyAssignments/billingQueries.js";
@@ -114,6 +115,7 @@ import type * as functions_users_queries from "../functions/users/queries.js";
 import type * as http from "../http.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_blobStorage from "../lib/blobStorage.js";
+import type * as lib_contractResolver from "../lib/contractResolver.js";
 import type * as lib_date from "../lib/date.js";
 import type * as lib_deliverableEngine_aiBatchFill from "../lib/deliverableEngine/aiBatchFill.js";
 import type * as lib_deliverableEngine_errors from "../lib/deliverableEngine/errors.js";
@@ -181,6 +183,7 @@ declare const fullApi: ApiFromModules<{
   "functions/issuingCompanies/mutations": typeof functions_issuingCompanies_mutations;
   "functions/issuingCompanies/queries": typeof functions_issuingCompanies_queries;
   "functions/issuingCompanies/resolve": typeof functions_issuingCompanies_resolve;
+  "functions/migrations/firmameProvider": typeof functions_migrations_firmameProvider;
   "functions/migrations/pricingModel": typeof functions_migrations_pricingModel;
   "functions/migrations/templateContentStatus": typeof functions_migrations_templateContentStatus;
   "functions/monthlyAssignments/billingQueries": typeof functions_monthlyAssignments_billingQueries;
@@ -243,6 +246,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/blobStorage": typeof lib_blobStorage;
+  "lib/contractResolver": typeof lib_contractResolver;
   "lib/date": typeof lib_date;
   "lib/deliverableEngine/aiBatchFill": typeof lib_deliverableEngine_aiBatchFill;
   "lib/deliverableEngine/errors": typeof lib_deliverableEngine_errors;
