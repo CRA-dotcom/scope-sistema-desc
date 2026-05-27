@@ -405,11 +405,14 @@ export default defineSchema({
     // SS2: Firmame integration
     firmameDocumentId: v.optional(v.string()),
     firmameSignUrl: v.optional(v.string()),
+    // TODO(post-MVP): tighten to v.union(v.literal(...)) once Firmame webhook event names are documented
     firmameStatus: v.optional(v.string()),
+    // Railway S3 key (NOT a Convex _storage ID — see convex/lib/blobStorage.ts)
     signedPdfBucketKey: v.optional(v.string()),
     sentAt: v.optional(v.number()),
     lastReminderAt: v.optional(v.number()),
     reminderCount: v.optional(v.number()),
+    // snapshot from template at send time; template may mutate later
     signerMode: v.optional(
       v.union(
         v.literal("client_only"),
