@@ -1,15 +1,53 @@
 # Handoff — Próxima sesión (post 2026-05-27 EOD)
 
-**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS5, SS6 cerrados en `main`. SS4 spec+plan ready, ejecución diferida. **Adversarial review entregó 14 findings — 3 críticos requieren fix antes de demo.**
+**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS5, SS6 cerrados en `main` + **8 adversarial fixes aplicados** (3 críticos + 5 importantes). SS4 spec+plan ready, ejecución diferida.
 
-**Sesión origen:** 2026-05-26 → 2026-05-27 (SS2 brainstorm + ejecución parcial + SS5 + SS3 + SS6 full cycle + SS4 spec/plan + adversarial review)
-**Estado código:** `main` **63 commits** ahead de `origin/main`. Tests **951 passed | 1 skipped**. TypeScript clean (excepto pre-existing `useDebouncedAutosave` ortogonal). Sin push (per `feedback_no_push_default`).
+**Sesión origen:** 2026-05-26 → 2026-05-27 (SS2 brainstorm + ejecución parcial + SS5 + SS3 + SS6 full cycle + SS4 spec/plan + adversarial review + 8 fixes)
+**Estado código:** `main` **60 commits** ahead de `origin/main`. Tests **961 passed | 1 skipped**. TypeScript clean (excepto pre-existing `useDebouncedAutosave` ortogonal). Sin push (per `feedback_no_push_default`).
 
 ---
 
-## 🚨 ADVERSARIAL REVIEW — 14 FINDINGS
+## 🚨 ADVERSARIAL REVIEW — 14 FINDINGS (8 FIXED, 1 DEFERRED, 5 ACCEPTED)
 
-Ejecutado al cierre del turno. Revisor adversarial con persona "Codex hizo todo, malhumorado". Pidió ver SS3 + SS5 + SS6 (range `76140d8..HEAD`).
+Ejecutado al cierre del turno. Revisor adversarial con persona "Codex hizo todo, malhumorado". Pidió ver SS3 + SS5 + SS6 (range `76140d8..5338f72`).
+
+**Fix summary:**
+
+| Finding | Severidad | Status | Commit |
+|---|---|---|---|
+| F1 setAnnualAmount rompe dynamic_retainer | CRÍTICO | ✅ Fixed | `a9eb330` |
+| F2 Auth-before-read order | IMPORTANTE | ✅ Fixed | `1db1efb` |
+| F3 discount=0 ≠ undefined | CRÍTICO | ✅ Fixed | `254651d` |
+| F4 getYearOverYearHint O(N) scan | IMPORTANTE | ✅ Fixed | `03b9141` |
+| F5 CFDI parser solo dobles comillas | IMPORTANTE | ✅ Fixed | `c85b248` |
+| F6 CFDI timezone UTC vs CDMX | IMPORTANTE | 🔴 **DEFERIDO — requiere contador** | — |
+| F7 Engine divide por FE chico | IMPORTANTE | ✅ Fixed | `f8010b1` |
+| F8 updateContractualWindow no recalc | CRÍTICO | ✅ Fixed | `5e4e91d` |
+| F9 UI window picker default-mixing | IMPORTANTE | ✅ Fixed | `c2d72d9` |
+| F10 Migration concurrent | MEDIO | ⚪ Aceptable | — |
+| F11 CFDI parser test coverage gap | MEDIO | ⚪ Cubierto por F5 fix tests | — |
+| F12 listForBilling org scan | MEDIO | ⚪ Pre-existente, no regresión | — |
+| F13 Test no discrimina | MENOR | ⚪ Aceptable | — |
+| F14 N+1 useQuery | MENOR | ⚪ Aceptable con volumen actual | — |
+
+**Detalle de los fixes (8 commits):**
+
+- `254651d` — F3: reject `discount=0`, must be > 0 or undefined
+- `a9eb330` — F1: `setAnnualAmount` triggers per-row recalc preserving overrides
+- `5e4e91d` — F8: `updateContractualWindow` recalcs `monthlyAssignments`
+- `1db1efb` — F2: auth check before read en `setYearOverYearDiscount`
+- `03b9141` — F4: `getYearOverYearHint` uses `by_clientId` index + orgId filter
+- `c85b248` — F5: CFDI parser regex acepta single quotes
+- `f8010b1` — F7: engine clamp `sumFE >= 0.1` con fallback uniform allocation
+- `c2d72d9` — F9: UI picker stores literal choices + botón "↺ Limpiar ventana"
+
+**Decisión técnica (F1/F8 fix):** extraído helper `recalcOneServiceCells` en `convex/functions/projectionServices/mutations.ts` que respeta `isManuallyOverridden` y redistribuye sobre cells eligible. TODO documenta la duplicación con `projections/mutations.ts:recalculate` para futuro refactor.
+
+### 🔴 F6 — Pendiente validar con contador
+
+Decisión necesaria: `Fecha` del CFDI ¿debe guardarse como hora local CDMX o UTC? Hoy el parser asume UTC (naive datetime + `Z`). Si tu contador interpreta `Fecha="2026-01-31T23:30:00"` como 31-ene 23:30 CDMX, el código actual lo guarda como 31-ene 23:30 UTC = 01-feb 05:30 CDMX → pierde el mes fiscal correcto.
+
+**Acción pendiente:** confirmar semántica fiscal con contador y actualizar `convex/lib/cfdiParser.ts` accordingly (probablemente parsing como CDMX = UTC-6 / UTC-5 DST).
 
 ### CRÍTICO — fix antes de cualquier demo
 
@@ -135,10 +173,10 @@ Merge `76140d8` previo a este turno. Branch `feature/sub-spec-2-contracts-firmam
 | 0 — Pricing foundation | ✅ main |
 | 1 — Deliverable content catalog | ✅ main + hardened |
 | 2 — Contratos + Firmame | ⚙️ Foundation main. T11-T18 GATED |
-| 3 — Per-service start month | ✅ main (⚠ F7 + F8 + F9) |
+| 3 — Per-service start month | ✅ main + 3 fixes (F7+F8+F9 done) |
 | 4 — Financial statements ingestion | 📋 Spec + plan ready, exec diferida |
-| 5 — Invoice issue date | ✅ main (⚠ F5 + F6) |
-| 6 — Year-over-year tier | ✅ main (⚠ F1 + F2 + F3 + F4) |
+| 5 — Invoice issue date | ✅ main + 1 fix (F5 done; ⚠ F6 pendiente contador) |
+| 6 — Year-over-year tier | ✅ main + 4 fixes (F1+F2+F3+F4 done) |
 | 7 — Queue + scale infra | Post-MVP |
 
 ---
@@ -166,14 +204,9 @@ npm test 2>&1 | tail -3                 # baseline 951
 npx tsc --noEmit 2>&1 | grep -v useDebouncedAutosave | head -5  # clean
 ```
 
-### Opción A — Atacar findings críticos del adversarial review
+### Opción A — Validar F6 con contador + fix timezone
 
-1. **F1** (`setAnnualAmount` rompe dynamic_retainer)
-2. **F3** (`discount=0` semántico)
-3. **F8** (`updateContractualWindow` no recalcula → UI miente)
-4. **F6** (CFDI timezone — validar primero con contador)
-
-Estimado: 0.5-1 día. Recomendado ANTES de cualquier demo a papá.
+Único finding pendiente que afecta producción. Decide con contador: ¿CFDI `Fecha` es hora local CDMX o UTC? Después del input, fix en `convex/lib/cfdiParser.ts` toma 30 min.
 
 ### Opción B — Ejecutar SS4 (financial statements V1)
 
@@ -187,12 +220,12 @@ Branch `feature/sub-spec-2-contracts-firmame` preservada. T11-T18 desbloqueados 
 
 ## Action items manuales (Christian)
 
-1. **Decidir prioridad findings adversarial** — fix antes de demo vs aceptar deuda
+1. **Validar timezone CFDI con contador (F6)** — único finding pendiente que afecta prod
 2. **Conseguir Firmame API docs + sandbox key** — SS2 final
 3. **Crear contratos HTML iniciales** para DESC
-4. **Validar timezone CFDI con contador** (F6)
-5. **Decidir push a origin/main** (63 commits ahead)
-6. **Smoke browser** flows nuevos (`/contratos`, `/facturacion`, `/proyecciones/[id]`, `/clientes/[id]/finanzas` solo schema)
+4. **Decidir push a origin/main** (60 commits ahead)
+5. **Smoke browser** flows nuevos (`/contratos`, `/facturacion`, `/proyecciones/[id]`)
+6. **Decidir** próximo: SS4 exec o esperar Firmame docs
 
 ---
 
