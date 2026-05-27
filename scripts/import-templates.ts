@@ -9,12 +9,20 @@
  * - Errors are sanitized before logging (HTML tags stripped) to avoid
  *   leaking template content into CI/log capture.
  *
- * Naming convention: <parent-svc-slug>__<subservice-slug>[-<type>].html
- *   Default type: deliverable_long
- *   Valid suffixes: -quotation -contract -short -long -questionnaire
+ * Naming conventions:
+ *   Standard:  <parent-svc-slug>__<subservice-slug>[-<type>].html
+ *     Default type: deliverable_long
+ *     Valid suffixes: -quotation -short -long -questionnaire
+ *   Contract:  <empresa-slug>__<subservice-slug>-contract.html
+ *     Empresa slug maps to an issuingCompany by normalized name.
+ *     Requires IMPORT_ORG_ID env var for org-scoped empresa lookup.
+ *     NEEDS_CONTEXT: issuingCompanies table has no slug field — lookup
+ *     uses toLowerCase().trim() name comparison.  If ambiguous, add
+ *     a unique slug field to issuingCompanies.
  *
  * Run:
  *   CONVEX_DEPLOY_KEY="..." NEXT_PUBLIC_CONVEX_URL="..." \
+ *     [IMPORT_ORG_ID="org_..."] \
  *     npx tsx scripts/import-templates.ts [path]
  *
  * Spec: docs/superpowers/specs/2026-05-25-deliverable-content-catalog-design.md §7
@@ -32,13 +40,18 @@ function isSafeFilename(name: string): boolean {
   // Must end in .html, must not contain path separators or traversal
   if (!name.endsWith(".html")) return false;
   if (name.includes("/") || name.includes("\\") || name.includes("..")) return false;
-  // Convention: <parent>__<sub>[-<type>].html — restrict to safe chars
+  // Conventions:
+  //   Standard:  <parent>__<sub>[-<type>].html
+  //   Contract:  <empresa-slug>__<subservice-slug>-contract.html
+  // Both share the same safe-char pattern.
   return /^[a-zA-Z0-9_-]+(__[a-zA-Z0-9_-]+)?(-(?:quotation|contract|short|long|questionnaire))?\.html$/.test(
     name
   );
 }
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
 const DEPLOY_KEY = process.env.CONVEX_DEPLOY_KEY;
+// Required when importing contract templates (empresa lookup is org-scoped).
+const IMPORT_ORG_ID = process.env.IMPORT_ORG_ID;
 
 // Map slug → display name (must match catalog services). Extend as needed.
 const SLUG_TO_NAME: Record<string, string> = {
@@ -60,22 +73,71 @@ type TemplateType =
   | "deliverable_long"
   | "questionnaire";
 
-function parseFilename(filename: string): {
+/**
+ * Parsed result for a contract template file.
+ * empresaSlug will be used to look up the issuingCompany by normalized name.
+ */
+export type ContractParseResult = {
+  kind: "contract";
+  empresaSlug: string;
+  subserviceSlug: string;
+  type: "contract";
+};
+
+/**
+ * Parsed result for a standard (non-contract) template file.
+ */
+export type StandardParseResult = {
+  kind: "standard";
   parentSvcSlug: string;
   subserviceSlug: string;
-  type: TemplateType;
-} {
+  type: Exclude<TemplateType, "contract">;
+};
+
+export type ParseResult = ContractParseResult | StandardParseResult;
+
+/**
+ * Parse an HTML template filename into its components.
+ *
+ * Contract convention:  <empresa-slug>__<subservice-slug>-contract.html
+ *   → { kind: 'contract', empresaSlug, subserviceSlug, type: 'contract' }
+ *
+ * Standard convention:  <parent-svc-slug>__<subservice-slug>[-<type>].html
+ *   → { kind: 'standard', parentSvcSlug, subserviceSlug, type }
+ *   Default type when no suffix: 'deliverable_long'
+ *
+ * Exported for unit testing.
+ */
+export function parseFilename(filename: string): ParseResult {
   const base = basename(filename, ".html");
-  const [parentSvcSlug, rest] = base.split("__");
-  if (!parentSvcSlug || !rest) {
+  const parts = base.split("__");
+  if (parts.length < 2 || !parts[0] || !parts[1]) {
     throw new Error(
       `Invalid name "${filename}": expected <parent>__<subslug>[-<type>].html`
     );
   }
-  const typeMatch = rest.match(
-    /-(quotation|contract|short|long|questionnaire)$/
-  );
-  let type: TemplateType = "deliverable_long";
+  const firstSlug = parts[0];
+  const rest = parts.slice(1).join("__"); // handle (unlikely) extra __ in sub
+
+  // Detect contract convention: rest must end with "-contract"
+  if (rest.endsWith("-contract")) {
+    const subserviceSlug = rest.slice(0, -"-contract".length);
+    if (!subserviceSlug) {
+      throw new Error(
+        `Invalid contract filename "${filename}": subservice slug is empty`
+      );
+    }
+    return {
+      kind: "contract",
+      empresaSlug: firstSlug,
+      subserviceSlug,
+      type: "contract",
+    };
+  }
+
+  // Standard convention
+  const typeMatch = rest.match(/-(quotation|short|long|questionnaire)$/);
+  let type: Exclude<TemplateType, "contract"> = "deliverable_long";
   let subserviceSlug = rest;
   if (typeMatch) {
     const suffix = typeMatch[1];
@@ -84,10 +146,10 @@ function parseFilename(filename: string): {
         ? "deliverable_short"
         : suffix === "long"
           ? "deliverable_long"
-          : (suffix as TemplateType);
+          : (suffix as "quotation" | "questionnaire");
     subserviceSlug = rest.slice(0, -typeMatch[0].length);
   }
-  return { parentSvcSlug, subserviceSlug, type };
+  return { kind: "standard", parentSvcSlug: firstSlug, subserviceSlug, type };
 }
 
 function humanize(slug: string): string {
@@ -135,7 +197,7 @@ async function main() {
 
   for (const file of files) {
     try {
-      const { parentSvcSlug, subserviceSlug, type } = parseFilename(file);
+      const parsed = parseFilename(file);
       const fullPath = join(TEMPLATES_DIR, file);
       const resolved = await realpath(fullPath);
       if (!resolved.startsWith(safeDir + "/") && resolved !== safeDir) {
@@ -145,34 +207,69 @@ async function main() {
       }
       const html = await readFile(resolved, "utf-8");
 
-      const parentServiceName = SLUG_TO_NAME[parentSvcSlug];
-      if (!parentServiceName) {
-        throw new Error(
-          `Unknown parent slug "${parentSvcSlug}". Add it to SLUG_TO_NAME.`
-        );
-      }
-
-      const name = `${humanize(subserviceSlug)} — ${typeLabel(type)}`;
-
-      // Cast internal ref to public FunctionReference — ConvexHttpClient.mutation()
-      // typing requires "public" visibility, but the HTTP wire protocol accepts
-      // internal mutations when authenticated with an admin deploy key.
-      const result = await client.mutation(
-        internal.functions.deliverableTemplates.bulkImport
-          .upsertFromFile as unknown as FunctionReference<"mutation">,
-        {
-          parentServiceName,
-          subserviceSlug,
-          type,
-          name,
-          htmlTemplate: html,
+      if (parsed.kind === "contract") {
+        // --- Contract template flow ---
+        // NEEDS_CONTEXT: issuingCompanies has no slug field (schema gap).
+        // Lookup uses normalized (lowercase + trim) name comparison against
+        // a human-readable empresa slug (e.g. "desc" → match "DESC" or "Desc").
+        // If names are ambiguous, add a unique slug field to issuingCompanies.
+        if (!IMPORT_ORG_ID) {
+          throw new Error(
+            `Contract file "${file}" requires IMPORT_ORG_ID env var to look up empresa "${parsed.empresaSlug}".`
+          );
         }
-      );
+        const { empresaSlug, subserviceSlug, type } = parsed;
+        const name = `${humanize(subserviceSlug)} — ${typeLabel(type)}`;
 
-      const sym = result.action === "created" ? "✓ created" : "↻ updated";
-      console.log(`${sym} ${file} (status: ${result.contentStatus})`);
-      if (result.action === "created") created++;
-      else updated++;
+        const result = await client.mutation(
+          internal.functions.deliverableTemplates.bulkImport
+            .upsertContractFromFile as unknown as FunctionReference<"mutation">,
+          {
+            orgId: IMPORT_ORG_ID,
+            empresaSlug,
+            subserviceSlug,
+            name,
+            htmlTemplate: html,
+          }
+        );
+
+        const sym = result.action === "created" ? "✓ created" : "↻ updated";
+        console.log(`${sym} ${file} (status: ${result.contentStatus})`);
+        if (result.action === "created") created++;
+        else updated++;
+      } else {
+        // --- Standard (non-contract) template flow ---
+        const { parentSvcSlug, subserviceSlug, type } = parsed;
+
+        const parentServiceName = SLUG_TO_NAME[parentSvcSlug];
+        if (!parentServiceName) {
+          throw new Error(
+            `Unknown parent slug "${parentSvcSlug}". Add it to SLUG_TO_NAME.`
+          );
+        }
+
+        const name = `${humanize(subserviceSlug)} — ${typeLabel(type)}`;
+
+        // Cast internal ref to public FunctionReference — ConvexHttpClient.mutation()
+        // typing requires "public" visibility, but the HTTP wire protocol accepts
+        // internal mutations when authenticated with an admin deploy key.
+        const result = await client.mutation(
+          internal.functions.deliverableTemplates.bulkImport
+            .upsertFromFile as unknown as FunctionReference<"mutation">,
+          {
+            parentServiceName,
+            subserviceSlug,
+            type,
+            name,
+            htmlTemplate: html,
+          }
+        );
+
+        const sym = result.action === "created" ? "✓ created" : "↻ updated";
+        console.log(`${sym} ${file} (status: ${result.contentStatus})`);
+        if (result.action === "created") created++;
+        else updated++;
+      }
     } catch (err) {
       const raw = (err as Error).message ?? String(err);
       // Strip HTML tags + truncate to keep payloads out of CI logs
@@ -186,7 +283,15 @@ async function main() {
   process.exit(errors > 0 ? 1 : 0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run when executed directly (not when imported by tests).
+// tsx sets import.meta.url to a file:// URL matching process.argv[1].
+if (
+  typeof process !== "undefined" &&
+  process.argv[1] &&
+  import.meta.url === `file://${process.argv[1]}`
+) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
