@@ -168,3 +168,46 @@ export const markVoid = mutation({
     return { ok: true, alreadyVoid: false };
   },
 });
+
+/**
+ * SS5: Admin edits the fiscal issue date of an invoice post-upload.
+ * Rejected if invoice is voided.
+ *
+ * Per docs/superpowers/specs/2026-05-27-invoice-issue-date-design.md §7
+ */
+export const updateIssueDate = mutation({
+  args: {
+    invoiceId: v.id("invoices"),
+    issueDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const inv = await ctx.db.get(args.invoiceId);
+    if (!inv || inv.orgId !== orgId) {
+      throw new Error("Factura no encontrada.");
+    }
+    if (inv.status === "void") {
+      throw new Error("No se puede editar fecha en factura cancelada.");
+    }
+
+    await ctx.db.patch(args.invoiceId, { issueDate: args.issueDate });
+
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId,
+        clientId: inv.clientId,
+        entityType: "invoice" as const,
+        entityId: args.invoiceId,
+        eventType: "updated" as const,
+        severity: "info" as const,
+        actorUserId: identity.subject,
+        actorType: "user" as const,
+        message: `Fecha de emisión actualizada a ${new Date(args.issueDate).toISOString().slice(0, 10)}.`,
+      }
+    );
+
+    return { ok: true };
+  },
+});
