@@ -1,6 +1,6 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId } from "../../lib/authHelpers";
+import { getOrgId, requireAdmin } from "../../lib/authHelpers";
 
 export const generate = mutation({
   args: {
@@ -309,6 +309,43 @@ export const saveGenerated = internalMutation({
       status: "draft",
       createdAt: Date.now(),
     });
+  },
+});
+
+export const cancelContract = mutation({
+  args: {
+    contractId: v.id("contracts"),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+
+    const contract = await ctx.db.get(args.contractId);
+    if (!contract) throw new Error("Contract not found");
+    if (contract.orgId !== orgId) throw new Error("Forbidden");
+    if (contract.status === "signed") {
+      throw new Error("Cannot cancel a signed contract");
+    }
+
+    await ctx.db.patch(args.contractId, {
+      status: "cancelled",
+      cancellationReason: args.reason,
+    });
+
+    await ctx.db.insert("documentEvents", {
+      orgId: contract.orgId,
+      clientId: contract.clientId,
+      entityType: "contract",
+      entityId: args.contractId,
+      eventType: "voided",
+      severity: "info",
+      actorType: "user",
+      message: `Contrato cancelado por admin: ${args.reason}`,
+      createdAt: Date.now(),
+    });
+
+    // TODO post-MVP: if firmameDocumentId exists, call firmameClient.cancelDocument() to revoke link
   },
 });
 
