@@ -95,7 +95,7 @@ In `convex/schema.ts`, inside `deliverableTemplates` table definition, add (afte
 And append new index after existing indexes:
 
 ```ts
-    .index("by_orgId_type_issuingCompany_subservice", [
+    .index("by_orgId_type_issuingCompanyId_subserviceId", [
       "orgId",
       "type",
       "issuingCompanyId",
@@ -653,7 +653,7 @@ export async function findContractTemplate(
 ): Promise<Doc<"deliverableTemplates"> | null> {
   const rows = await ctx.db
     .query("deliverableTemplates")
-    .withIndex("by_orgId_type_issuingCompany_subservice", (q) =>
+    .withIndex("by_orgId_type_issuingCompanyId_subserviceId", (q) =>
       q
         .eq("orgId", args.orgId)
         .eq("type", "contract")
@@ -805,13 +805,14 @@ import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId, requireAdmin } from "../../lib/authHelpers";
 
+// TODO(post-MVP): support filter by issuingCompanyId — requires snapshot field
+// on contracts table or join through servicesIssuingCompanyMap. Deferred.
 export const getContractsForPipeline = query({
   args: {
     statusFilter: v.optional(
       v.union(v.literal("all"), v.literal("draft"), v.literal("sent"), v.literal("signed"), v.literal("cancelled"))
     ),
     minDaysWithoutSigning: v.optional(v.number()),
-    issuingCompanyId: v.optional(v.id("issuingCompanies")),
     clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {

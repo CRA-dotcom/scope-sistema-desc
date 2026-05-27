@@ -53,6 +53,10 @@ export const create = mutation({
     variables: v.array(variableValidator),
     isActive: v.boolean(),
     orgId: v.optional(v.string()),
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+    signerMode: v.optional(
+      v.union(v.literal("client_only"), v.literal("co_sign")),
+    ),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
@@ -68,6 +72,19 @@ export const create = mutation({
         throw new Error("No puedes crear plantillas para otra organización.");
       }
       resolvedOrgId = callerOrg;
+    }
+
+    // SS2: type='contract' requires issuingCompanyId AND org-scope (no globals).
+    // Other types must NOT have issuingCompanyId.
+    if (args.type === "contract") {
+      if (!args.issuingCompanyId) {
+        throw new Error("issuingCompanyId is required for contract templates");
+      }
+      if (!resolvedOrgId) {
+        throw new Error("Contract templates must be org-scoped (no globals)");
+      }
+    } else if (args.issuingCompanyId !== undefined) {
+      throw new Error("issuingCompanyId only valid for contract type");
     }
 
     validatePlaceholdersDeclared(args.htmlTemplate, args.variables);
@@ -89,6 +106,8 @@ export const create = mutation({
       contentStatus,
       parentTemplateId: undefined,
       originalVersionAtClone: undefined,
+      issuingCompanyId: args.issuingCompanyId,
+      signerMode: args.signerMode,
       createdAt: now,
       updatedAt: now,
     });
@@ -136,6 +155,10 @@ export const update = mutation({
       subserviceId: v.optional(v.id("subservices")),
       type: v.optional(typeValidator),
       isActive: v.optional(v.boolean()),
+      issuingCompanyId: v.optional(v.id("issuingCompanies")),
+      signerMode: v.optional(
+        v.union(v.literal("client_only"), v.literal("co_sign")),
+      ),
     }),
   },
   handler: async (ctx, args) => {
@@ -148,6 +171,23 @@ export const update = mutation({
       throw new Error(
         `Versión obsoleta: la plantilla cambió a v${tpl.version} mientras editabas (esperabas v${args.expectedVersion}). Recargá los cambios.`,
       );
+    }
+
+    // SS2: validate issuingCompanyId on update — resolve effective type/issuingCompanyId.
+    const effectiveType = args.patch.type ?? tpl.type;
+    const effectiveIssuingCompanyId =
+      "issuingCompanyId" in args.patch
+        ? args.patch.issuingCompanyId
+        : tpl.issuingCompanyId;
+    if (effectiveType === "contract") {
+      if (!effectiveIssuingCompanyId) {
+        throw new Error("issuingCompanyId is required for contract templates");
+      }
+      if (!tpl.orgId) {
+        throw new Error("Contract templates must be org-scoped (no globals)");
+      }
+    } else if (effectiveIssuingCompanyId !== undefined) {
+      throw new Error("issuingCompanyId only valid for contract type");
     }
 
     const nextHtml = args.patch.htmlTemplate ?? tpl.htmlTemplate;

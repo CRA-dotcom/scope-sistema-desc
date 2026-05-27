@@ -402,11 +402,30 @@ export default defineSchema({
     ),
     signedAt: v.optional(v.number()),
     createdAt: v.number(),
+    // SS2: Firmame integration
+    firmameDocumentId: v.optional(v.string()),
+    firmameSignUrl: v.optional(v.string()),
+    // TODO(post-MVP): tighten to v.union(v.literal(...)) once Firmame webhook event names are documented
+    firmameStatus: v.optional(v.string()),
+    // Railway S3 key (NOT a Convex _storage ID — see convex/lib/blobStorage.ts)
+    signedPdfBucketKey: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    lastReminderAt: v.optional(v.number()),
+    reminderCount: v.optional(v.number()),
+    // snapshot from template at send time; template may mutate later
+    signerMode: v.optional(
+      v.union(
+        v.literal("client_only"),
+        v.literal("co_sign")
+      )
+    ),
+    cancellationReason: v.optional(v.string()),
   })
     .index("by_orgId", ["orgId"])
     .index("by_quotationId", ["quotationId"])
     .index("by_clientId", ["clientId"])
-    .index("by_orgId_status", ["orgId", "status"]),
+    .index("by_orgId_status", ["orgId", "status"])
+    .index("by_firmameDocumentId", ["firmameDocumentId"]),
 
   deliverables: defineTable({
     orgId: v.string(),
@@ -564,6 +583,14 @@ export default defineSchema({
     // A2: copy-on-write tracking — apunta al global del que se clonó (R1 #2)
     parentTemplateId: v.optional(v.id("deliverableTemplates")),
     originalVersionAtClone: v.optional(v.number()),
+    // SS2: lookup contract templates by org + type + issuingCompany
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+    signerMode: v.optional(
+      v.union(
+        v.literal("client_only"),
+        v.literal("co_sign")
+      )
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -574,7 +601,13 @@ export default defineSchema({
     .index("by_orgId_subserviceId", ["orgId", "subserviceId"])
     // A2: banner "hay vN global disponible" + idempotencia personalizeGlobal
     .index("by_parentTemplateId", ["parentTemplateId"])
-    .index("by_subservice_contentStatus", ["subserviceId", "contentStatus"]),
+    .index("by_subservice_contentStatus", ["subserviceId", "contentStatus"])
+    .index("by_orgId_type_issuingCompanyId_subserviceId", [
+      "orgId",
+      "type",
+      "issuingCompanyId",
+      "subserviceId",
+    ]),
 
   issuingCompanies: defineTable({
     orgId: v.string(),
@@ -749,6 +782,7 @@ export default defineSchema({
     provider: v.union(
       v.literal("resend"),
       v.literal("mifiel"),
+      v.literal("firmame"),
       v.literal("anthropic"),
       v.literal("other")
     ),

@@ -89,7 +89,7 @@ Se incluye una **vista pipeline mínima de contratos** (`/contratos`) para que a
     v.literal("co_sign"),
   )),
 }
-.index("by_orgId_type_issuingCompany_subservice",
+.index("by_orgId_type_issuingCompanyId_subserviceId",
   ["orgId", "type", "issuingCompanyId", "subserviceId"])
 ```
 
@@ -149,7 +149,7 @@ async function findContractTemplate(
 ```
 
 Lookup:
-1. **Exact match org-scoped:** `(orgId, type='contract', issuingCompanyId, subserviceId)` por índice `by_orgId_type_issuingCompany_subservice`.
+1. **Exact match org-scoped:** `(orgId, type='contract', issuingCompanyId, subserviceId)` por índice `by_orgId_type_issuingCompanyId_subserviceId`.
 2. Sin match → `null` → admin error event ("Falta template de contrato para [empresa emisora] × [subservicio]. Súbelo en /configuracion/empresas/[id]/contratos").
 
 NO hay fallback global para contracts (R1 — cada org sus propios contratos).
@@ -245,7 +245,7 @@ NOTE: usa UTC base; for true per-org timezone iteramos orgs y aplicamos offset (
   | Cliente | Servicio | Empresa Emisora | Status | Sent | Días sin firmar | Últ reminder | Acciones |
 - Status chips: `draft` (gris), `sent` (amber), `signed` (emerald), `cancelled` (rose)
 - Sort: días sin firmar desc (stuck first)
-- Filtros: status, días sin firmar (`>3d`/`>7d`/`>14d`), empresa emisora, cliente.
+- Filtros: status, días sin firmar (`>3d`/`>7d`/`>14d`), cliente.
 - Pagination: 50/page.
 - Acciones per row:
   - "Ver en Firmame" → external link (`firmameSignUrl` o link a dashboard Firmame)
