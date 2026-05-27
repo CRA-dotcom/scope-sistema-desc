@@ -1,6 +1,7 @@
-import { mutation } from "../../_generated/server";
+import { mutation, MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId, requireAuth, requireAdmin } from "../../lib/authHelpers";
+import { Id } from "../../_generated/dataModel";
 
 export const toggleActive = mutation({
   args: {
@@ -82,8 +83,108 @@ export const changePricingModel = mutation({
 });
 
 /**
+ * recalcOneServiceCells — internal helper shared by setAnnualAmount (F1) and
+ * updateContractualWindow (F8).
+ *
+ * Redistributes `annualAmount` (as stored on the projectionServices row after
+ * any patch has already been applied) across the monthly cells of a single
+ * projectionService, respecting:
+ *   - isManuallyOverridden cells: amount is FROZEN, not touched.
+ *   - Contractual window (startMonth / endMonth): out-of-window cells → 0.
+ *   - FE factors from the parent projection's seasonalityData.
+ *
+ * The helper does NOT call the full projection engine (which re-derives
+ * annualAmount from budget weights). Instead it treats annualAmount as a
+ * fixed given and distributes it proportionally by feFactor across eligible
+ * non-overridden in-window months. This mirrors the invariant maintained by
+ * recalculate() in projections/mutations.ts (override-map + delete/recreate).
+ *
+ * TODO: if recalculate() in projections/mutations.ts is ever refactored to a
+ * shared helper, consolidate this logic there.
+ */
+async function recalcOneServiceCells(
+  ctx: MutationCtx,
+  projServiceId: Id<"projectionServices">
+): Promise<void> {
+  const ps = await ctx.db.get(projServiceId);
+  if (!ps) return;
+
+  const projection = await ctx.db.get(ps.projectionId);
+  if (!projection) return;
+
+  const annualAmount = ps.annualAmount;
+  const startMonth = ps.startMonth;
+  const endMonth = ps.endMonth;
+
+  // Resolve seasonality from the parent projection.
+  // Prefer stored seasonalityData (12-entry array); fall back to even spread.
+  const seasonality: { month: number; feFactor: number }[] =
+    projection.seasonalityData && projection.seasonalityData.length === 12
+      ? projection.seasonalityData
+      : Array.from({ length: 12 }, (_, i) => ({ month: i + 1, feFactor: 1 }));
+
+  // Build a month→feFactor lookup for the 12 calendar months.
+  const feByMonth = new Map<number, number>(
+    seasonality.map((m) => [m.month, m.feFactor])
+  );
+
+  // Read all existing monthly cells for this service.
+  const existingCells = await ctx.db
+    .query("monthlyAssignments")
+    .withIndex("by_projServiceId", (q) => q.eq("projServiceId", projServiceId))
+    .collect();
+
+  // Split: overridden cells are frozen; non-overridden cells will be recomputed.
+  const overriddenSum = existingCells
+    .filter((c) => c.isManuallyOverridden)
+    .reduce((s, c) => s + c.amount, 0);
+
+  // Amount available to distribute among non-overridden in-window months.
+  const distributable = annualAmount - overriddenSum;
+
+  // Determine which calendar months are in-window and NOT overridden.
+  const lo = startMonth ?? 1;
+  const hi = endMonth ?? 12;
+
+  // Non-overridden cells that are in-window receive a proportional share.
+  // Out-of-window cells are zeroed out (regardless of override status — a
+  // manually overridden cell in a now-out-of-window month is kept at its
+  // override amount per the spec; the window just zeroes non-override cells).
+  // Actually: per spec, manual overrides always win — don't zero them even
+  // if out of window. Only zero non-overridden out-of-window cells.
+  const eligibleCells = existingCells.filter(
+    (c) => !c.isManuallyOverridden && c.month >= lo && c.month <= hi
+  );
+
+  const sumFE = eligibleCells.reduce(
+    (s, c) => s + (feByMonth.get(c.month) ?? 1),
+    0
+  );
+
+  for (const cell of existingCells) {
+    if (cell.isManuallyOverridden) continue; // frozen — never touch
+
+    const inWindow = cell.month >= lo && cell.month <= hi;
+    if (!inWindow) {
+      // Out-of-window non-override → zero out
+      await ctx.db.patch(cell._id, { amount: 0 });
+    } else {
+      // In-window non-override → proportional share of distributable
+      const fe = feByMonth.get(cell.month) ?? 1;
+      const share = sumFE > 0 ? distributable * (fe / sumFE) : 0;
+      await ctx.db.patch(cell._id, { amount: share });
+    }
+  }
+}
+
+/**
  * setAnnualAmount — SS6: Directly override the annualAmount on a
  * projectionServices row (used by the year-over-year discount "Aplicar" button).
+ *
+ * After patching annualAmount, redistributes monthlyAssignments cells so the
+ * monthly sum stays consistent with the new annual total (F1 fix).
+ * Manual overrides (isManuallyOverridden=true) are preserved — only
+ * non-overridden in-window cells are recalculated.
  *
  * Requires org:admin. Value must be ≥ 0.
  */
@@ -99,6 +200,7 @@ export const setAnnualAmount = mutation({
     if (!ps || ps.orgId !== orgId) throw new Error("No encontrado.");
     if (args.annualAmount < 0) throw new Error("annualAmount debe ser ≥ 0.");
     await ctx.db.patch(args.projServiceId, { annualAmount: args.annualAmount });
+    await recalcOneServiceCells(ctx, args.projServiceId);
     return { ok: true };
   },
 });
@@ -113,8 +215,11 @@ export const setAnnualAmount = mutation({
  * - Both bounds must satisfy 1 ≤ n ≤ 12, and startMonth ≤ endMonth when both
  *   are provided.
  *
- * Does NOT trigger cell recalculation — caller must invoke recalculate via
- * the existing UI button.
+ * After patching the window, triggers cell recalculation via recalcOneServiceCells
+ * so monthlyAssignments stay consistent with the new window (F8 fix).
+ * Out-of-window non-overridden cells are zeroed; in-window cells are
+ * redistributed by FE factor. Manual overrides (isManuallyOverridden=true) are
+ * always preserved, even if the overridden cell is now outside the window.
  *
  * Spec: B1 mid-year add-on window (schema comment in projectionServices table)
  */
@@ -157,6 +262,8 @@ export const updateContractualWindow = mutation({
       startMonth: args.startMonth,
       endMonth: args.endMonth,
     });
+
+    await recalcOneServiceCells(ctx, args.projServiceId);
 
     return { ok: true };
   },
