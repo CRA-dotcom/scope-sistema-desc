@@ -12,6 +12,8 @@ import type * as crons from "../crons.js";
 import type * as functions_clients_mutations from "../functions/clients/mutations.js";
 import type * as functions_clients_queries from "../functions/clients/queries.js";
 import type * as functions_contracts_actions from "../functions/contracts/actions.js";
+import type * as functions_contracts_cron from "../functions/contracts/cron.js";
+import type * as functions_contracts_internalMutations from "../functions/contracts/internalMutations.js";
 import type * as functions_contracts_internalQueries from "../functions/contracts/internalQueries.js";
 import type * as functions_contracts_mutations from "../functions/contracts/mutations.js";
 import type * as functions_contracts_queries from "../functions/contracts/queries.js";
@@ -121,6 +123,7 @@ import type * as lib_deliverableEngine_aiBatchFill from "../lib/deliverableEngin
 import type * as lib_deliverableEngine_errors from "../lib/deliverableEngine/errors.js";
 import type * as lib_deliverableEngine_placeholders from "../lib/deliverableEngine/placeholders.js";
 import type * as lib_deliverableEngine_staticResolver from "../lib/deliverableEngine/staticResolver.js";
+import type * as lib_firmameClient from "../lib/firmameClient.js";
 import type * as lib_pricingModel from "../lib/pricingModel.js";
 import type * as lib_projectionContext from "../lib/projectionContext.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
@@ -143,6 +146,8 @@ declare const fullApi: ApiFromModules<{
   "functions/clients/mutations": typeof functions_clients_mutations;
   "functions/clients/queries": typeof functions_clients_queries;
   "functions/contracts/actions": typeof functions_contracts_actions;
+  "functions/contracts/cron": typeof functions_contracts_cron;
+  "functions/contracts/internalMutations": typeof functions_contracts_internalMutations;
   "functions/contracts/internalQueries": typeof functions_contracts_internalQueries;
   "functions/contracts/mutations": typeof functions_contracts_mutations;
   "functions/contracts/queries": typeof functions_contracts_queries;
@@ -252,6 +257,7 @@ declare const fullApi: ApiFromModules<{
   "lib/deliverableEngine/errors": typeof lib_deliverableEngine_errors;
   "lib/deliverableEngine/placeholders": typeof lib_deliverableEngine_placeholders;
   "lib/deliverableEngine/staticResolver": typeof lib_deliverableEngine_staticResolver;
+  "lib/firmameClient": typeof lib_firmameClient;
   "lib/pricingModel": typeof lib_pricingModel;
   "lib/projectionContext": typeof lib_projectionContext;
   "lib/projectionEngine": typeof lib_projectionEngine;

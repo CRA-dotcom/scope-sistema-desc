@@ -75,7 +75,7 @@ export function createFirmameClient(config: FirmameClientConfig) {
     formData.append("title", args.title);
     formData.append(
       "pdf",
-      new Blob([args.pdfBuffer], { type: "application/pdf" }),
+      new Blob([new Uint8Array(args.pdfBuffer)], { type: "application/pdf" }),
     );
     formData.append("signers", JSON.stringify(args.signers));
     if (args.deadline !== undefined) {
