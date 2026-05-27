@@ -402,11 +402,27 @@ export default defineSchema({
     ),
     signedAt: v.optional(v.number()),
     createdAt: v.number(),
+    // SS2: Firmame integration
+    firmameDocumentId: v.optional(v.string()),
+    firmameSignUrl: v.optional(v.string()),
+    firmameStatus: v.optional(v.string()),
+    signedPdfBucketKey: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    lastReminderAt: v.optional(v.number()),
+    reminderCount: v.optional(v.number()),
+    signerMode: v.optional(
+      v.union(
+        v.literal("client_only"),
+        v.literal("co_sign")
+      )
+    ),
+    cancellationReason: v.optional(v.string()),
   })
     .index("by_orgId", ["orgId"])
     .index("by_quotationId", ["quotationId"])
     .index("by_clientId", ["clientId"])
-    .index("by_orgId_status", ["orgId", "status"]),
+    .index("by_orgId_status", ["orgId", "status"])
+    .index("by_firmameDocumentId", ["firmameDocumentId"]),
 
   deliverables: defineTable({
     orgId: v.string(),
