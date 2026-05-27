@@ -342,6 +342,44 @@ export const getByIdWithBanner = query({
 });
 
 /**
+ * Returns all contract-type templates for a given issuingCompanyId within the
+ * caller's org. Admin-only. Uses the composite index
+ * by_orgId_type_issuingCompanyId_subserviceId for efficient lookup. Each row
+ * is enriched with `subserviceName` so the UI avoids a per-row join.
+ *
+ * Per SS2 Task 9.
+ */
+export const listByIssuingCompany = query({
+  args: { issuingCompanyId: v.id("issuingCompanies") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const role = (identity.orgRole as string) ?? "org:member";
+    if (role !== "org:admin" && !isSuperAdminFromIdentity(identity)) return [];
+
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
+
+    const rows = await ctx.db
+      .query("deliverableTemplates")
+      .withIndex("by_orgId_type_issuingCompanyId_subserviceId", (q) =>
+        q
+          .eq("orgId", orgId)
+          .eq("type", "contract")
+          .eq("issuingCompanyId", args.issuingCompanyId),
+      )
+      .collect();
+
+    return Promise.all(
+      rows.map(async (r) => {
+        const sub = r.subserviceId ? await ctx.db.get(r.subserviceId) : null;
+        return { ...r, subserviceName: sub?.name ?? null };
+      }),
+    );
+  },
+});
+
+/**
  * Reads a single template. Returns null if not found OR the caller is not
  * allowed to read it (cross-org guard). Per A2 §3.2.
  */
