@@ -51,6 +51,9 @@ type InvoiceRow = {
   filename: string;
   status: "uploaded" | "paid" | "void";
   createdAt: number;
+  uploadedAt: number;
+  // SS5: fiscal issue date (undefined means not yet captured)
+  issueDate?: number;
 };
 
 // Local snapshot of the MA row fields we touch from billingQueries.
@@ -95,9 +98,16 @@ function FacturacionPageInner() {
   const [selectedMonth, setSelectedMonth] = useState<number | undefined>(initialMonth);
   const [selectedService, setSelectedService] = useState<string | undefined>(undefined);
   const [selectedStatus, setSelectedStatus] = useState<MaInvoiceStatus | undefined>(undefined);
+  // SS5: fiscal period filter
+  const [issueDateFrom, setIssueDateFrom] = useState<string>("");
+  const [issueDateTo, setIssueDateTo] = useState<string>("");
+  // SS5: edit issueDate modal
+  const [editingInvoice, setEditingInvoice] = useState<InvoiceRow | null>(null);
+  const [editIssueDate, setEditIssueDate] = useState<string>("");
 
   const { membership } = useOrganization();
   const isAdmin = membership?.role === "org:admin";
+  const updateIssueDate = useMutation(api.functions.invoices.mutations.updateIssueDate);
 
   // Drives the assignments table (one row per scheduled service-month).
   const assignments = useQuery(
@@ -111,9 +121,15 @@ function FacturacionPageInner() {
   ) as AssignmentRow[] | undefined;
 
   // Cross-reference: pull all invoices for the selected period, join by MA id.
+  // SS5: include fiscal period filter args when set.
   const invoiceRows = useQuery(
     api.functions.invoices.queries.listForBilling,
-    { year: selectedYear, month: selectedMonth }
+    {
+      year: selectedYear,
+      month: selectedMonth,
+      issueDateFrom: issueDateFrom ? new Date(issueDateFrom).getTime() : undefined,
+      issueDateTo: issueDateTo ? new Date(issueDateTo).getTime() : undefined,
+    }
   ) as InvoiceRow[] | undefined;
 
   // Group invoices by `monthlyAssignmentId` and pick the most recent non-void
@@ -347,6 +363,26 @@ function FacturacionPageInner() {
           </select>
           <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
         </div>
+
+        {/* SS5: Fiscal period filter (issueDate range) */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Período fiscal:</span>
+          <input
+            type="date"
+            value={issueDateFrom}
+            onChange={(e) => setIssueDateFrom(e.target.value)}
+            aria-label="Período fiscal desde"
+            className="rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground"
+          />
+          <span className="text-muted-foreground">a</span>
+          <input
+            type="date"
+            value={issueDateTo}
+            onChange={(e) => setIssueDateTo(e.target.value)}
+            aria-label="Período fiscal hasta"
+            className="rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground"
+          />
+        </div>
       </div>
 
       {/* Loading / Empty / Table */}
@@ -388,6 +424,8 @@ function FacturacionPageInner() {
                       <th className="px-4 py-2.5 text-left font-medium">Cliente</th>
                       <th className="px-4 py-2.5 text-left font-medium">Servicio</th>
                       <th className="px-4 py-2.5 text-right font-medium">Monto</th>
+                      {/* SS5: fiscal issue date column */}
+                      <th className="px-4 py-2.5 text-center font-medium">Emisión</th>
                       <th className="px-4 py-2.5 text-center font-medium">Factura PDF</th>
                       <th className="px-4 py-2.5 text-center font-medium">Estado Entrega</th>
                     </tr>
@@ -411,6 +449,38 @@ function FacturacionPageInner() {
                             <td className="px-4 py-2.5 text-muted-foreground">{item.serviceName}</td>
                             <td className="px-4 py-2.5 text-right font-medium">
                               ${item.amount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                            </td>
+                            {/* SS5: fiscal issue date cell */}
+                            <td className="px-4 py-2.5 text-center">
+                              {invoice ? (() => {
+                                const d = invoice.issueDate ?? invoice.uploadedAt;
+                                const isEstimated = invoice.issueDate === undefined;
+                                return (
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span
+                                      className={isEstimated ? "text-amber-700 text-xs" : "text-xs"}
+                                      title={isEstimated ? "Estimada — falta fecha fiscal" : undefined}
+                                    >
+                                      {new Date(d).toLocaleDateString("es-MX")}
+                                    </span>
+                                    {invoice.status !== "void" && isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const initDate = invoice.issueDate ?? invoice.uploadedAt;
+                                          setEditingInvoice(invoice);
+                                          setEditIssueDate(new Date(initDate).toISOString().slice(0, 10));
+                                        }}
+                                        className="text-[10px] text-blue-500 hover:underline cursor-pointer"
+                                      >
+                                        Editar fecha
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })() : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </td>
                             <td className="px-4 py-2.5 text-center">
                               <InvoicePdfCell
@@ -488,6 +558,74 @@ function FacturacionPageInner() {
           invoice={pendingVoid}
           onClose={() => setPendingVoid(null)}
         />
+      )}
+
+      {/* SS5 T10: Edit issueDate modal */}
+      {editingInvoice && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Editar fecha de emisión"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setEditingInvoice(null)}
+          onKeyDown={(e) => { if (e.key === "Escape") setEditingInvoice(null); }}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border border-border bg-card p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Editar fecha de emisión</h2>
+              <button
+                type="button"
+                onClick={() => setEditingInvoice(null)}
+                aria-label="Cerrar"
+                className="rounded p-1 text-muted-foreground hover:bg-secondary transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Factura: {editingInvoice.filename}
+            </p>
+            <div className="mt-4 space-y-1">
+              <label htmlFor="edit-issue-date" className="text-sm font-medium">
+                Fecha de emisión (CFDI)
+              </label>
+              <input
+                id="edit-issue-date"
+                type="date"
+                value={editIssueDate}
+                onChange={(e) => setEditIssueDate(e.target.value)}
+                className="block w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
+              />
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingInvoice(null)}
+                className="rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!editIssueDate}
+                onClick={async () => {
+                  if (!editIssueDate) return;
+                  await updateIssueDate({
+                    invoiceId: editingInvoice._id,
+                    issueDate: new Date(editIssueDate).getTime(),
+                  });
+                  setEditingInvoice(null);
+                }}
+                className="inline-flex items-center gap-1 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -665,6 +803,9 @@ function UploadInvoiceDialog({
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [duplicateOf, setDuplicateOf] = useState(false);
+  // SS5: optional CFDI XML + manual issueDate
+  const [xmlFile, setXmlFile] = useState<File | null>(null);
+  const [manualIssueDate, setManualIssueDate] = useState<string>("");
 
   // Auto-close after duplicate warning; tracked so unmount or `duplicateOf`
   // change cancels the timer (prevents double-onClose + unmount warnings).
@@ -696,6 +837,11 @@ function UploadInvoiceDialog({
     setSubmitting(true);
     try {
       const buffer = await file.arrayBuffer();
+      // SS5: resolve CFDI XML buffer + manual date
+      const xmlBuffer = xmlFile ? await xmlFile.arrayBuffer() : undefined;
+      const issueDateMs = manualIssueDate
+        ? new Date(manualIssueDate).getTime()
+        : undefined;
       const result = await upload({
         clientId: assignment.clientId,
         projectionId: assignment.projectionId,
@@ -710,6 +856,8 @@ function UploadInvoiceDialog({
         contentType: file.type,
         fileBuffer: buffer,
         notes: notes.trim() ? notes.trim() : undefined,
+        xmlBuffer,
+        issueDate: issueDateMs,
       });
       if (result.duplicateOf) {
         setWarning(
@@ -804,6 +952,50 @@ function UploadInvoiceDialog({
               className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
             />
           </div>
+
+          {/* SS5 T8: optional CFDI XML + manual issueDate */}
+          <div className="space-y-1">
+            <label htmlFor="invoice-xml" className="text-sm font-medium">
+              CFDI XML{" "}
+              <span className="text-xs text-muted-foreground font-normal">
+                (opcional — autocompleta fecha de emisión)
+              </span>
+            </label>
+            <input
+              id="invoice-xml"
+              type="file"
+              accept=".xml,application/xml,text/xml"
+              onChange={(e) => setXmlFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-muted cursor-pointer"
+            />
+            {xmlFile && (
+              <p className="text-[11px] text-muted-foreground">
+                {xmlFile.name} · la fecha fiscal se extraerá automáticamente.
+              </p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="invoice-issue-date" className="text-sm font-medium">
+              Fecha de emisión{" "}
+              <span className="text-xs text-muted-foreground font-normal">
+                (opcional)
+              </span>
+            </label>
+            <input
+              id="invoice-issue-date"
+              type="date"
+              value={manualIssueDate}
+              onChange={(e) => setManualIssueDate(e.target.value)}
+              disabled={!!xmlFile}
+              className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            {xmlFile && (
+              <p className="text-[11px] text-muted-foreground">
+                Deshabilitado — la fecha se extraerá del CFDI XML.
+              </p>
+            )}
+          </div>
+
           <p className="text-xs text-muted-foreground">
             El cliente recibirá un correo con la factura automáticamente.
           </p>
