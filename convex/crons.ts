@@ -36,4 +36,12 @@ crons.daily(
   {},
 );
 
+// SS2: contract reminders — 3d/7d/14d daily check (10 AM CDMX = 16:00 UTC)
+crons.daily(
+  "contract-reminders",
+  { hourUTC: 16, minuteUTC: 0 },
+  internal.functions.contracts.cron.contractRemindersTick,
+  {},
+);
+
 export default crons;

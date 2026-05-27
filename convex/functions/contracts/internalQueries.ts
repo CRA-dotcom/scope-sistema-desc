@@ -109,3 +109,11 @@ export const getByQuotationInternal = internalQuery({
     return c;
   },
 });
+
+/** Simple by-ID fetch for internal actions (e.g. sendContractReminder). */
+export const getById = internalQuery({
+  args: { contractId: v.id("contracts") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.contractId);
+  },
+});
