@@ -7,6 +7,7 @@ import { Id, Doc } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2 } from "lucide-react";
+// SS3-T4: month labels for the window picker selectors
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,8 @@ const MONTH_NAMES = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
   "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ];
+// SS3-T4: short month labels for window picker (same order, 0-indexed)
+const MONTH_LABELS_ES = MONTH_NAMES;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-muted-foreground/20 text-muted-foreground",
@@ -73,6 +76,11 @@ export default function ProjectionDetailPage() {
 
   const setMonthSubservice = useMutation(
     api.functions.monthlyAssignments.mutations.setSubservice
+  );
+
+  // SS3-T4: mutation for per-service contractual window
+  const updateContractualWindow = useMutation(
+    api.functions.projectionServices.mutations.updateContractualWindow
   );
 
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
@@ -315,19 +323,98 @@ export default function ProjectionDetailPage() {
               const svcAssignments = assignments.filter(
                 (a) => a.projServiceId === svc._id
               );
+
+              // SS3-T4: effective contractual window for this service
+              const effectiveStart = svc.startMonth ?? projection!.startMonth ?? 1;
+              const effectiveEnd = svc.endMonth ?? 12;
+              // "Full year defaults" = no per-service override needed
+              const isDefaultWindow =
+                svc.startMonth === undefined && svc.endMonth === undefined;
+
               return (
                 <tr key={svc._id} className="border-b border-border/50">
                   <td className="sticky left-0 bg-card px-4 py-2.5 font-medium">
-                    <div>
+                    <div className="space-y-1.5">
                       <div>{svc.serviceName}</div>
                       {svc.subserviceId && subservicesById.get(svc.subserviceId) && (
-                        <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                        <div className="text-[10px] text-muted-foreground font-normal">
                           {subservicesById.get(svc.subserviceId)!.name}
                         </div>
                       )}
+                      {/* SS3-T4: per-service window picker */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground">Inicia en</span>
+                        <select
+                          value={effectiveStart}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const newStart = val === (projection!.startMonth ?? 1) && svc.endMonth === undefined
+                              ? undefined
+                              : val;
+                            updateContractualWindow({
+                              projServiceId: svc._id,
+                              startMonth: newStart,
+                              endMonth: svc.endMonth,
+                            }).catch(() => {});
+                          }}
+                          className="text-[10px] rounded border border-border bg-secondary px-1 py-0.5 focus:border-accent focus:outline-none cursor-pointer"
+                          title="Mes de inicio del servicio (ventana contractual)"
+                        >
+                          {MONTH_LABELS_ES.map((label, idx) => (
+                            <option key={idx + 1} value={idx + 1}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-[10px] text-muted-foreground">Termina en</span>
+                        <select
+                          value={effectiveEnd}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const newEnd = val === 12 && svc.startMonth === undefined
+                              ? undefined
+                              : val;
+                            updateContractualWindow({
+                              projServiceId: svc._id,
+                              startMonth: svc.startMonth,
+                              endMonth: newEnd,
+                            }).catch(() => {});
+                          }}
+                          className="text-[10px] rounded border border-border bg-secondary px-1 py-0.5 focus:border-accent focus:outline-none cursor-pointer"
+                          title="Mes de fin del servicio (ventana contractual)"
+                        >
+                          {MONTH_LABELS_ES.map((label, idx) => (
+                            <option key={idx + 1} value={idx + 1}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        {!isDefaultWindow && (
+                          <span
+                            className="text-[10px] text-accent font-medium"
+                            title="Ventana contractual personalizada activa"
+                          >
+                            ·
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   {months.map((monthNum, i) => {
+                    // SS3-T5: render dash for months outside the service window
+                    const isOutOfWindow = monthNum < effectiveStart || monthNum > effectiveEnd;
+                    if (isOutOfWindow) {
+                      return (
+                        <td
+                          key={`${monthNum}-${i}`}
+                          title={`Activo ${MONTH_LABELS_ES[effectiveStart - 1]} – ${MONTH_LABELS_ES[effectiveEnd - 1]}`}
+                          className="text-center text-gray-400 italic select-none px-2 py-2"
+                        >
+                          —
+                        </td>
+                      );
+                    }
+
                     const ma = svcAssignments.find((a) => a.month === monthNum);
                     if (!ma) {
                       return (
