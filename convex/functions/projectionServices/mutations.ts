@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAuth } from "../../lib/authHelpers";
+import { getOrgId, requireAuth, requireAdmin } from "../../lib/authHelpers";
 
 export const toggleActive = mutation({
   args: {
@@ -78,5 +78,64 @@ export const changePricingModel = mutation({
     }
 
     return { ok: true, cellsTouched: cells.length };
+  },
+});
+
+/**
+ * Set or clear the contractual window (startMonth / endMonth) for a
+ * projectionServices row.
+ *
+ * - Pass a number (1–12) to set the bound.
+ * - Omit the field (undefined) to clear it — the service then spans the full
+ *   year (legacy / no window restriction).
+ * - Both bounds must satisfy 1 ≤ n ≤ 12, and startMonth ≤ endMonth when both
+ *   are provided.
+ *
+ * Does NOT trigger cell recalculation — caller must invoke recalculate via
+ * the existing UI button.
+ *
+ * Spec: B1 mid-year add-on window (schema comment in projectionServices table)
+ */
+export const updateContractualWindow = mutation({
+  args: {
+    projServiceId: v.id("projectionServices"),
+    startMonth: v.optional(v.number()),
+    endMonth: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+
+    const ps = await ctx.db.get(args.projServiceId);
+    if (!ps || ps.orgId !== orgId) {
+      throw new Error("Servicio de proyección no encontrado.");
+    }
+
+    if (args.startMonth !== undefined) {
+      if (args.startMonth < 1 || args.startMonth > 12) {
+        throw new Error("startMonth debe estar entre 1 y 12.");
+      }
+    }
+
+    if (args.endMonth !== undefined) {
+      if (args.endMonth < 1 || args.endMonth > 12) {
+        throw new Error("endMonth debe estar entre 1 y 12.");
+      }
+    }
+
+    if (args.startMonth !== undefined && args.endMonth !== undefined) {
+      if (args.startMonth > args.endMonth) {
+        throw new Error(
+          "startMonth no puede ser mayor que endMonth (ventana invertida)."
+        );
+      }
+    }
+
+    await ctx.db.patch(args.projServiceId, {
+      startMonth: args.startMonth,
+      endMonth: args.endMonth,
+    });
+
+    return { ok: true };
   },
 });
