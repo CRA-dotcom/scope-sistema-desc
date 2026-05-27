@@ -805,13 +805,14 @@ import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId, requireAdmin } from "../../lib/authHelpers";
 
+// TODO(post-MVP): support filter by issuingCompanyId — requires snapshot field
+// on contracts table or join through servicesIssuingCompanyMap. Deferred.
 export const getContractsForPipeline = query({
   args: {
     statusFilter: v.optional(
       v.union(v.literal("all"), v.literal("draft"), v.literal("sent"), v.literal("signed"), v.literal("cancelled"))
     ),
     minDaysWithoutSigning: v.optional(v.number()),
-    issuingCompanyId: v.optional(v.id("issuingCompanies")),
     clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {

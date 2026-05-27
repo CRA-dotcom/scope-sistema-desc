@@ -245,7 +245,7 @@ NOTE: usa UTC base; for true per-org timezone iteramos orgs y aplicamos offset (
   | Cliente | Servicio | Empresa Emisora | Status | Sent | Días sin firmar | Últ reminder | Acciones |
 - Status chips: `draft` (gris), `sent` (amber), `signed` (emerald), `cancelled` (rose)
 - Sort: días sin firmar desc (stuck first)
-- Filtros: status, días sin firmar (`>3d`/`>7d`/`>14d`), empresa emisora, cliente.
+- Filtros: status, días sin firmar (`>3d`/`>7d`/`>14d`), cliente.
 - Pagination: 50/page.
 - Acciones per row:
   - "Ver en Firmame" → external link (`firmameSignUrl` o link a dashboard Firmame)
