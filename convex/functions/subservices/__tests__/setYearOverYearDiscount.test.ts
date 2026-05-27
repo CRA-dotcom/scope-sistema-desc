@@ -88,6 +88,19 @@ describe("setYearOverYearDiscount", () => {
     });
   });
 
+  it("rejects discount=0 (zero is meaningless — use undefined to clear)", async () => {
+    const t = setupTest();
+    const orgId = "org_1";
+    const subserviceId = await seedOrgSubservice(t, orgId);
+    const auth = t.withIdentity({ orgId, orgRole: "org:admin" });
+
+    await expect(
+      auth.mutation(api.functions.subservices.mutations.setYearOverYearDiscount, {
+        subserviceId, discount: 0,
+      })
+    ).rejects.toThrow(/mayor.*0|positive/i);
+  });
+
   it("rejects discount < 0", async () => {
     const t = setupTest();
     const orgId = "org_1";
@@ -98,7 +111,7 @@ describe("setYearOverYearDiscount", () => {
       auth.mutation(api.functions.subservices.mutations.setYearOverYearDiscount, {
         subserviceId, discount: -1,
       })
-    ).rejects.toThrow(/0 y 100|discount/i);
+    ).rejects.toThrow(/mayor.*0|discount/i);
   });
 
   it("rejects discount > 100", async () => {
@@ -111,7 +124,7 @@ describe("setYearOverYearDiscount", () => {
       auth.mutation(api.functions.subservices.mutations.setYearOverYearDiscount, {
         subserviceId, discount: 101,
       })
-    ).rejects.toThrow(/0 y 100|discount/i);
+    ).rejects.toThrow(/mayor.*0|discount/i);
   });
 
   it("requires super_admin for global subservices", async () => {

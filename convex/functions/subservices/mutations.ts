@@ -399,8 +399,10 @@ export const setYearOverYearDiscount = mutation({
     }
 
     if (args.discount !== undefined) {
-      if (args.discount < 0 || args.discount > 100) {
-        throw new Error("discount debe estar entre 0 y 100");
+      if (args.discount <= 0 || args.discount > 100) {
+        throw new Error(
+          "discount debe ser mayor a 0 (usa undefined para desactivar)"
+        );
       }
     }
 

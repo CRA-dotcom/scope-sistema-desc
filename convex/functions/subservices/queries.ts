@@ -135,7 +135,7 @@ export const getYearOverYearHint = query({
 
     const sub = await ctx.db.get(args.subserviceId);
     if (!sub) return { available: false as const };
-    if (!sub.yearOverYearDiscount || sub.yearOverYearDiscount === 0) {
+    if (!sub.yearOverYearDiscount) {
       return { available: false as const };
     }
 
