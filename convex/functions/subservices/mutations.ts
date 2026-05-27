@@ -2,7 +2,7 @@ import { mutation, MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
-import { getOrgId, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
 
 /**
  * Internal helper: derive a stable kebab-case slug from a name.
@@ -366,6 +366,49 @@ export const remove = mutation({
         metadata: { slug: sub.slug, parentServiceId: sub.parentServiceId },
       }
     );
+    return { ok: true };
+  },
+});
+
+/**
+ * setYearOverYearDiscount — SS6: Set or clear the year-over-year discount %
+ * for a subservice.
+ *
+ * - Global subservices (orgId === undefined): requires super_admin.
+ * - Org subservices: requires requireAdmin + same orgId.
+ *
+ * Per docs/superpowers/specs/2026-05-27-year-over-year-tier-design.md §6
+ */
+export const setYearOverYearDiscount = mutation({
+  args: {
+    subserviceId: v.id("subservices"),
+    discount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const sub = await ctx.db.get(args.subserviceId);
+    if (!sub) throw new Error("Subservicio no encontrado");
+
+    if (sub.orgId === undefined) {
+      await requireSuperAdmin(ctx);
+    } else {
+      await requireAdmin(ctx);
+      const orgId = await getOrgId(ctx);
+      if (sub.orgId !== orgId) {
+        throw new Error("Subservicio no pertenece al org");
+      }
+    }
+
+    if (args.discount !== undefined) {
+      if (args.discount < 0 || args.discount > 100) {
+        throw new Error("discount debe estar entre 0 y 100");
+      }
+    }
+
+    await ctx.db.patch(args.subserviceId, {
+      yearOverYearDiscount: args.discount,
+      updatedAt: Date.now(),
+    });
+
     return { ok: true };
   },
 });
