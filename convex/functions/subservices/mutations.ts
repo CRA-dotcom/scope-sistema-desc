@@ -2,7 +2,7 @@ import { mutation, MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
-import { getOrgId, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
+import { getOrgId, requireAdmin, requireAuth, requireSuperAdmin } from "../../lib/authHelpers";
 
 /**
  * Internal helper: derive a stable kebab-case slug from a name.
@@ -385,9 +385,12 @@ export const setYearOverYearDiscount = mutation({
     discount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // 1. Minimal authn — must be logged in before any read
+    await requireAuth(ctx);
+    // 2. Read
     const sub = await ctx.db.get(args.subserviceId);
     if (!sub) throw new Error("Subservicio no encontrado");
-
+    // 3. Authz based on row type
     if (sub.orgId === undefined) {
       await requireSuperAdmin(ctx);
     } else {
