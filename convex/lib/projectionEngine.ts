@@ -18,6 +18,10 @@ export type ServiceConfig = {
   isCommission?: boolean;
   fixedMonthlyAmount?: number;
   pricingModel?: PricingModel;
+  /** B1 — contractual window. undefined = active all year (legacy default). */
+  startMonth?: number;
+  /** B1 — contractual window end (inclusive). undefined = through month 12. */
+  endMonth?: number;
 };
 
 export type EngineConfig = {
@@ -116,6 +120,21 @@ export function generateEvenSeasonality(annualSales: number): MonthlyData[] {
     monthlySales: monthly,
     feFactor: 1,
   }));
+}
+
+/**
+ * Returns true when the given calendar month falls within the service's
+ * contractual window [startMonth..endMonth].
+ * Defaults: startMonth=1, endMonth=12 (full year — legacy behaviour).
+ */
+function isMonthInWindow(
+  month: number,
+  startMonth: number | undefined,
+  endMonth: number | undefined
+): boolean {
+  const lo = startMonth ?? 1;
+  const hi = endMonth ?? 12;
+  return month >= lo && month <= hi;
 }
 
 /**
@@ -262,18 +281,25 @@ export function calculateProjection(
     }
 
     if (service.pricingModel === "one_time") {
-      // one_time: annualAmount entero se cobra en el primer mes del scope.
+      // one_time: annualAmount entero se cobra en startMonth del servicio
+      // (o en el primer mes del scope si startMonth es undefined — legacy).
       // Resto de meses = 0. Sin FE adjustment (es un único cobro fijo).
       const normalizedWeight = totalWeight > 0 ? service.chosenPct / totalWeight : 0;
       const annualAmount = remainingBudget * normalizedWeight;
-      const firstMonth = effectiveSeasonality[0].month;
+      // Per-service startMonth overrides projection-level first month.
+      const chargeMonth = service.startMonth ?? effectiveSeasonality[0].month;
 
-      const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
-        month: m.month,
-        baseAmount: m.month === firstMonth ? annualAmount : 0,
-        feFactor: m.feFactor,
-        adjustedAmount: m.month === firstMonth ? annualAmount : 0,
-      }));
+      const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => {
+        const isCharge =
+          m.month === chargeMonth &&
+          isMonthInWindow(m.month, service.startMonth, service.endMonth);
+        return {
+          month: m.month,
+          baseAmount: isCharge ? annualAmount : 0,
+          feFactor: m.feFactor,
+          adjustedAmount: isCharge ? annualAmount : 0,
+        };
+      });
 
       return {
         serviceId: service.serviceId,
@@ -289,16 +315,22 @@ export function calculateProjection(
 
     if (resolvedConfig.calculationMode === "fixed") {
       // Fixed mode: use fixedMonthlyAmount, no weight normalization, no FE adjustment.
-      // annualAmount spans only the monthCount months covered.
+      // annualAmount spans only the monthCount months covered (and within the window).
       const fixedMonthly = service.fixedMonthlyAmount ?? 0;
-      const annualAmount = fixedMonthly * ctx.monthCount;
+      const eligibleMonths = effectiveSeasonality.filter((m) =>
+        isMonthInWindow(m.month, service.startMonth, service.endMonth)
+      );
+      const annualAmount = fixedMonthly * eligibleMonths.length;
 
-      const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
-        month: m.month,
-        baseAmount: fixedMonthly,
-        feFactor: m.feFactor,
-        adjustedAmount: fixedMonthly,
-      }));
+      const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => {
+        const inWindow = isMonthInWindow(m.month, service.startMonth, service.endMonth);
+        return {
+          month: m.month,
+          baseAmount: inWindow ? fixedMonthly : 0,
+          feFactor: m.feFactor,
+          adjustedAmount: inWindow ? fixedMonthly : 0,
+        };
+      });
 
       return {
         serviceId: service.serviceId,
@@ -323,16 +355,29 @@ export function calculateProjection(
     // cuando monthCount=8), el factor adaptativo evita concentracion patologica
     // del drift en un solo mes via Step 5b.
     // Spec: docs/superpowers/specs/2026-05-22-engine-fefactor-rescale-design.md
-    const sumFE = effectiveSeasonality.reduce((s, m) => s + m.feFactor, 0);
+    //
+    // SS3: when a per-service contractual window is set, re-normalise FE over
+    // eligible months only so sum(adjustedAmount over window) === annualAmount.
+    const eligibleMonthsWeighted = effectiveSeasonality.filter((m) =>
+      isMonthInWindow(m.month, service.startMonth, service.endMonth)
+    );
+    const sumFE = eligibleMonthsWeighted.reduce((s, m) => s + m.feFactor, 0);
     const monthlyBase =
-      sumFE > 0 ? annualAmount / sumFE : annualAmount / ctx.monthCount;
+      sumFE > 0
+        ? annualAmount / sumFE
+        : eligibleMonthsWeighted.length > 0
+          ? annualAmount / eligibleMonthsWeighted.length
+          : 0;
 
-    const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => ({
-      month: m.month,
-      baseAmount: monthlyBase,
-      feFactor: m.feFactor,
-      adjustedAmount: monthlyBase * m.feFactor,
-    }));
+    const monthlyAmounts: MonthlyAmount[] = effectiveSeasonality.map((m) => {
+      const inWindow = isMonthInWindow(m.month, service.startMonth, service.endMonth);
+      return {
+        month: m.month,
+        baseAmount: inWindow ? monthlyBase : 0,
+        feFactor: m.feFactor,
+        adjustedAmount: inWindow ? monthlyBase * m.feFactor : 0,
+      };
+    });
 
     return {
       serviceId: service.serviceId,
@@ -395,19 +440,25 @@ export function calculateProjection(
     // (no all-to-heaviest) para que ningun mes absorba magnitudes inesperadas
     // — esto era el bug Katimi pre-2026-05-22 cuando feFactors estaban mal calibrados.
     // Spec: docs/superpowers/specs/2026-05-22-engine-fefactor-rescale-design.md
+    //
+    // SS3: only distribute residual among in-window months (those with baseAmount > 0
+    // or whose feFactor was included in the sumFE denominator). Out-of-window months
+    // must remain at 0 — distributing drift there would break the window guarantee.
     for (const svc of baseAllocations) {
       if (svc.monthlyAmounts.length === 0) continue;
       const monthlySum = svc.monthlyAmounts.reduce((a, m) => a + m.adjustedAmount, 0);
       const monthlyDrift = svc.annualAmount - monthlySum;
       if (Math.abs(monthlyDrift) === 0) continue;
-      const svcSumFE = svc.monthlyAmounts.reduce((s, m) => s + m.feFactor, 0);
+      // Only in-window months (baseAmount > 0) participate in drift distribution.
+      const inWindowMonths = svc.monthlyAmounts.filter((m) => m.baseAmount > 0);
+      const svcSumFE = inWindowMonths.reduce((s, m) => s + m.feFactor, 0);
       if (svcSumFE > 0) {
-        for (const m of svc.monthlyAmounts) {
+        for (const m of inWindowMonths) {
           m.adjustedAmount += monthlyDrift * (m.feFactor / svcSumFE);
         }
-      } else {
-        const perMonth = monthlyDrift / svc.monthlyAmounts.length;
-        for (const m of svc.monthlyAmounts) m.adjustedAmount += perMonth;
+      } else if (inWindowMonths.length > 0) {
+        const perMonth = monthlyDrift / inWindowMonths.length;
+        for (const m of inWindowMonths) m.adjustedAmount += perMonth;
       }
     }
   }
