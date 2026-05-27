@@ -34,6 +34,9 @@ export const listForBilling = query({
         v.literal("void")
       )
     ),
+    // SS5: fiscal period filter — uses issueDate, falling back to uploadedAt
+    issueDateFrom: v.optional(v.number()),
+    issueDateTo: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const orgId = await getOrgIdSafe(ctx);
@@ -48,6 +51,12 @@ export const listForBilling = query({
     }
     if (args.status) {
       rows = rows.filter((r) => r.status === args.status);
+    }
+    if (args.issueDateFrom !== undefined) {
+      rows = rows.filter((r) => (r.issueDate ?? r.uploadedAt) >= args.issueDateFrom!);
+    }
+    if (args.issueDateTo !== undefined) {
+      rows = rows.filter((r) => (r.issueDate ?? r.uploadedAt) <= args.issueDateTo!);
     }
     return rows.sort((a, b) => b.createdAt - a.createdAt);
   },
