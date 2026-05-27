@@ -359,19 +359,19 @@ export default function ProjectionDetailPage() {
                           }
                         />
                       )}
-                      {/* SS3-T4: per-service window picker */}
+                      {/* SS3-T4: per-service window picker (F9: always persist literal choice) */}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] text-muted-foreground">Inicia en</span>
                         <select
                           value={effectiveStart}
                           onChange={(e) => {
-                            const val = Number(e.target.value);
-                            const newStart = val === (projection!.startMonth ?? 1) && svc.endMonth === undefined
-                              ? undefined
-                              : val;
+                            // F9: always store the literal value the user picked —
+                            // no auto-undefined-on-equals-default logic. This makes
+                            // explicit choice indistinguishable from default only when
+                            // the user explicitly clears via the ↺ button below.
                             updateContractualWindow({
                               projServiceId: svc._id,
-                              startMonth: newStart,
+                              startMonth: Number(e.target.value),
                               endMonth: svc.endMonth,
                             }).catch(() => {});
                           }}
@@ -388,14 +388,10 @@ export default function ProjectionDetailPage() {
                         <select
                           value={effectiveEnd}
                           onChange={(e) => {
-                            const val = Number(e.target.value);
-                            const newEnd = val === 12 && svc.startMonth === undefined
-                              ? undefined
-                              : val;
                             updateContractualWindow({
                               projServiceId: svc._id,
                               startMonth: svc.startMonth,
-                              endMonth: newEnd,
+                              endMonth: Number(e.target.value),
                             }).catch(() => {});
                           }}
                           className="text-[10px] rounded border border-border bg-secondary px-1 py-0.5 focus:border-accent focus:outline-none cursor-pointer"
@@ -408,12 +404,20 @@ export default function ProjectionDetailPage() {
                           ))}
                         </select>
                         {!isDefaultWindow && (
-                          <span
-                            className="text-[10px] text-accent font-medium"
-                            title="Ventana contractual personalizada activa"
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateContractualWindow({
+                                projServiceId: svc._id,
+                                startMonth: undefined,
+                                endMonth: undefined,
+                              }).catch(() => {})
+                            }
+                            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            title="Restablecer ventana (hereda mes de inicio de la proyección, todo el año)"
                           >
-                            ·
-                          </span>
+                            ↺ Limpiar ventana
+                          </button>
                         )}
                       </div>
                     </div>
