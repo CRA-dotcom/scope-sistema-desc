@@ -82,6 +82,10 @@ export default function ProjectionDetailPage() {
   const updateContractualWindow = useMutation(
     api.functions.projectionServices.mutations.updateContractualWindow
   );
+  // SS6: mutation to apply year-over-year discounted amount
+  const setAnnualAmount = useMutation(
+    api.functions.projectionServices.mutations.setAnnualAmount
+  );
 
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
   const { download: downloadPdf, state: pdfState } = usePdfGenerator();
@@ -341,6 +345,20 @@ export default function ProjectionDetailPage() {
                           {subservicesById.get(svc.subserviceId)!.name}
                         </div>
                       )}
+                      {/* SS6: year-over-year discount chip */}
+                      {svc.subserviceId && projection && (
+                        <YearOverYearChip
+                          clientId={projection.clientId}
+                          subserviceId={svc.subserviceId}
+                          annualAmount={svc.annualAmount}
+                          onApply={(newAmount) =>
+                            setAnnualAmount({
+                              projServiceId: svc._id,
+                              annualAmount: newAmount,
+                            }).catch(() => {})
+                          }
+                        />
+                      )}
                       {/* SS3-T4: per-service window picker */}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] text-muted-foreground">Inicia en</span>
@@ -498,5 +516,48 @@ export default function ProjectionDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * SS6 — YearOverYearChip
+ *
+ * Isolated component so it can call useQuery at the top level (hooks can't be
+ * called inside a .map()). Renders a blue "Año 2+" badge + "Aplicar" button
+ * when the client qualifies for a renewal discount on this subservice.
+ */
+function YearOverYearChip({
+  clientId,
+  subserviceId,
+  annualAmount,
+  onApply,
+}: {
+  clientId: Id<"clients">;
+  subserviceId: Id<"subservices">;
+  annualAmount: number;
+  onApply: (newAmount: number) => void;
+}) {
+  const hint = useQuery(api.functions.subservices.queries.getYearOverYearHint, {
+    clientId,
+    subserviceId,
+  });
+
+  if (!hint?.available || !hint.discount) return null;
+
+  const newAmount = Math.round(annualAmount * (1 - hint.discount / 100));
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="rounded bg-blue-500/10 px-2 py-0.5 text-xs text-blue-400">
+        Año 2+: -{hint.discount}% disponible
+      </span>
+      <button
+        type="button"
+        onClick={() => onApply(newAmount)}
+        className="text-xs text-blue-500 underline hover:text-blue-600"
+      >
+        Aplicar
+      </button>
+    </span>
   );
 }

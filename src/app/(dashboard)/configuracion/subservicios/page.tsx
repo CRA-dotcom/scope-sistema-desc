@@ -35,6 +35,7 @@ type Subservice = {
   cooldownMonths?: number;
   defaultPricingHint?: number;
   isCommission?: boolean;
+  yearOverYearDiscount?: number;
   isActive: boolean;
   isDefault: boolean;
   sortOrder: number;
@@ -72,6 +73,9 @@ export default function SubserviciosPage() {
   );
   const restoreToGlobal = useMutation(
     api.functions.subservices.mutations.restoreToGlobal
+  );
+  const setYearOverYearDiscount = useMutation(
+    api.functions.subservices.mutations.setYearOverYearDiscount
   );
 
   const [expandedParents, setExpandedParents] = useState<Set<string>>(
@@ -316,6 +320,12 @@ export default function SubserviciosPage() {
                           onToggle={() => handleToggle(sub)}
                           onRestore={() => handleRestore(sub)}
                           onRequestDelete={() => setPendingDelete(sub)}
+                          onSetYearOverYearDiscount={(discount) =>
+                            setYearOverYearDiscount({
+                              subserviceId: sub._id,
+                              discount,
+                            })
+                          }
                         />
                       ))}
                     </ul>
@@ -356,6 +366,7 @@ function SubserviceRow({
   onToggle,
   onRestore,
   onRequestDelete,
+  onSetYearOverYearDiscount,
 }: {
   subservice: Subservice;
   isAdmin: boolean;
@@ -365,6 +376,7 @@ function SubserviceRow({
   onToggle: () => void;
   onRestore: () => void;
   onRequestDelete: () => void;
+  onSetYearOverYearDiscount: (discount: number | undefined) => Promise<unknown>;
 }) {
   const isGlobal = subservice.orgId === undefined;
   return (
@@ -403,6 +415,32 @@ function SubserviceRow({
           </p>
         </div>
       </div>
+
+      {isAdmin && subservice.orgId !== undefined && (
+        // year-over-year discount input — only on org-scoped rows (editable)
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="whitespace-nowrap">Año 2+ %</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            defaultValue={subservice.yearOverYearDiscount ?? ""}
+            placeholder="—"
+            onBlur={async (e) => {
+              const raw = e.target.value.trim();
+              const discount = raw === "" ? undefined : Number(raw);
+              if (discount !== undefined && (discount < 0 || discount > 100)) return;
+              try {
+                await onSetYearOverYearDiscount(discount);
+              } catch {
+                // silent — page-level error banner not wired here; avoid crashing
+              }
+            }}
+            className="w-16 rounded border border-border bg-secondary px-1 py-0.5 text-right text-sm focus:border-accent focus:outline-none"
+            title="Descuento aplicable cuando el mismo cliente renueva este subservicio (año 2+)"
+          />
+        </div>
+      )}
 
       {isAdmin && (
         <div className="flex items-center gap-1">

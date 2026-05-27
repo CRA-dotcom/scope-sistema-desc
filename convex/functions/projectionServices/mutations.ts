@@ -82,6 +82,28 @@ export const changePricingModel = mutation({
 });
 
 /**
+ * setAnnualAmount — SS6: Directly override the annualAmount on a
+ * projectionServices row (used by the year-over-year discount "Aplicar" button).
+ *
+ * Requires org:admin. Value must be ≥ 0.
+ */
+export const setAnnualAmount = mutation({
+  args: {
+    projServiceId: v.id("projectionServices"),
+    annualAmount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const ps = await ctx.db.get(args.projServiceId);
+    if (!ps || ps.orgId !== orgId) throw new Error("No encontrado.");
+    if (args.annualAmount < 0) throw new Error("annualAmount debe ser ≥ 0.");
+    await ctx.db.patch(args.projServiceId, { annualAmount: args.annualAmount });
+    return { ok: true };
+  },
+});
+
+/**
  * Set or clear the contractual window (startMonth / endMonth) for a
  * projectionServices row.
  *
