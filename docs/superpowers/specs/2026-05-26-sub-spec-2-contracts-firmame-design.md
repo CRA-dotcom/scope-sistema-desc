@@ -89,7 +89,7 @@ Se incluye una **vista pipeline mínima de contratos** (`/contratos`) para que a
     v.literal("co_sign"),
   )),
 }
-.index("by_orgId_type_issuingCompany_subservice",
+.index("by_orgId_type_issuingCompanyId_subserviceId",
   ["orgId", "type", "issuingCompanyId", "subserviceId"])
 ```
 
@@ -149,7 +149,7 @@ async function findContractTemplate(
 ```
 
 Lookup:
-1. **Exact match org-scoped:** `(orgId, type='contract', issuingCompanyId, subserviceId)` por índice `by_orgId_type_issuingCompany_subservice`.
+1. **Exact match org-scoped:** `(orgId, type='contract', issuingCompanyId, subserviceId)` por índice `by_orgId_type_issuingCompanyId_subserviceId`.
 2. Sin match → `null` → admin error event ("Falta template de contrato para [empresa emisora] × [subservicio]. Súbelo en /configuracion/empresas/[id]/contratos").
 
 NO hay fallback global para contracts (R1 — cada org sus propios contratos).

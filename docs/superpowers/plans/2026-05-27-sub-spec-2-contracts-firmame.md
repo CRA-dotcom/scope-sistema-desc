@@ -95,7 +95,7 @@ In `convex/schema.ts`, inside `deliverableTemplates` table definition, add (afte
 And append new index after existing indexes:
 
 ```ts
-    .index("by_orgId_type_issuingCompany_subservice", [
+    .index("by_orgId_type_issuingCompanyId_subserviceId", [
       "orgId",
       "type",
       "issuingCompanyId",
@@ -653,7 +653,7 @@ export async function findContractTemplate(
 ): Promise<Doc<"deliverableTemplates"> | null> {
   const rows = await ctx.db
     .query("deliverableTemplates")
-    .withIndex("by_orgId_type_issuingCompany_subservice", (q) =>
+    .withIndex("by_orgId_type_issuingCompanyId_subserviceId", (q) =>
       q
         .eq("orgId", args.orgId)
         .eq("type", "contract")

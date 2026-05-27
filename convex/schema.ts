@@ -564,7 +564,7 @@ export default defineSchema({
     // A2: copy-on-write tracking — apunta al global del que se clonó (R1 #2)
     parentTemplateId: v.optional(v.id("deliverableTemplates")),
     originalVersionAtClone: v.optional(v.number()),
-    // SS2: composite key for contract templates
+    // SS2: lookup contract templates by org + type + issuingCompany
     issuingCompanyId: v.optional(v.id("issuingCompanies")),
     signerMode: v.optional(
       v.union(
@@ -583,7 +583,7 @@ export default defineSchema({
     // A2: banner "hay vN global disponible" + idempotencia personalizeGlobal
     .index("by_parentTemplateId", ["parentTemplateId"])
     .index("by_subservice_contentStatus", ["subserviceId", "contentStatus"])
-    .index("by_orgId_type_issuingCompany_subservice", [
+    .index("by_orgId_type_issuingCompanyId_subserviceId", [
       "orgId",
       "type",
       "issuingCompanyId",
