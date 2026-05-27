@@ -198,6 +198,8 @@ export default defineSchema({
     // Copy-on-write tracking (explicit personalizeGlobal, per R1 §12 #2)
     parentSubserviceId: v.optional(v.id("subservices")),
     originalVersionAtClone: v.optional(v.number()),
+    // SS6: % discount for year 2+ tier (admin opt-in via wizard).
+    yearOverYearDiscount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
