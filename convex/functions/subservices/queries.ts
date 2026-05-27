@@ -139,15 +139,16 @@ export const getYearOverYearHint = query({
       return { available: false as const };
     }
 
-    // Find prior projections for this client in this org (non-draft)
-    const allProjections = await ctx.db
-      .query("projections")
-      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
-      .collect();
-
-    const clientProjections = allProjections.filter(
-      (p) => p.clientId === args.clientId && p.status !== "draft"
-    );
+    // Find prior projections for this client in this org (non-draft).
+    // Use by_clientId index (scoped to this client) instead of org-wide scan
+    // to avoid O(N_org_projections) per chip render. Filter orgId in-memory
+    // as a multi-tenant safety check (by_clientId doesn't include orgId).
+    const clientProjections = (
+      await ctx.db
+        .query("projections")
+        .withIndex("by_clientId", (q) => q.eq("clientId", args.clientId))
+        .collect()
+    ).filter((p) => p.orgId === orgId && p.status !== "draft");
 
     for (const proj of clientProjections) {
       const projServices = await ctx.db
