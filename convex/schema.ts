@@ -870,6 +870,9 @@ export default defineSchema({
     voidedBy: v.optional(v.string()),
     voidReason: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // SS5: fiscal issue date (separate from operational uploadedAt).
+    // CFDI Fecha attribute when XML provided, manual capture otherwise.
+    issueDate: v.optional(v.number()),
     // V2 hooks
     facturapiInvoiceId: v.optional(v.string()),
     cfdiUuid: v.optional(v.string()),
