@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createHmac } from "node:crypto";
 import { createFirmameClient } from "../firmameClient";
 
 describe("firmameClient", () => {
@@ -58,10 +59,13 @@ describe("firmameClient", () => {
   });
 
   describe("verifyWebhookSignature", () => {
-    it("verifyWebhookSignature method is defined", () => {
-      const client = createFirmameClient({ apiKey: "x", sandbox: true, webhookSecret: "s" });
-      // Full valid-HMAC roundtrip test is in Task 12.
-      expect(client.verifyWebhookSignature).toBeDefined();
+    it("returns true for valid HMAC", () => {
+      const body = '{"event":"signed","document_id":"abc"}';
+      const secret = "webhook-secret";
+      const expectedSig = createHmac("sha256", secret).update(body).digest("hex");
+
+      const client = createFirmameClient({ apiKey: "x", sandbox: true, webhookSecret: secret });
+      expect(client.verifyWebhookSignature(body, expectedSig)).toBe(true);
     });
 
     it("returns false for invalid HMAC", () => {
