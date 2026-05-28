@@ -76,7 +76,7 @@ export default function ProjectionDetailPage() {
 
   const allTemplates = useQuery(
     api.functions.deliverableTemplates.queries.list,
-    authReady ? {} : "skip"
+    authReady ? { orgId } : "skip"
   );
   // Map serviceId → template names for the deliverables popover
   const templatesByServiceId = useMemo(() => {
