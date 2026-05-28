@@ -2,6 +2,9 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
+  // Clerk SDK v6 redirects unauthenticated users to /signin (no hyphen) by default.
+  // Whitelist it here so the stub redirect page can serve without re-triggering protection.
+  "/signin(.*)",
   "/q(.*)",
 ]);
 
