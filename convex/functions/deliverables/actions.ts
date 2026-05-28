@@ -15,6 +15,7 @@ import {
   CreditExhaustedError,
   CostCapExceededError,
 } from "../../lib/deliverableEngine/errors";
+import { effectiveSubserviceIds } from "../../lib/subserviceIds";
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -273,6 +274,12 @@ export const generateDeliverable = action({
     if (!client) throw new Error("Cliente no encontrado.");
     if (!projService) throw new Error("Servicio de proyeccion no encontrado.");
 
+    // Multi-subservicio (Option A): deliverable generation ties to the primary
+    // subservice (effectiveSubserviceIds[0]). Operators can override per-cell
+    // from the matrix. Generating N deliverables per assignment (Option B)
+    // would require a schema change and is deferred.
+    const primarySubserviceId = effectiveSubserviceIds(projService)[0];
+
     const [projection, questionnaire, orgBranding, resolvedTemplate] =
       await Promise.all([
         ctx.runQuery(
@@ -299,7 +306,8 @@ export const generateDeliverable = action({
               {
                 orgId: assignment.orgId,
                 type: args.templateType,
-                subserviceId: projService.subserviceId,
+                // Multi-subservicio: use primary subservice for template resolution.
+                subserviceId: primarySubserviceId,
                 serviceId: projService.serviceId,
                 serviceName: projService.serviceName,
               }
@@ -381,13 +389,14 @@ export const generateDeliverable = action({
         else needsAi.push(k);
       }
 
-      // SS4: if the subservice opts in via isFinancialRelated, fetch the
-      // latest validated financial snapshot ≤ asOfPeriod (assignment month).
+      // SS4: if the primary subservice opts in via isFinancialRelated, fetch
+      // the latest validated financial snapshot ≤ asOfPeriod (assignment month).
+      // Multi-subservicio: check the primary subservice only (Option A).
       let financialContext: FinancialContextPayload = null;
-      if (projService.subserviceId) {
+      if (primarySubserviceId) {
         const subservice = await ctx.runQuery(
           internal.functions.deliverables.internalQueries.getSubserviceData,
-          { subserviceId: projService.subserviceId }
+          { subserviceId: primarySubserviceId }
         );
         if (subservice?.isFinancialRelated) {
           const asOfPeriod = `${assignment.year}-${String(assignment.month).padStart(2, "0")}`;
@@ -505,7 +514,8 @@ export const generateDeliverable = action({
         projServiceId: args.projServiceId,
         clientId: args.clientId,
         serviceName: projService.serviceName,
-        subserviceId: projService.subserviceId,
+        // Multi-subservicio: snapshot the primary subservice on the deliverable record.
+        subserviceId: primarySubserviceId,
         month: assignment.month,
         year: assignment.year,
         shortContent: isShort ? finalContent : "",

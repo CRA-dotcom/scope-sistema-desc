@@ -1,6 +1,7 @@
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
+import { effectiveSubserviceIds } from "../../lib/subserviceIds";
 
 // Cap 1 reminder email per client per 24h. The lookback window used when
 // querying `documentEvents` for an existing `reminder_sent`.
@@ -109,15 +110,20 @@ export const run = internalAction({
           );
           if (!projection) continue;
 
+          // Multi-subservicio (Option A): eligibility check uses the primary
+          // subservice. effectiveSubserviceIds prefers the new array over the
+          // legacy scalar, so legacy rows are handled correctly too.
+          const primarySubserviceId = effectiveSubserviceIds(ps)[0] as
+            | Id<"subservices">
+            | undefined;
+
           const selected = await ctx.runQuery(
             internal.functions.deliverables.internalQueries
               .selectDeliverableForMonth,
             {
               orgId: org.orgId,
               clientId: client._id,
-              subserviceId: ps.subserviceId as
-                | Id<"subservices">
-                | undefined,
+              subserviceId: primarySubserviceId,
               serviceId: ps.serviceId as Id<"services">,
               serviceName: ps.serviceName,
               // B1: include projServiceId so the selector enforces the
@@ -136,9 +142,8 @@ export const run = internalAction({
               .findDeliverableForMonth,
             {
               clientId: client._id,
-              subserviceId: ps.subserviceId as
-                | Id<"subservices">
-                | undefined,
+              // Multi-subservicio: dedup check against primary subservice.
+              subserviceId: primarySubserviceId,
               serviceName: ps.serviceName,
               year: today.year,
               month: today.month,
@@ -152,9 +157,8 @@ export const run = internalAction({
             {
               orgId: org.orgId,
               clientId: client._id,
-              subserviceId: ps.subserviceId as
-                | Id<"subservices">
-                | undefined,
+              // Multi-subservicio: paid-invoice check against primary subservice.
+              subserviceId: primarySubserviceId,
               year: today.year,
               month: today.month,
             }
@@ -200,7 +204,8 @@ export const run = internalAction({
               message: `Recordatorio: toca subir factura de ${ps.serviceName} para ${client.name}, mes ${today.month}/${today.year}.`,
               metadata: {
                 projServiceId: ps._id,
-                subserviceId: ps.subserviceId,
+                // Multi-subservicio: log the primary subservice.
+                subserviceId: primarySubserviceId,
                 month: today.month,
                 year: today.year,
               },

@@ -2,6 +2,7 @@ import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId } from "../../lib/authHelpers";
 import { Doc, Id } from "../../_generated/dataModel";
+import { effectiveSubserviceIds } from "../../lib/subserviceIds";
 
 // ─────────────────────────────────────────────
 // #22b — Manual quotation creation
@@ -312,6 +313,13 @@ export const generate = mutation({
 </div>`.trim();
     }
 
+    // Multi-subservicio (Option A): prefer explicit caller override (#22d);
+    // otherwise fall back to the primary subservice on the projectionService row.
+    // effectiveSubserviceIds prefers the new subserviceIds array over the legacy
+    // scalar, so both old and new rows are handled correctly.
+    const effectiveSubserviceId: Id<"subservices"> | undefined =
+      args.subserviceId ?? effectiveSubserviceIds(projService)[0];
+
     // Check if a quotation already exists for this projService
     const existing = await ctx.db
       .query("quotations")
@@ -330,7 +338,7 @@ export const generate = mutation({
       await ctx.db.patch(existing._id, {
         content,
         ...(args.issuingCompanyId !== undefined && { issuingCompanyId: args.issuingCompanyId }),
-        ...(args.subserviceId !== undefined && { subserviceId: args.subserviceId }),
+        ...(effectiveSubserviceId !== undefined && { subserviceId: effectiveSubserviceId }),
       });
       return existing._id;
     }
@@ -345,7 +353,7 @@ export const generate = mutation({
       status: "draft",
       createdAt: Date.now(),
       ...(args.issuingCompanyId && { issuingCompanyId: args.issuingCompanyId }),
-      ...(args.subserviceId && { subserviceId: args.subserviceId }),
+      ...(effectiveSubserviceId && { subserviceId: effectiveSubserviceId }),
     });
   },
 });
@@ -517,7 +525,10 @@ export const createSupplementary = internalMutation({
       projServiceId: args.projServiceId,
       clientId: projection.clientId,
       serviceName: projService.serviceName,
-      subserviceId: projService.subserviceId,
+      // Multi-subservicio (Option A): tie the supplementary quotation to the
+      // primary subservice. effectiveSubserviceIds prefers the new array over
+      // the legacy scalar so both old and new rows are handled correctly.
+      subserviceId: effectiveSubserviceIds(projService)[0],
       content,
       status: "draft" as const,
       createdAt: now,
