@@ -133,6 +133,7 @@ export const getSendPreviewContext = query({
     if (!projService) return null;
 
     // Attempt issuingCompany resolution without throwing.
+    // C2: honour per-quotation override before auto-resolve.
     let issuingCompanyPreview: {
       _id: string;
       name: string;
@@ -141,26 +142,39 @@ export const getSendPreviewContext = query({
     } | null = null;
     let issuingCompanyError: string | null = null;
     try {
-      const resolved = await ctx.runQuery(
-        internal.functions.issuingCompanies.resolve.resolveIssuingCompanyQuery,
-        {
-          orgId,
-          clientId: client._id,
-          serviceId: projService.serviceId,
-        }
-      );
-      const logoUrl = resolved.issuingCompany.logoStorageId
-        ? await ctx.storage.getUrl(resolved.issuingCompany.logoStorageId)
-        : null;
-      // primaryColor lives on orgBranding, not issuingCompanies. Source it
-      // from there so the preview matches the actual landing-page rendering.
+      // primaryColor lives on orgBranding; source it once for both paths.
       const orgBranding = await ctx.db
         .query("orgBranding")
         .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
         .first();
+
+      let resolvedCompany: { _id: string; name: string; logoStorageId?: string | null; isActive?: boolean } | null = null;
+
+      if (quotation.issuingCompanyId) {
+        const override = await ctx.db.get(quotation.issuingCompanyId);
+        if (override && override.orgId === orgId && override.isActive) {
+          resolvedCompany = override;
+        }
+      }
+
+      if (!resolvedCompany) {
+        const resolved = await ctx.runQuery(
+          internal.functions.issuingCompanies.resolve.resolveIssuingCompanyQuery,
+          {
+            orgId,
+            clientId: client._id,
+            serviceId: projService.serviceId,
+          }
+        );
+        resolvedCompany = resolved.issuingCompany;
+      }
+
+      const logoUrl = resolvedCompany.logoStorageId
+        ? await ctx.storage.getUrl(resolvedCompany.logoStorageId)
+        : null;
       issuingCompanyPreview = {
-        _id: resolved.issuingCompany._id,
-        name: resolved.issuingCompany.name,
+        _id: resolvedCompany._id,
+        name: resolvedCompany.name,
         primaryColor: safeColor(orgBranding?.primaryColor),
         logoStorageUrl: logoUrl,
       };

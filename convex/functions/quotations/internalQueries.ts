@@ -109,16 +109,34 @@ export const getSendContext = internalQuery({
     const service = await ctx.db.get(projService.serviceId);
 
     let issuingCompany = null;
+    let issuingCompanySource: string = "auto_resolved";
     let issuingCompanyError: string | null = null;
-    try {
-      const resolved = await resolveIssuingCompany(ctx, {
-        orgId: quotation.orgId,
-        clientId: client._id,
-        serviceId: projService.serviceId,
-      });
-      issuingCompany = resolved.issuingCompany;
-    } catch (err) {
-      issuingCompanyError = err instanceof Error ? err.message : String(err);
+
+    // C2: honour the per-quotation override before falling through to auto-resolve
+    if (quotation.issuingCompanyId) {
+      const overrideCompany = await ctx.db.get(quotation.issuingCompanyId);
+      if (
+        overrideCompany &&
+        overrideCompany.orgId === quotation.orgId &&
+        overrideCompany.isActive
+      ) {
+        issuingCompany = overrideCompany;
+        issuingCompanySource = "form_override";
+      }
+    }
+
+    if (!issuingCompany) {
+      try {
+        const resolved = await resolveIssuingCompany(ctx, {
+          orgId: quotation.orgId,
+          clientId: client._id,
+          serviceId: projService.serviceId,
+        });
+        issuingCompany = resolved.issuingCompany;
+        issuingCompanySource = resolved.source ?? "auto_resolved";
+      } catch (err) {
+        issuingCompanyError = err instanceof Error ? err.message : String(err);
+      }
     }
 
     const orgBranding = await ctx.db
@@ -133,6 +151,7 @@ export const getSendContext = internalQuery({
       client,
       service,
       issuingCompany,
+      issuingCompanySource,
       issuingCompanyError,
       orgBranding,
     };
