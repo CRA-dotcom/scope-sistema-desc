@@ -123,6 +123,33 @@ export const patchExtraction = internalMutation({
   },
 });
 
+export const deleteRowInternal = internalMutation({
+  args: {
+    id: v.id("clientFinancialData"),
+    actorUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.id);
+    if (!row) return;
+    await ctx.db.delete(args.id);
+    await ctx.runMutation(
+      internal.functions.documentEvents.internal.logEventMutation,
+      {
+        orgId: row.orgId,
+        clientId: row.clientId,
+        entityType: "financial_data" as const,
+        entityId: args.id,
+        eventType: "deleted" as const,
+        severity: "info" as const,
+        actorUserId: args.actorUserId,
+        actorType: "user" as const,
+        message: `Estados financieros borrados (${row.period} ${row.filename}).`,
+        metadata: { bucketKey: row.bucketKey },
+      }
+    );
+  },
+});
+
 export const markError = internalMutation({
   args: {
     id: v.id("clientFinancialData"),

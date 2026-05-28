@@ -8,6 +8,7 @@ import {
   buildKey,
   uploadBlob,
   signedDownloadUrl,
+  deleteBlob,
 } from "../../lib/blobStorage";
 import { parseExcel } from "../../lib/excelParser";
 import {
@@ -160,6 +161,44 @@ export const getDownloadUrl = action({
       bucketKey: row.bucketKey,
       expiresSec: DOWNLOAD_URL_TTL_SEC,
     });
+  },
+});
+
+/**
+ * SS4 — Delete row + blob. Admin only.
+ *
+ * Two-step: validate ownership in mutation context, then delete blob and
+ * row via internal mutation. Blob deletion is best-effort — log on failure
+ * but proceed to delete the row to avoid orphan UI entries.
+ */
+export const deleteRecord = action({
+  args: { id: v.id("clientFinancialData") },
+  handler: async (ctx, args): Promise<{ ok: true }> => {
+    const { userId } = await ctx.runQuery(
+      internal.functions.clientFinancialData.internalQueries.requireAuthCtx,
+      {}
+    );
+    const row = await ctx.runQuery(
+      internal.functions.clientFinancialData.internalQueries.getRowForOrg,
+      { id: args.id }
+    );
+    if (!row) throw new Error("Estado financiero no encontrado.");
+
+    try {
+      await deleteBlob(row.bucketKey);
+    } catch (err) {
+      console.warn(
+        `[deleteRecord ${args.id}] blob delete failed:`,
+        err instanceof Error ? err.message : err
+      );
+    }
+
+    await ctx.runMutation(
+      internal.functions.clientFinancialData.internalMutations.deleteRowInternal,
+      { id: args.id, actorUserId: userId }
+    );
+
+    return { ok: true };
   },
 });
 
