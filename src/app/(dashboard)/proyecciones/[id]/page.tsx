@@ -130,6 +130,56 @@ export default function ProjectionDetailPage() {
   const cloneToDraft = useMutation(api.functions.projections.mutations.cloneProjectionToDraft);
   const [reEditSaving, setReEditSaving] = useState(false);
 
+  // #22d — "Cotizar este servicio" per matrix row
+  const createManualQuotation = useMutation(
+    api.functions.quotations.mutations.createManualQuotation
+  );
+  const [quotingProjServiceId, setQuotingProjServiceId] =
+    useState<Id<"projectionServices"> | null>(null);
+
+  const handleQuotarServicio = async (
+    projServiceId: Id<"projectionServices">,
+    subserviceId?: Id<"subservices">
+  ) => {
+    setQuotingProjServiceId(projServiceId);
+    try {
+      const quotationId = await createManualQuotation({
+        projServiceId,
+        ...(subserviceId && { subserviceId }),
+      });
+      router.push(`/cotizaciones/${quotationId}`);
+    } catch (err) {
+      alert(
+        err instanceof Error ? err.message : "Error al crear cotización"
+      );
+      setQuotingProjServiceId(null);
+    }
+  };
+
+  // #5 — batch-generate all quotations
+  const generateAllQuotations = useMutation(
+    api.functions.quotations.mutations.generateAllForProjection
+  );
+  const [isGeneratingQuotations, setIsGeneratingQuotations] = useState(false);
+  const [batchQuotationResult, setBatchQuotationResult] = useState<{
+    created: number;
+    skipped: number;
+  } | null>(null);
+
+  const handleGenerateAllQuotations = async () => {
+    if (!projection) return;
+    setIsGeneratingQuotations(true);
+    setBatchQuotationResult(null);
+    try {
+      const result = await generateAllQuotations({ projectionId: projection._id });
+      setBatchQuotationResult(result);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al generar cotizaciones");
+    } finally {
+      setIsGeneratingQuotations(false);
+    }
+  };
+
   const handleGenerateQuestionnaire = async () => {
     try {
       setIsGeneratingQ(true);
@@ -350,6 +400,58 @@ export default function ProjectionDetailPage() {
           )}
         </div>
       </div>
+
+      {/* #5 — Batch-generate quotations (visible when questionnaire is completed) */}
+      {questionnaire?.status === "completed" && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
+                <FileText className="text-accent" size={20} />
+              </div>
+              <div>
+                <p className="font-medium">Cotizaciones</p>
+                <p className="text-xs text-muted-foreground">
+                  Genera una cotización en borrador por cada servicio activo de
+                  esta proyección.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {batchQuotationResult && (
+                <p className="text-sm text-muted-foreground">
+                  {batchQuotationResult.created} creadas
+                  {batchQuotationResult.skipped > 0
+                    ? `, ${batchQuotationResult.skipped} ya existían`
+                    : ""}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleGenerateAllQuotations}
+                disabled={isGeneratingQuotations || activeServices.length === 0}
+                className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              >
+                {isGeneratingQuotations ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Plus size={16} />
+                )}
+                {isGeneratingQuotations
+                  ? "Generando..."
+                  : "Generar todas las cotizaciones"}
+              </button>
+              <Link
+                href="/cotizaciones"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary cursor-pointer"
+              >
+                Ver cotizaciones
+                <ArrowRight size={14} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MissingContentBanner projectionId={projectionId} />
 
@@ -588,7 +690,29 @@ export default function ProjectionDetailPage() {
                     );
                   })()}
                   <td className="px-4 py-2.5 text-right font-medium text-accent">
-                    {formatCurrency(svc.annualAmount)}
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span>{formatCurrency(svc.annualAmount)}</span>
+                      {/* #22d — "Cotizar" per service row, passes subserviceId when present */}
+                      <button
+                        type="button"
+                        disabled={quotingProjServiceId === svc._id}
+                        onClick={() =>
+                          handleQuotarServicio(
+                            svc._id,
+                            svc.subserviceId ?? undefined
+                          )
+                        }
+                        className="text-[10px] text-muted-foreground hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                        title="Crear cotización para este servicio"
+                      >
+                        {quotingProjServiceId === svc._id ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          <FileText size={10} />
+                        )}
+                        Cotizar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
