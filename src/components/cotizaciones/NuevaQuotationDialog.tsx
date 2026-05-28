@@ -46,6 +46,17 @@ export function NuevaQuotationDialog({ open, onOpenChange }: Props) {
     {}
   );
 
+  // Derive the serviceId of the currently selected projService
+  const selectedProjService = projServices?.find(
+    (ps) => ps._id === selectedProjServiceId
+  );
+  const subservices = useQuery(
+    api.functions.subservices.queries.listByParent,
+    selectedProjService?.serviceId
+      ? { parentServiceId: selectedProjService.serviceId }
+      : "skip"
+  );
+
   const createManualQuotation = useMutation(
     api.functions.quotations.mutations.createManualQuotation
   );
@@ -145,11 +156,12 @@ export function NuevaQuotationDialog({ open, onOpenChange }: Props) {
             </label>
             <select
               value={selectedProjServiceId}
-              onChange={(e) =>
+              onChange={(e) => {
                 setSelectedProjServiceId(
                   e.target.value as Id<"projectionServices"> | ""
-                )
-              }
+                );
+                setSelectedSubserviceId("");
+              }}
               required
               disabled={!selectedProjectionId || activeServices.length === 0}
               className={cn(
@@ -197,6 +209,32 @@ export function NuevaQuotationDialog({ open, onOpenChange }: Props) {
               ))}
             </select>
           </div>
+
+          {/* Subservice (#22d) — only rendered when the selected service has subservices */}
+          {subservices && subservices.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Subservicio{" "}
+                <span className="text-muted-foreground text-xs">(opcional)</span>
+              </label>
+              <select
+                value={selectedSubserviceId}
+                onChange={(e) =>
+                  setSelectedSubserviceId(
+                    e.target.value as Id<"subservices"> | ""
+                  )
+                }
+                className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="">Sin subservicio específico...</option>
+                {subservices.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {error && (
             <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400">
