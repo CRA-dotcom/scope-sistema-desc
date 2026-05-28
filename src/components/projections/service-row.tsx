@@ -51,7 +51,7 @@ export function ServiceRow({
           checked={service.isActive}
           onChange={(e) => onToggleActive(e.target.checked)}
           className="accent-accent cursor-pointer"
-          disabled={service.isCommission}
+          disabled={false}
         />
         <div className="flex-1">
           <p className="text-sm font-medium">{service.serviceName}</p>
