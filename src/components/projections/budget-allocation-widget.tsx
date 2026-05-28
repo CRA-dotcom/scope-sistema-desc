@@ -109,7 +109,12 @@ export function BudgetAllocationWidget({
         {/* Margin row */}
         {marginPct !== null && (
           <div className="flex items-center justify-between pt-0.5">
-            <span className="text-muted-foreground">Margen</span>
+            <span
+              className="text-muted-foreground cursor-help"
+              title="Margen = (Presupuesto contratado / Venta anual del cliente) × 100. Indica qué porcentaje de la facturación del cliente representa lo que nos contratan. Si supera el 80% el monto excede el rango de mercado sugerido."
+            >
+              Margen
+            </span>
             <span
               className={cn(
                 "font-medium",
