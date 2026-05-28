@@ -3,11 +3,11 @@
 import { useQuery, useAction } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileOutput, Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 
 const MONTH_SHORT = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -29,27 +29,38 @@ const AUDIT_LABELS: Record<string, string> = {
 };
 
 export default function ClientEntregablesPage() {
+  return (
+    <Suspense fallback={<div className="space-y-4"><div className="h-8 w-48 animate-pulse rounded bg-secondary" /><div className="h-64 animate-pulse rounded-lg border border-border bg-card" /></div>}>
+      <ClientEntregablesPageInner />
+    </Suspense>
+  );
+}
+
+function ClientEntregablesPageInner() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const clientId = params.id as Id<"clients">;
+
+  const currentYear = new Date().getFullYear();
+  const selectedYear = Number(searchParams.get("year")) || currentYear;
+
+  function setSelectedYear(year: number) {
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("year", String(year));
+    router.push(`?${p.toString()}`);
+  }
 
   const client = useQuery(api.functions.clients.queries.getById, { id: clientId });
   const matrix = useQuery(
     api.functions.deliverables.queries.listByClientMatrix,
-    { clientId }
-  );
-  const projections = useQuery(
-    api.functions.projections.queries.getByClient,
-    { clientId }
+    { clientId, year: selectedYear }
   );
 
-  // Find the active projection (or most recent draft)
-  const activeProjection = projections?.find((p) => p.status === "active")
-    ?? projections?.[0]
-    ?? null;
-
+  // D5: fetch assignments for ALL projections of this client for the selected year
   const assignments = useQuery(
-    api.functions.monthlyAssignments.queries.listByProjection,
-    activeProjection ? { projectionId: activeProjection._id } : "skip"
+    api.functions.monthlyAssignments.queries.listByClient,
+    { clientId, year: selectedYear }
   );
 
   const generateDeliverable = useAction(
@@ -67,10 +78,11 @@ export default function ClientEntregablesPage() {
     const cellKey = `${projServiceId}-${month}`;
     if (!assignments) return;
 
-    // Find the assignment for this service+month
+    // Find the assignment for this service+month in the selected year
     const assignment = assignments.find(
       (a) => (a.projServiceId as unknown as string) === (projServiceId as unknown as string)
         && a.month === month
+        && a.year === selectedYear
     );
     if (!assignment) return;
 
@@ -128,7 +140,12 @@ export default function ClientEntregablesPage() {
     );
   }
 
-  const { services, months } = matrix;
+  const { services, months, availableYears } = matrix;
+
+  // Year options: union of years that have deliverables + current year
+  const yearOptions = [...new Set([...(availableYears ?? []), currentYear])].sort(
+    (a, b) => b - a
+  );
 
   // Build a lookup: `${projServiceId}-${month}` → assignment._id
   // so we can show "Generar" only when an assignment exists but no deliverable.
@@ -142,7 +159,7 @@ export default function ClientEntregablesPage() {
     }
   }
 
-  // Months to show = union of months with deliverables + months in assignments
+  // Months to show = union of months with deliverables + months in assignments (selected year)
   const assignmentMonths = assignments
     ? [...new Set(assignments.map((a) => a.month))]
     : [];
@@ -188,12 +205,29 @@ export default function ClientEntregablesPage() {
         </p>
       </div>
 
+      {/* Year selector */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-muted-foreground">Año:</span>
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(Number(e.target.value))}
+          aria-label="Año"
+          className="appearance-none rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-foreground"
+        >
+          {yearOptions.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {allServices.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <FileOutput className="mx-auto mb-4 text-muted-foreground" size={48} />
           <p className="text-lg font-medium">Sin entregables ni asignaciones</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Este cliente no tiene proyecciones activas con asignaciones mensuales.
+            Este cliente no tiene entregables ni asignaciones para {selectedYear}.
           </p>
         </div>
       ) : (
@@ -222,7 +256,9 @@ export default function ClientEntregablesPage() {
                 >
                   <td className="px-4 py-3 font-medium">{svc.serviceName}</td>
                   {allMonths.map((m) => {
-                    const d = svc.deliverables.find((x) => x.month === m);
+                    const d = svc.deliverables.find(
+                      (x) => x.month === m && x.year === selectedYear
+                    );
                     const cellKey = `${svc.projServiceId}-${m}`;
                     const isGenerating = generating.has(cellKey);
                     const cellError = errors[cellKey];

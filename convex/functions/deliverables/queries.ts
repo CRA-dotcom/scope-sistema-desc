@@ -104,17 +104,22 @@ export const getById = query({
 });
 
 export const listByClientMatrix = query({
-  args: { clientId: v.id("clients") },
+  args: { clientId: v.id("clients"), year: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return { services: [], months: [] };
 
-    const mine = await ctx.db
+    const allDeliverables = await ctx.db
       .query("deliverables")
       .withIndex("by_orgId_clientId", (q) =>
         q.eq("orgId", orgId).eq("clientId", args.clientId)
       )
       .collect();
+
+    // Filter to the requested year when provided
+    const mine = args.year !== undefined
+      ? allDeliverables.filter((d) => d.year === args.year)
+      : allDeliverables;
 
     // Group by projServiceId
     const byService = new Map<
@@ -155,6 +160,11 @@ export const listByClientMatrix = query({
 
     const allMonths = [...new Set(mine.map((d) => d.month))].sort((a, b) => a - b);
 
-    return { services, months: allMonths };
+    // Collect distinct years across all deliverables for this client
+    const availableYears = [...new Set(allDeliverables.map((d) => d.year))].sort(
+      (a, b) => b - a
+    );
+
+    return { services, months: allMonths, availableYears };
   },
 });

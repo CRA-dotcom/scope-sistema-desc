@@ -28,6 +28,21 @@ export const listByClientMonth = query({
   },
 });
 
+export const listByClient = query({
+  args: { clientId: v.id("clients"), year: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
+    const all = await ctx.db
+      .query("monthlyAssignments")
+      .withIndex("by_clientId_month", (q) => q.eq("clientId", args.clientId))
+      .collect();
+    return all.filter(
+      (a) => a.orgId === orgId && (args.year === undefined || a.year === args.year)
+    );
+  },
+});
+
 export const listOverdue = query({
   args: {},
   handler: async (ctx) => {
