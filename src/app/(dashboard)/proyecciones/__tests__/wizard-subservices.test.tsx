@@ -23,10 +23,10 @@ const PROJECTIONS_MUT_SOURCE = readFileSync(
   "utf-8"
 );
 
-describe("wizard Step 2 — subservice dropdown", () => {
-  it("ServiceFormState carries an optional subserviceId field", () => {
+describe("wizard Step 2 — subservice checkboxes (#9 multi-select)", () => {
+  it("ServiceFormState carries a subserviceIds array field (multi-select)", () => {
     expect(WIZARD_SOURCE).toMatch(
-      /subserviceId\?\s*:\s*Id<"subservices">/
+      /subserviceIds\s*:\s*string\[\]/
     );
   });
 
@@ -36,23 +36,20 @@ describe("wizard Step 2 — subservice dropdown", () => {
     );
   });
 
-  it("groups subservices by parentServiceId for per-row dropdown lookup", () => {
+  it("groups subservices by parentServiceId for per-row lookup", () => {
     expect(WIZARD_SOURCE).toContain("subservicesByParent");
     expect(WIZARD_SOURCE).toContain("parentServiceId");
   });
 
-  it("renders a <select required> dropdown under each active service row", () => {
-    // The select is required and labels are aria-labelled per service.
-    expect(WIZARD_SOURCE).toMatch(/required[^>]*aria-label=\{`Subservicio/);
-    // Placeholder option uses the spec wording.
-    expect(WIZARD_SOURCE).toContain("— Selecciona subservicio —");
+  it("renders checkboxes (type=checkbox) for multi-select under each active service row", () => {
+    expect(WIZARD_SOURCE).toContain('type="checkbox"');
+    expect(WIZARD_SOURCE).toMatch(/aria-label=\{`Subservicio/);
   });
 
   it("each subservice option label includes name and defaultFrequency", () => {
-    // "{o.name} · {o.defaultFrequency}"
-    expect(WIZARD_SOURCE).toMatch(
-      /\{o\.name\}\s*·\s*\{o\.defaultFrequency\}/
-    );
+    // The label renders both {o.name} and {o.defaultFrequency}
+    expect(WIZARD_SOURCE).toContain("{o.name}");
+    expect(WIZARD_SOURCE).toContain("{o.defaultFrequency}");
   });
 
   it("shows a warning + deep link when the active parent has zero subservices", () => {
@@ -67,8 +64,8 @@ describe("wizard Step 2 — subservice dropdown", () => {
 describe("wizard Step 2 — Continuar button validation", () => {
   it("computes missingSubserviceSelection from active services with options", () => {
     expect(WIZARD_SOURCE).toContain("missingSubserviceSelection");
-    // The computation considers !s.subserviceId for active services that have options.
-    expect(WIZARD_SOURCE).toMatch(/!s\.subserviceId/);
+    // The computation considers s.subserviceIds.length === 0 for active services that have options.
+    expect(WIZARD_SOURCE).toMatch(/subserviceIds\.length\s*===\s*0/);
   });
 
   it("disables the 'Siguiente' button when subservice selection is missing in Step 2", () => {
@@ -85,16 +82,22 @@ describe("wizard Step 2 — Continuar button validation", () => {
   });
 });
 
-describe("projections.create mutation — subserviceId propagation", () => {
-  it("validator accepts an optional subserviceId per service config", () => {
+describe("projections.create mutation — subserviceIds propagation (#9)", () => {
+  it("validator accepts optional subserviceId (legacy) per service config", () => {
     expect(PROJECTIONS_MUT_SOURCE).toMatch(
       /subserviceId:\s*v\.optional\(\s*v\.id\(\s*"subservices"\s*\)\s*\)/
     );
   });
 
-  it("persists subserviceId on the projectionServices insert", () => {
+  it("validator accepts optional subserviceIds array per service config", () => {
     expect(PROJECTIONS_MUT_SOURCE).toMatch(
-      /insert\(\s*"projectionServices"[\s\S]+?subserviceId:\s*serviceConfig\.subserviceId/
+      /subserviceIds:\s*v\.optional\(\s*v\.array\(\s*v\.id\(\s*"subservices"\s*\)\s*\)\s*\)/
+    );
+  });
+
+  it("persists legacySubserviceId on the projectionServices insert (backcompat)", () => {
+    expect(PROJECTIONS_MUT_SOURCE).toMatch(
+      /insert\(\s*"projectionServices"[\s\S]+?subserviceId:\s*legacySubserviceId/
     );
   });
 
@@ -103,9 +106,10 @@ describe("projections.create mutation — subserviceId propagation", () => {
       /insert\(\s*"monthlyAssignments"[\s\S]+?subserviceId:\s*serviceConfig\.subserviceId/
     );
   });
-  it("wizard submit forwards subserviceId in each serviceConfigs entry", () => {
+
+  it("wizard submit forwards subserviceIds in each serviceConfigs entry", () => {
     expect(WIZARD_SOURCE).toMatch(
-      /serviceConfigs:\s*serviceStates\.map\(\(s\)\s*=>\s*\(\{[\s\S]+?subserviceId:\s*s\.subserviceId/
+      /serviceConfigs:\s*serviceStates\.map\(\(s\)\s*=>\s*\(\{[\s\S]+?subserviceIds/
     );
   });
 });

@@ -223,7 +223,8 @@ export default defineSchema({
     projectionId: v.id("projections"),
     serviceId: v.id("services"),
     serviceName: v.string(),
-    subserviceId: v.optional(v.id("subservices")),
+    subserviceId: v.optional(v.id("subservices")),  // legacy — kept for backward compat
+    subserviceIds: v.optional(v.array(v.id("subservices"))),  // new: multi-subservice support
     pricingModel: v.optional(
       v.union(
         v.literal("fixed_retainer"),

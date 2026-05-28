@@ -66,9 +66,9 @@ type ServiceFormState = {
   chosenPct: number;
   isActive: boolean;
   isCommission: boolean;
-  // A1 — selected subservice for this parent. Obligatory when the parent has
-  // subservices available; undefined otherwise (transitional path during seed).
-  subserviceId?: Id<"subservices">;
+  // #9 — multi-subservice selection. Obligatory (non-empty) when the parent
+  // has subservices available; empty array otherwise.
+  subserviceIds: string[];
 };
 
 function NuevaProyeccionContent() {
@@ -159,13 +159,13 @@ function NuevaProyeccionContent() {
     return map;
   }, [allSubservices]);
 
-  // True when the active service has subservices available but none picked.
+  // True when an active service has subservices available but none picked.
   const missingSubserviceSelection = useMemo(() => {
     return serviceStates.some((s) => {
       if (!s.isActive) return false;
       const options = subservicesByParent.get(s.serviceId);
       if (!options || options.length === 0) return false;
-      return !s.subserviceId;
+      return s.subserviceIds.length === 0;
     });
   }, [serviceStates, subservicesByParent]);
 
@@ -208,6 +208,7 @@ function NuevaProyeccionContent() {
           chosenPct: s.defaultPct,
           isCommission: s.isCommission ?? false,
           isActive: !(s.isCommission ?? false),
+          subserviceIds: [],
         }))
       );
     }
@@ -329,6 +330,7 @@ function NuevaProyeccionContent() {
       if (s.serviceStates !== undefined) {
         // serviceStates from the draft only carries chosenPct/isActive — merge
         // those onto the freshly-loaded service catalogue so name/min/max stay live.
+        // subserviceIds is not persisted in draft, so preserve current selection.
         setServiceStates((prev) =>
           prev.map((p) => {
             const draftRow = s.serviceStates!.find((d) => d.serviceId === p.serviceId);
@@ -402,7 +404,12 @@ function NuevaProyeccionContent() {
           serviceId: s.serviceId as Id<"services">,
           chosenPct: s.chosenPct,
           isActive: s.isActive,
-          subserviceId: s.subserviceId,
+          // #9: pass multi-select array; server falls back to subserviceId for
+          // backward compat when subserviceIds is undefined/empty.
+          subserviceIds:
+            s.subserviceIds.length > 0
+              ? s.subserviceIds.map((id) => id as Id<"subservices">)
+              : undefined,
         })),
         // C2: projection period fields
         startMonth,
@@ -749,38 +756,51 @@ function NuevaProyeccionContent() {
                         <div className="ml-6 space-y-1">
                           {subOptions.length > 0 ? (
                             <>
-                              <label className="text-xs text-muted-foreground">
-                                Subservicio (obligatorio)
-                              </label>
-                              <select
-                                value={svc.subserviceId ?? ""}
-                                onChange={(e) => {
-                                  const updated = [...serviceStates];
-                                  const val = e.target.value;
-                                  updated[i] = {
-                                    ...updated[i],
-                                    subserviceId: val
-                                      ? (val as Id<"subservices">)
-                                      : undefined,
-                                  };
-                                  setServiceStates(updated);
-                                }}
-                                required
-                                aria-label={`Subservicio para ${svc.serviceName}`}
-                                className="text-sm rounded-md border border-border bg-secondary px-2 py-1.5 focus:border-accent focus:outline-none cursor-pointer"
-                              >
-                                <option value="" disabled>
-                                  — Selecciona subservicio —
-                                </option>
-                                {subOptions.map((o) => (
-                                  <option key={o._id} value={o._id}>
-                                    {o.name} · {o.defaultFrequency}
-                                  </option>
-                                ))}
-                              </select>
-                              {!svc.subserviceId && (
+                              <p className="text-xs text-muted-foreground">
+                                Subservicios (selecciona uno o más — obligatorio)
+                              </p>
+                              <div className="flex flex-col gap-1">
+                                {subOptions.map((o) => {
+                                  const checked = svc.subserviceIds.includes(
+                                    o._id as string
+                                  );
+                                  return (
+                                    <label
+                                      key={o._id}
+                                      className="flex items-center gap-2 text-sm cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => {
+                                          const updated = [...serviceStates];
+                                          const current = updated[i].subserviceIds;
+                                          updated[i] = {
+                                            ...updated[i],
+                                            subserviceIds: checked
+                                              ? current.filter(
+                                                  (id) => id !== (o._id as string)
+                                                )
+                                              : [...current, o._id as string],
+                                          };
+                                          setServiceStates(updated);
+                                        }}
+                                        aria-label={`Subservicio ${o.name} para ${svc.serviceName}`}
+                                        className="accent-accent"
+                                      />
+                                      <span>
+                                        {o.name}{" "}
+                                        <span className="text-xs text-muted-foreground">
+                                          · {o.defaultFrequency}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              {svc.subserviceIds.length === 0 && (
                                 <p className="text-xs text-red-400">
-                                  Selecciona un subservicio antes de continuar.
+                                  Selecciona al menos un subservicio antes de continuar.
                                 </p>
                               )}
                             </>

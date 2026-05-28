@@ -45,6 +45,7 @@ async function replaceProjection(
       chosenPct: number;
       isActive: boolean;
       subserviceId?: Id<"subservices">;
+      subserviceIds?: Array<Id<"subservices">>;
       pricingModel?: PricingModel;
     }>;
     seasonalityData: Array<{ month: number; monthlySales: number; feFactor: number }>;
@@ -223,6 +224,9 @@ export const create = mutation({
         // the validator so legacy callers + transitional cases (no
         // subservices configured yet) keep working.
         subserviceId: v.optional(v.id("subservices")),
+        // #9: multi-subservice support. Prefer subserviceIds when provided;
+        // fall back to [subserviceId] for backward compat.
+        subserviceIds: v.optional(v.array(v.id("subservices"))),
         pricingModel: v.optional(
           v.union(
             v.literal("fixed_retainer"),
@@ -300,14 +304,16 @@ export const create = mutation({
       })
     );
 
-    // A1 Phase 2 review: server-side validation that mirrors the wizard UI
+    // A1 Phase 2 review / #9: server-side validation that mirrors the wizard UI
     // contract — if the parent service has any active subservices available
-    // (org-scoped or global), the caller MUST pick one. Prevents bypassing
-    // the UI and ending up with projectionServices.subserviceId === undefined
-    // when the parent actually has options.
+    // (org-scoped or global), the caller MUST pick at least one. Accepts EITHER
+    // the legacy `subserviceId` scalar OR the new `subserviceIds` array.
     for (const sc of args.serviceConfigs) {
       if (!sc.isActive) continue;
+      // Pass if legacy single ID is provided
       if (sc.subserviceId !== undefined) continue;
+      // Pass if new multi-select array is non-empty
+      if (sc.subserviceIds && sc.subserviceIds.length > 0) continue;
 
       // Inline the listByParent logic instead of ctx.runQuery to keep the
       // mutation transactional (runQuery would open a separate read view).
@@ -433,10 +439,22 @@ export const create = mutation({
 
       // Resolve pricingModel: explicit override on serviceConfig > subservice.defaultPricingModel
       //                    > derive from service.isCommission
+      // #9: prefer subserviceIds (multi); fall back to legacy subserviceId scalar.
+      const effectiveSubserviceIds: Array<Id<"subservices">> =
+        serviceConfig.subserviceIds && serviceConfig.subserviceIds.length > 0
+          ? serviceConfig.subserviceIds
+          : serviceConfig.subserviceId
+            ? [serviceConfig.subserviceId]
+            : [];
+      // For backward compat, the legacy `subserviceId` field is set to the FIRST
+      // element of the resolved list (or undefined when empty).
+      const legacySubserviceId: Id<"subservices"> | undefined =
+        effectiveSubserviceIds[0];
+
       let resolvedPricingModel: PricingModel | undefined =
         serviceConfig.pricingModel;
-      if (!resolvedPricingModel && serviceConfig.subserviceId) {
-        const sub = await ctx.db.get(serviceConfig.subserviceId);
+      if (!resolvedPricingModel && legacySubserviceId) {
+        const sub = await ctx.db.get(legacySubserviceId);
         resolvedPricingModel = sub?.defaultPricingModel;
       }
       if (!resolvedPricingModel) {
@@ -449,7 +467,9 @@ export const create = mutation({
         projectionId,
         serviceId: serviceConfig.serviceId,
         serviceName: svc.serviceName,
-        subserviceId: serviceConfig.subserviceId,
+        subserviceId: legacySubserviceId,
+        subserviceIds:
+          effectiveSubserviceIds.length > 0 ? effectiveSubserviceIds : undefined,
         chosenPct: svc.chosenPct,
         isActive: svc.isActive,
         annualAmount: svc.annualAmount,
