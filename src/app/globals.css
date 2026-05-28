@@ -28,7 +28,9 @@
 }
 
 @media print {
-  nav, aside, header, .no-print { display: none !important; }
-  body { background: white !important; color: black !important; }
-  .print-questionnaire { padding: 0; }
+  body.print-questionnaire-active nav,
+  body.print-questionnaire-active aside,
+  body.print-questionnaire-active header,
+  body.print-questionnaire-active .no-print { display: none !important; }
+  body.print-questionnaire-active { background: white !important; color: black !important; }
 }
