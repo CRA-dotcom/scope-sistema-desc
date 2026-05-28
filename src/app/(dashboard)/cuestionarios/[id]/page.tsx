@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ClipboardList,
@@ -17,6 +17,9 @@ import {
   Phone,
   RotateCcw,
   AlertTriangle,
+  Trash2,
+  Pencil,
+  Printer,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -37,6 +40,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function QuestionnaireDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as Id<"questionnaireResponses">;
 
   const questionnaire = useQuery(
@@ -58,11 +62,17 @@ export default function QuestionnaireDetailPage() {
     api.functions.questionnaires.mutations.submit
   );
   const reopen = useMutation(api.functions.questionnaires.mutations.reopen);
+  const del = useMutation(api.functions.questionnaires.mutations.deleteQuestionnaire);
+  const editSingleResponse = useMutation(
+    api.functions.questionnaires.mutations.editSingleResponse
+  );
 
   const [editing, setEditing] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenSuccess, setReopenSuccess] = useState(false);
   const [reopenError, setReopenError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [localResponses, setLocalResponses] = useState<
     Array<{
       questionId: string;
@@ -140,6 +150,31 @@ export default function QuestionnaireDetailPage() {
       setReopenError(err instanceof Error ? err.message : "Error al reabrir.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!questionnaire) return;
+    setDeleteError(null);
+    setSaving(true);
+    try {
+      await del({ id: questionnaire._id });
+      router.push("/cuestionarios");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Error al borrar.");
+      setSaving(false);
+    }
+  };
+
+  const editOne = async (questionId: string, current: string) => {
+    if (!questionnaire) return;
+    const newAnswer = window.prompt("Editar respuesta:", current);
+    if (newAnswer !== null && newAnswer !== current) {
+      try {
+        await editSingleResponse({ id: questionnaire._id, questionId, answer: newAnswer });
+      } catch (err) {
+        console.error("Error editing response:", err);
+      }
     }
   };
 
@@ -231,7 +266,7 @@ export default function QuestionnaireDetailPage() {
 
       {/* Action Buttons */}
       {!isCompleted && (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="no-print flex flex-wrap items-center gap-3">
           <Link
             href={`/cuestionarios/${id}/responder`}
             className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors cursor-pointer"
@@ -291,18 +326,50 @@ export default function QuestionnaireDetailPage() {
               Cancelar
             </button>
           )}
+
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+          >
+            <Printer size={16} />
+            Imprimir
+          </button>
+
+          <button
+            onClick={() => setDeleteOpen(true)}
+            className="flex items-center gap-2 rounded-md border border-destructive/40 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+          >
+            <Trash2 size={16} />
+            Borrar todo
+          </button>
         </div>
       )}
 
       {/* Reopen action — visible only when completed */}
       {questionnaire.status === "completed" && (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="no-print flex flex-wrap items-center gap-3">
           <button
             onClick={() => setReopenOpen(true)}
             className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
           >
             <RotateCcw size={16} />
             Reabrir cuestionario
+          </button>
+
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+          >
+            <Printer size={16} />
+            Imprimir
+          </button>
+
+          <button
+            onClick={() => setDeleteOpen(true)}
+            className="flex items-center gap-2 rounded-md border border-destructive/40 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+          >
+            <Trash2 size={16} />
+            Borrar todo
           </button>
         </div>
       )}
@@ -382,11 +449,23 @@ export default function QuestionnaireDetailPage() {
                     placeholder="Escribe tu respuesta..."
                   />
                 ) : (
-                  <div className="rounded-md bg-secondary/50 px-3 py-2 text-sm">
-                    {r.answer || (
-                      <span className="text-muted-foreground italic">
-                        Sin respuesta
-                      </span>
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 rounded-md bg-secondary/50 px-3 py-2 text-sm">
+                      {r.answer || (
+                        <span className="text-muted-foreground italic">
+                          Sin respuesta
+                        </span>
+                      )}
+                    </div>
+                    {isCompleted && (
+                      <button
+                        type="button"
+                        onClick={() => editOne(r.questionId, r.answer)}
+                        title="Editar esta respuesta"
+                        className="no-print shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                      >
+                        <Pencil size={14} />
+                      </button>
                     )}
                   </div>
                 )}
@@ -395,6 +474,56 @@ export default function QuestionnaireDetailPage() {
           </div>
         </div>
       ))}
+      {/* Delete confirm dialog */}
+      {deleteOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmar borrar cuestionario"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => { setDeleteOpen(false); setDeleteError(null); }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") { setDeleteOpen(false); setDeleteError(null); }
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-card p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-destructive shrink-0" size={22} />
+              <div>
+                <h2 className="text-lg font-semibold">¿Borrar este cuestionario?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Esta acción no se puede deshacer. Todas las respuestas se perderán.
+                </p>
+                {deleteError && (
+                  <p className="mt-2 text-sm text-destructive">{deleteError}</p>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setDeleteOpen(false); setDeleteError(null); }}
+                disabled={saving}
+                className="rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving}
+                className="rounded-md bg-destructive px-3 py-2 text-sm font-medium text-white hover:bg-destructive/90 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {saving ? "Borrando..." : "Sí, borrar todo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reopen confirm dialog */}
       {reopenOpen && (
         <div
