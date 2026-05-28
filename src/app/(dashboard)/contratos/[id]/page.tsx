@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
@@ -65,6 +65,12 @@ export default function ContractDetailPage() {
     {}
   );
   const [savingIssuer, setSavingIssuer] = useState(false);
+  const [issuingCompanyId, setIssuingCompanyId] = useState<string>("");
+  useEffect(() => {
+    if (contract) {
+      setIssuingCompanyId(contract.issuingCompanyId ?? "");
+    }
+  }, [contract?.issuingCompanyId]);
 
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
 
@@ -319,18 +325,21 @@ export default function ContractDetailPage() {
           </p>
           <div className="flex items-center gap-3">
             <select
-              defaultValue={contract.issuingCompanyId ?? ""}
+              value={issuingCompanyId}
               onChange={async (e) => {
+                const newVal = e.target.value;
+                setIssuingCompanyId(newVal);
                 setSavingIssuer(true);
                 try {
                   await updateIssuingCompany({
                     id: contract._id,
-                    issuingCompanyId: e.target.value
-                      ? (e.target.value as Id<"issuingCompanies">)
+                    issuingCompanyId: newVal
+                      ? (newVal as Id<"issuingCompanies">)
                       : null,
                   });
                 } catch (err) {
-                  console.error(err);
+                  setIssuingCompanyId(contract.issuingCompanyId ?? "");
+                  alert(`Error al actualizar empresa: ${err instanceof Error ? err.message : "desconocido"}`);
                 } finally {
                   setSavingIssuer(false);
                 }

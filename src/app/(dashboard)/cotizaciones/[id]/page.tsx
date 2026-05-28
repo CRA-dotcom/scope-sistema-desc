@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import DOMPurify from "isomorphic-dompurify";
 import { api } from "../../../../../convex/_generated/api";
@@ -92,6 +92,12 @@ export default function QuotationDetailPage() {
     {}
   );
   const [savingIssuer, setSavingIssuer] = useState(false);
+  const [issuingCompanyId, setIssuingCompanyId] = useState<string>("");
+  useEffect(() => {
+    if (quotation) {
+      setIssuingCompanyId(quotation.issuingCompanyId ?? "");
+    }
+  }, [quotation?.issuingCompanyId]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -431,18 +437,21 @@ export default function QuotationDetailPage() {
           </p>
           <div className="flex items-center gap-3">
             <select
-              defaultValue={quotation.issuingCompanyId ?? ""}
+              value={issuingCompanyId}
               onChange={async (e) => {
+                const newVal = e.target.value;
+                setIssuingCompanyId(newVal);
                 setSavingIssuer(true);
                 try {
                   await updateIssuingCompany({
                     id: quotation._id,
-                    issuingCompanyId: e.target.value
-                      ? (e.target.value as Id<"issuingCompanies">)
+                    issuingCompanyId: newVal
+                      ? (newVal as Id<"issuingCompanies">)
                       : null,
                   });
                 } catch (err) {
-                  console.error(err);
+                  setIssuingCompanyId(quotation.issuingCompanyId ?? "");
+                  alert(`Error al actualizar empresa: ${err instanceof Error ? err.message : "desconocido"}`);
                 } finally {
                   setSavingIssuer(false);
                 }
