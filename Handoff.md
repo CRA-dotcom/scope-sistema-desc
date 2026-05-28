@@ -1,9 +1,32 @@
-# Handoff — Próxima sesión (post 2026-05-28 EOD · SS7 cerrado + adversarial hardened)
+# Handoff — Próxima sesión (post 2026-05-28 EOD · SS7 cerrado + adversarial hardened + 6 quick wins papá-doc)
 
-**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS4-V1, SS5, SS6, SS7 cerrados en `main`. SS2 final + F6 contador siguen abiertos. SS7 añadió resiliencia de proyecciones y cuestionarios (reopen, draft save defense, re-edit cascade) + 5 grupos de hardening post-adversarial.
+**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS4-V1, SS5, SS6, SS7 cerrados en `main`. SS2 final + F6 contador siguen abiertos. SS7 añadió resiliencia de proyecciones y cuestionarios + 5 grupos de hardening post-adversarial + 6 quick wins del doc del papá (28-may).
 
-**Sesión origen:** 2026-05-28 (SS7 — projection + questionnaire resilience, 3 features: F1 reopen, F2 draft save, F3 re-edit cascade + adversarial pass completo)
-**Estado código:** `main` **102 commits** ahead de `origin/main`. Tests **1056 passed | 1 skipped**. TypeScript: 1 pre-existing error (`applyDraftStateToProjection.ts:170 TS2367` — dead comparison, no runtime impact). Convex codegen clean. Sin push (per `feedback_no_push_default`).
+**Sesión origen:** 2026-05-28 (SS7 + adversarial + 6 quick wins del doc papá)
+**Estado código:** `main` **109 commits** ahead de `origin/main`. Tests **1059 passed | 1 skipped**. TypeScript: 1 pre-existing error (`applyDraftStateToProjection.ts:170 TS2367` — dead comparison, no runtime impact). Convex codegen clean. Sin push (per `feedback_no_push_default`).
+
+---
+
+## Quick wins del doc del papá (post-SS7, este turno)
+
+Auditoría completa del doc `Puntos a modificar de BIHive - 28052026.docx`: 4/26 done por SS7 + bonus Construcción ya seedeada. Christian eligió hacer 6 quick wins inmediatos (resto del doc queda para siguiente sprint).
+
+| Commit | Punto | Cambio |
+|---|---|---|
+| `b6091dc` | #2 | Banner "Cliente — Proyección {year}" en `/proyecciones/[id]` heading |
+| `2b86203` | #10 | Nombre del cliente seleccionado visible en el wizard header |
+| `29ba733` | #13 | Tooltip `title` explicando qué representa el "Margen" en budget widget |
+| `e4dda52` | #14 | Checkbox de Comisiones ya no está `disabled` — usuario puede activar/desactivar |
+| `4329d39` | #21c | Cuestionario agrupado por `section` (General/Comercial/Operativa/…) en lugar de por servicio |
+| `860dae2` | #22a | Mutación `deleteQuotation` + UI button + confirmación. Solo cotizaciones en `status="draft"` se pueden borrar (signed/approved preservados) |
+
+**+3 tests** del nuevo `deleteQuotation` (cross-org, status guard, happy path) → 1056 → 1059.
+
+### Pendientes del doc del papá (audit completo)
+
+**Bloques sin tocar:** A parcial (puntos 12 partial), C (#1, #9), D (#15 distribución inteligente, #17 redondeo), E (#21a borrar todo, #21b edit cerrado, #21d imprimir), F (#3, #5, #6 tabulador, #22b/c/d, #23, #24, #25, #25-bis), G (#26-B matriz docs cliente), H (#26-A multi-plataforma deferido a v2).
+
+Total restante: ~19 puntos. Algunos requieren spec del papá (tabulador, formato checklist matriz docs).
 
 ---
 
