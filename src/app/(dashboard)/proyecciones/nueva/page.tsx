@@ -277,6 +277,10 @@ function NuevaProyeccionContent() {
         serviceId: s.serviceId,
         chosenPct: s.chosenPct,
         isActive: s.isActive,
+        // B6: persist subservice selections so they survive a page refresh or
+        // draft hydration. Empty array is intentionally omitted (undefined)
+        // so legacy drafts without this field remain backward-compatible.
+        ...(s.subserviceIds.length > 0 && { subserviceIds: s.subserviceIds }),
       })),
       previousProjectionId: previousProjectionId
         ? (previousProjectionId as Id<"projections">)
@@ -328,15 +332,21 @@ function NuevaProyeccionContent() {
         setSeasonalityOutliers(derived);
       }
       if (s.serviceStates !== undefined) {
-        // serviceStates from the draft only carries chosenPct/isActive — merge
-        // those onto the freshly-loaded service catalogue so name/min/max stay live.
-        // subserviceIds is not persisted in draft, so preserve current selection.
+        // Merge draft serviceStates onto the freshly-loaded service catalogue
+        // so name/min/max stay live. B6: also restore subserviceIds when present
+        // (optional field — legacy drafts without it preserve current selection).
         setServiceStates((prev) =>
           prev.map((p) => {
             const draftRow = s.serviceStates!.find((d) => d.serviceId === p.serviceId);
-            return draftRow
-              ? { ...p, chosenPct: draftRow.chosenPct, isActive: draftRow.isActive }
-              : p;
+            if (!draftRow) return p;
+            return {
+              ...p,
+              chosenPct: draftRow.chosenPct,
+              isActive: draftRow.isActive,
+              // B6: restore subservice selections from draft; fall back to
+              // current (empty) selection if the field is absent (legacy draft).
+              subserviceIds: draftRow.subserviceIds ?? p.subserviceIds,
+            };
           })
         );
       }

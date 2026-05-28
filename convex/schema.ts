@@ -143,6 +143,10 @@ export default defineSchema({
             serviceId: v.string(),
             chosenPct: v.number(),
             isActive: v.boolean(),
+            // B6: persist multi-subservicio selection in draft so the wizard
+            // restores it on hydration. Optional for backward-compat with
+            // existing drafts that predate this field.
+            subserviceIds: v.optional(v.array(v.string())),
           })
         )
       ),

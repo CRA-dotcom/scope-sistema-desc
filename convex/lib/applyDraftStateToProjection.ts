@@ -54,10 +54,10 @@ export async function applyDraftStateToProjection(
   const commissionRate = state.commissionRate ?? projection.commissionRate;
 
   // Build ServiceConfig[] from the draft's serviceStates.
-  // Note: the draft schema does not store subserviceId per-service (the
-  // wizard keeps it in component-local state, not persisted to the draft).
-  // This is by design — re-edit projections start without subservice
-  // selection. Operators can re-assign from the matrix view.
+  // B6: the draft now optionally carries subserviceIds per service so that
+  // wizard draft hydration restores multi-subservicio selections. When absent
+  // (legacy draft), the projectionServices row is inserted without subservice
+  // fields — operators can re-assign from the matrix view.
   const serviceStates = state.serviceStates ?? [];
   const serviceDetails: ServiceConfig[] = await Promise.all(
     serviceStates.map(async (ss) => {
@@ -136,13 +136,24 @@ export async function applyDraftStateToProjection(
       ? "commission"
       : "fixed_retainer";
 
+    // B6: restore subserviceIds from draft when present; keep legacy backcompat
+    // scalar in sync (subserviceId = first element of the array).
+    const draftSubserviceIds = (serviceState as { subserviceIds?: string[] })
+      .subserviceIds;
+    const subserviceIdsInsert =
+      draftSubserviceIds && draftSubserviceIds.length > 0
+        ? (draftSubserviceIds as Id<"subservices">[])
+        : undefined;
+    const subserviceIdInsert = subserviceIdsInsert?.[0];
+
     const projServiceId = await ctx.db.insert("projectionServices", {
       orgId,
       projectionId,
       serviceId: serviceState.serviceId as Id<"services">,
       serviceName: svc.serviceName,
-      // subserviceId intentionally omitted — not stored in draft state.
-      // Operator assigns per-cell from the projection matrix view.
+      // B6: restore multi-subservicio from draft when present.
+      ...(subserviceIdsInsert && { subserviceIds: subserviceIdsInsert }),
+      ...(subserviceIdInsert && { subserviceId: subserviceIdInsert }),
       chosenPct: svc.chosenPct,
       isActive: svc.isActive,
       annualAmount: svc.annualAmount,
@@ -167,7 +178,10 @@ export async function applyDraftStateToProjection(
           feFactor: ma.feFactor,
           status: "pending",
           invoiceStatus: "not_invoiced",
-          isManuallyOverridden: resolvedPricingModel === "dynamic_retainer",
+          // Draft-apply path: resolvedPricingModel is always fixed_retainer or
+          // commission (dynamic_retainer requires explicit operator action after
+          // projection creation). isManuallyOverridden defaults to false here.
+          isManuallyOverridden: false,
         });
       }
     }

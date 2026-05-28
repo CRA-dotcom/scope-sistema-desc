@@ -36,6 +36,9 @@ const stateValidator = v.object({
         serviceId: v.string(),
         chosenPct: v.number(),
         isActive: v.boolean(),
+        // B6: persist multi-subservicio selection so the wizard restores it
+        // on hydration. Optional for backward-compat with existing drafts.
+        subserviceIds: v.optional(v.array(v.string())),
       })
     )
   ),
