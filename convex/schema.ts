@@ -375,6 +375,10 @@ export default defineSchema({
     respondedAt: v.optional(v.number()),
     declineReason: v.optional(v.string()),
 
+    // #22c — empresa emitente seleccionada manualmente en el form.
+    // Si se omite, el flujo de envío resuelve vía servicesIssuingCompanyMap.
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+
     // B1 — cotización suplementaria (mid-year add-on).
     // Per docs/superpowers/specs/2026-05-26-client-services-overview-design.md §2.1
     parentQuotationId: v.optional(v.id("quotations")),
@@ -432,6 +436,8 @@ export default defineSchema({
       )
     ),
     cancellationReason: v.optional(v.string()),
+    // #23 — empresa emitente seleccionada/sobreescrita manualmente en el form.
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
   })
     .index("by_orgId", ["orgId"])
     .index("by_quotationId", ["quotationId"])

@@ -3,9 +3,170 @@ import { v } from "convex/values";
 import { getOrgId } from "../../lib/authHelpers";
 import { Doc, Id } from "../../_generated/dataModel";
 
+// ─────────────────────────────────────────────
+// #22b — Manual quotation creation
+// ─────────────────────────────────────────────
+
+/**
+ * Create a quotation manually from the cotizaciones list page.
+ * Requires selecting an existing (projection, projectionService) pair so that
+ * projServiceId (required by the quotations table) is always set.
+ *
+ * #22c: accepts an optional issuingCompanyId override.
+ * #22d: accepts an optional subserviceId to tie the quotation to a specific subservice.
+ */
+export const createManualQuotation = mutation({
+  args: {
+    projServiceId: v.id("projectionServices"),
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+    subserviceId: v.optional(v.id("subservices")),
+    serviceName: v.optional(v.string()),
+    content: v.optional(v.string()),
+    amount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgId(ctx);
+
+    const projService = await ctx.db.get(args.projServiceId);
+    if (!projService || projService.orgId !== orgId) {
+      throw new Error("Servicio de proyección no encontrado.");
+    }
+
+    const projection = await ctx.db.get(projService.projectionId);
+    if (!projection || projection.orgId !== orgId) {
+      throw new Error("Proyección no encontrada.");
+    }
+
+    // Validate issuingCompanyId belongs to org if provided
+    if (args.issuingCompanyId) {
+      const company = await ctx.db.get(args.issuingCompanyId);
+      if (!company || company.orgId !== orgId) {
+        throw new Error("Empresa emitente no encontrada.");
+      }
+    }
+
+    // Validate subserviceId if provided
+    if (args.subserviceId) {
+      const sub = await ctx.db.get(args.subserviceId);
+      if (!sub) throw new Error("Subservicio no encontrado.");
+    }
+
+    const serviceName = args.serviceName ?? projService.serviceName;
+    const amount = args.amount ?? projService.annualAmount;
+    const content =
+      args.content ??
+      `<div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;"><h1 style="font-size:24px;color:#1a1a2e;">COTIZACIÓN DE SERVICIOS</h1><p style="color:#666;font-size:14px;">Fecha: ${new Date().toLocaleDateString("es-MX")}</p><p><strong>Servicio:</strong> ${serviceName}</p><p><strong>Monto:</strong> $${amount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</p></div>`;
+
+    return await ctx.db.insert("quotations", {
+      orgId,
+      projServiceId: args.projServiceId,
+      clientId: projection.clientId,
+      serviceName,
+      content,
+      status: "draft" as const,
+      createdAt: Date.now(),
+      ...(args.issuingCompanyId && { issuingCompanyId: args.issuingCompanyId }),
+      ...(args.subserviceId && { subserviceId: args.subserviceId }),
+    });
+  },
+});
+
+// ─────────────────────────────────────────────
+// #5 — Batch-generate all quotations for a projection
+// ─────────────────────────────────────────────
+
+/**
+ * Generates one draft quotation per active projectionService for a projection.
+ * Skips services that already have a quotation (in any status).
+ * Returns the count of newly created quotations.
+ */
+export const generateAllForProjection = mutation({
+  args: {
+    projectionId: v.id("projections"),
+  },
+  returns: v.object({ created: v.number(), skipped: v.number() }),
+  handler: async (ctx, args) => {
+    const orgId = await getOrgId(ctx);
+
+    const projection = await ctx.db.get(args.projectionId);
+    if (!projection || projection.orgId !== orgId) {
+      throw new Error("Proyección no encontrada.");
+    }
+
+    const client = await ctx.db.get(projection.clientId);
+    if (!client || client.orgId !== orgId) {
+      throw new Error("Cliente no encontrado.");
+    }
+
+    // Fetch all active projection services
+    const projServices = await ctx.db
+      .query("projectionServices")
+      .withIndex("by_projectionId", (q) =>
+        q.eq("projectionId", args.projectionId)
+      )
+      .collect();
+
+    const activeServices = projServices.filter(
+      (ps) => ps.orgId === orgId && ps.isActive
+    );
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const ps of activeServices) {
+      // Check if quotation already exists for this projService
+      const existing = await ctx.db
+        .query("quotations")
+        .withIndex("by_projServiceId", (q) => q.eq("projServiceId", ps._id))
+        .first();
+
+      if (existing && existing.orgId === orgId) {
+        skipped++;
+        continue;
+      }
+
+      const monthlyAmount = (ps.annualAmount / 12).toLocaleString("es-MX", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      const content = `
+<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px;">
+  <div style="text-align: center; margin-bottom: 40px;">
+    <h1 style="font-size: 24px; color: #1a1a2e;">COTIZACIÓN DE SERVICIOS</h1>
+    <p style="color: #666; font-size: 14px;">Fecha: ${new Date().toLocaleDateString("es-MX")}</p>
+  </div>
+  <p><strong>Cliente:</strong> ${client.name}</p>
+  <p><strong>RFC:</strong> ${client.rfc}</p>
+  <p><strong>Servicio:</strong> ${ps.serviceName}</p>
+  <p><strong>Año fiscal:</strong> ${projection.year}</p>
+  <p><strong>Monto anual:</strong> $${ps.annualAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</p>
+  <p><strong>Monto mensual estimado:</strong> $${monthlyAmount}</p>
+</div>`.trim();
+
+      await ctx.db.insert("quotations", {
+        orgId,
+        projServiceId: ps._id,
+        clientId: projection.clientId,
+        serviceName: ps.serviceName,
+        content,
+        status: "draft" as const,
+        createdAt: Date.now(),
+      });
+      created++;
+    }
+
+    return { created, skipped };
+  },
+});
+
 export const generate = mutation({
   args: {
     projServiceId: v.id("projectionServices"),
+    // #22c: optional issuing company override
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+    // #22d: optional subservice override
+    subserviceId: v.optional(v.id("subservices")),
   },
   handler: async (ctx, args) => {
     const orgId = await getOrgId(ctx);
@@ -166,7 +327,11 @@ export const generate = mutation({
           "Ya existe una cotización para este servicio que no está en borrador."
         );
       }
-      await ctx.db.patch(existing._id, { content });
+      await ctx.db.patch(existing._id, {
+        content,
+        ...(args.issuingCompanyId !== undefined && { issuingCompanyId: args.issuingCompanyId }),
+        ...(args.subserviceId !== undefined && { subserviceId: args.subserviceId }),
+      });
       return existing._id;
     }
 
@@ -179,6 +344,8 @@ export const generate = mutation({
       content,
       status: "draft",
       createdAt: Date.now(),
+      ...(args.issuingCompanyId && { issuingCompanyId: args.issuingCompanyId }),
+      ...(args.subserviceId && { subserviceId: args.subserviceId }),
     });
   },
 });
@@ -241,6 +408,8 @@ export const saveGenerated = internalMutation({
     clientId: v.id("clients"),
     serviceName: v.string(),
     content: v.string(),
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
+    subserviceId: v.optional(v.id("subservices")),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -256,7 +425,11 @@ export const saveGenerated = internalMutation({
           "Ya existe una cotización para este servicio que no está en borrador."
         );
       }
-      await ctx.db.patch(existing._id, { content: args.content });
+      await ctx.db.patch(existing._id, {
+        content: args.content,
+        ...(args.issuingCompanyId !== undefined && { issuingCompanyId: args.issuingCompanyId }),
+        ...(args.subserviceId !== undefined && { subserviceId: args.subserviceId }),
+      });
       return existing._id;
     }
 
@@ -268,6 +441,8 @@ export const saveGenerated = internalMutation({
       content: args.content,
       status: "draft",
       createdAt: Date.now(),
+      ...(args.issuingCompanyId && { issuingCompanyId: args.issuingCompanyId }),
+      ...(args.subserviceId && { subserviceId: args.subserviceId }),
     });
   },
 });
@@ -437,6 +612,42 @@ export const setPdfStorageId = mutation({
       throw new Error("Cotización no encontrada.");
     }
     await ctx.db.patch(args.id, { pdfStorageId: args.pdfStorageId });
+  },
+});
+
+// ─────────────────────────────────────────────
+// #22c — Update issuing company on a quotation
+// ─────────────────────────────────────────────
+
+/**
+ * Override the issuing company on a quotation (draft only).
+ * Pass null to clear the override.
+ */
+export const updateIssuingCompany = mutation({
+  args: {
+    id: v.id("quotations"),
+    issuingCompanyId: v.union(v.id("issuingCompanies"), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgId(ctx);
+    const quotation = await ctx.db.get(args.id);
+    if (!quotation || quotation.orgId !== orgId) {
+      throw new Error("Cotización no encontrada.");
+    }
+    if (quotation.status !== "draft") {
+      throw new Error(
+        "Solo se puede cambiar la empresa emitente de cotizaciones en borrador."
+      );
+    }
+    if (args.issuingCompanyId !== null) {
+      const company = await ctx.db.get(args.issuingCompanyId);
+      if (!company || company.orgId !== orgId) {
+        throw new Error("Empresa emitente no encontrada.");
+      }
+    }
+    await ctx.db.patch(args.id, {
+      issuingCompanyId: args.issuingCompanyId ?? undefined,
+    });
   },
 });
 

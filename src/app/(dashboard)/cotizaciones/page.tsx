@@ -2,10 +2,11 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { FileText, Search, ChevronRight } from "lucide-react";
+import { FileText, Search, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { NuevaQuotationDialog } from "@/components/cotizaciones/NuevaQuotationDialog";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Borrador",
@@ -26,6 +27,7 @@ type StatusFilter = "all" | "draft" | "sent" | "approved" | "rejected";
 export default function CotizacionesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const quotations = useQuery(
     api.functions.quotations.queries.listByOrg,
@@ -55,6 +57,9 @@ export default function CotizacionesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Nueva Cotización Dialog */}
+      <NuevaQuotationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -66,6 +71,13 @@ export default function CotizacionesPage() {
             </span>
           )}
         </div>
+        <button
+          onClick={() => setDialogOpen(true)}
+          className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-primary hover:bg-accent/90 transition-colors cursor-pointer"
+        >
+          <Plus size={16} />
+          Nueva cotización
+        </button>
       </div>
 
       {/* Search & Filters */}
