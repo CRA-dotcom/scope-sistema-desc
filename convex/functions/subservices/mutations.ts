@@ -46,6 +46,7 @@ export const create = mutation({
     cooldownMonths: v.optional(v.number()),
     defaultPricingHint: v.optional(v.number()),
     isCommission: v.optional(v.boolean()),
+    isFinancialRelated: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -88,6 +89,7 @@ export const create = mutation({
       cooldownMonths: args.cooldownMonths,
       defaultPricingHint: args.defaultPricingHint,
       isCommission: args.isCommission ?? parent.isCommission ?? false,
+      isFinancialRelated: args.isFinancialRelated,
       isActive: true,
       isDefault: false,
       sortOrder: args.sortOrder ?? 100,
@@ -130,6 +132,7 @@ export const update = mutation({
       cooldownMonths: v.optional(v.number()),
       defaultPricingHint: v.optional(v.number()),
       isCommission: v.optional(v.boolean()),
+      isFinancialRelated: v.optional(v.boolean()),
       sortOrder: v.optional(v.number()),
     }),
   },

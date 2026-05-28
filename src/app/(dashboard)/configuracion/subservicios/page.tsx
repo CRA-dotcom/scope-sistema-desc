@@ -35,6 +35,7 @@ type Subservice = {
   cooldownMonths?: number;
   defaultPricingHint?: number;
   isCommission?: boolean;
+  isFinancialRelated?: boolean;
   yearOverYearDiscount?: number;
   isActive: boolean;
   isDefault: boolean;
@@ -569,6 +570,9 @@ function SubserviceEditorDrawer({
   const [isCommission, setIsCommission] = useState(
     initial.isCommission ?? false
   );
+  const [isFinancialRelated, setIsFinancialRelated] = useState(
+    initial.isFinancialRelated ?? false
+  );
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -587,6 +591,7 @@ function SubserviceEditorDrawer({
           defaultPricingHint:
             defaultPricingHint === "" ? undefined : defaultPricingHint,
           isCommission,
+          isFinancialRelated,
         });
       } else {
         await updateMut({
@@ -600,6 +605,7 @@ function SubserviceEditorDrawer({
             defaultPricingHint:
               defaultPricingHint === "" ? undefined : defaultPricingHint,
             isCommission,
+            isFinancialRelated,
           },
         });
       }
@@ -729,6 +735,21 @@ function SubserviceEditorDrawer({
               className="accent-accent"
             />
             ¿Es comisión? (override del padre)
+          </label>
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isFinancialRelated}
+              onChange={(e) => setIsFinancialRelated(e.target.checked)}
+              className="accent-accent mt-0.5"
+            />
+            <span>
+              ¿Relacionado a finanzas?
+              <span className="block text-xs text-muted-foreground">
+                Inyecta los estados financieros validados del cliente al prompt
+                de Claude cuando se genera el entregable.
+              </span>
+            </span>
           </label>
           <div className="flex items-center justify-end gap-2 pt-2">
             <button

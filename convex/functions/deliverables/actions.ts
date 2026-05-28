@@ -55,6 +55,50 @@ function getAnthropicClient(): Anthropic | null {
  * shape from scripts/generate-demo-deliverables.mjs so output is comparable
  * when validating the refactor against the reference PDFs.
  */
+type FinancialLineItem = {
+  label: string;
+  amount: number;
+  category: "ingresos" | "gastos_operativos" | "impuestos" | "otros";
+};
+type FinancialContextPayload = {
+  period: string;
+  periodType: "monthly" | "quarterly" | "annual";
+  lineItems: FinancialLineItem[];
+} | null;
+
+const CATEGORY_LABEL_ES: Record<FinancialLineItem["category"], string> = {
+  ingresos: "Ingresos",
+  gastos_operativos: "Gastos operativos",
+  impuestos: "Impuestos",
+  otros: "Otros",
+};
+
+/**
+ * SS4: format a clientFinancialData row into a prompt-friendly block with
+ * line items grouped by category. Returns empty string when ctx is null.
+ */
+function formatFinancialContextForPrompt(ctx: FinancialContextPayload): string {
+  if (!ctx) return "";
+  const groups: Record<string, FinancialLineItem[]> = {};
+  for (const li of ctx.lineItems) {
+    (groups[li.category] = groups[li.category] ?? []).push(li);
+  }
+  const sections = (Object.keys(CATEGORY_LABEL_ES) as FinancialLineItem["category"][])
+    .map((cat) => {
+      const items = groups[cat];
+      if (!items || items.length === 0) return null;
+      const total = items.reduce((s, i) => s + i.amount, 0);
+      const lines = items.map(
+        (i) =>
+          `  - ${i.label}: $${i.amount.toLocaleString("es-MX")} MXN`
+      );
+      return `${CATEGORY_LABEL_ES[cat]} (total $${total.toLocaleString("es-MX")} MXN):\n${lines.join("\n")}`;
+    })
+    .filter(Boolean);
+  if (sections.length === 0) return "";
+  return `\n\nDATOS FINANCIEROS DEL CLIENTE (periodo ${ctx.period}, ${ctx.periodType}):\n${sections.join("\n\n")}`;
+}
+
 function buildContextBlock(args: {
   client: { name: string; rfc: string; industry: string; annualRevenue: number };
   projection:
@@ -64,8 +108,9 @@ function buildContextBlock(args: {
   questionnaire:
     | { responses?: Array<{ section?: string; questionText: string; answer: string | unknown }> }
     | null;
+  financialContext?: FinancialContextPayload;
 }): string {
-  const { client, projection, projService, questionnaire } = args;
+  const { client, projection, projService, questionnaire, financialContext } = args;
 
   const responses = questionnaire?.responses ?? [];
   const questionnaireText = responses
@@ -97,7 +142,7 @@ ${projLine}
 SERVICIO (${projService?.serviceName ?? "n/a"}): ${projServiceLine}
 
 RESPUESTAS DEL CUESTIONARIO:
-${questionnaireText || "Sin respuestas de cuestionario disponibles."}`;
+${questionnaireText || "Sin respuestas de cuestionario disponibles."}${formatFinancialContextForPrompt(financialContext ?? null)}`;
 }
 
 function formatToday(): string {
@@ -336,6 +381,35 @@ export const generateDeliverable = action({
         else needsAi.push(k);
       }
 
+      // SS4: if the subservice opts in via isFinancialRelated, fetch the
+      // latest validated financial snapshot ≤ asOfPeriod (assignment month).
+      let financialContext: FinancialContextPayload = null;
+      if (projService.subserviceId) {
+        const subservice = await ctx.runQuery(
+          internal.functions.deliverables.internalQueries.getSubserviceData,
+          { subserviceId: projService.subserviceId }
+        );
+        if (subservice?.isFinancialRelated) {
+          const asOfPeriod = `${assignment.year}-${String(assignment.month).padStart(2, "0")}`;
+          const fin = await ctx.runQuery(
+            internal.functions.clientFinancialData.queries.getFinancialContextInternal,
+            {
+              orgId: assignment.orgId,
+              clientId: args.clientId,
+              periodType: "monthly",
+              asOfPeriod,
+            }
+          );
+          if (fin) {
+            financialContext = {
+              period: fin.period,
+              periodType: fin.periodType,
+              lineItems: fin.lineItems,
+            };
+          }
+        }
+      }
+
       // 4. Batched AI fill (only if we have an Anthropic key + AI keys to fill).
       const anthropic = getAnthropicClient();
       if (anthropic && needsAi.length > 0) {
@@ -344,6 +418,7 @@ export const generateDeliverable = action({
           projection,
           projService,
           questionnaire,
+          financialContext,
         });
         try {
           const result = await batchFillWithClaude(

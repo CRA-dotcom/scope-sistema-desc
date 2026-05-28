@@ -24,6 +24,17 @@ export const getProjServiceData = internalQuery({
   },
 });
 
+/**
+ * SS4: read the subservice row to check `isFinancialRelated`. Used by
+ * generateDeliverable to decide whether to inject financial context.
+ */
+export const getSubserviceData = internalQuery({
+  args: { subserviceId: v.id("subservices") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.subserviceId);
+  },
+});
+
 export const getProjectionByProjService = internalQuery({
   args: { projectionId: v.id("projections") },
   handler: async (ctx, args) => {
