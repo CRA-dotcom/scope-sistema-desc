@@ -335,6 +335,8 @@ export default defineSchema({
     ),
     accessToken: v.optional(v.string()),
     completedAt: v.optional(v.number()),
+    reopenedAt: v.optional(v.number()),
+    reopenedBy: v.optional(v.string()),  // Clerk userId
     createdAt: v.number(),
   })
     .index("by_orgId", ["orgId"])
@@ -428,6 +430,7 @@ export default defineSchema({
   })
     .index("by_orgId", ["orgId"])
     .index("by_quotationId", ["quotationId"])
+    .index("by_projServiceId", ["projServiceId"])
     .index("by_clientId", ["clientId"])
     .index("by_orgId_status", ["orgId", "status"])
     .index("by_firmameDocumentId", ["firmameDocumentId"]),
@@ -486,6 +489,7 @@ export default defineSchema({
   })
     .index("by_orgId", ["orgId"])
     .index("by_assignmentId", ["assignmentId"])
+    .index("by_projServiceId", ["projServiceId"])
     .index("by_clientId", ["clientId"])
     .index("by_orgId_auditStatus", ["orgId", "auditStatus"])
     .index("by_orgId_year_month", ["orgId", "year", "month"])
@@ -962,7 +966,8 @@ export default defineSchema({
       v.literal("template"),
       v.literal("subservice"),
       v.literal("questionnaire"),
-      v.literal("financial_data")
+      v.literal("financial_data"),
+      v.literal("projection")
     ),
     entityId: v.string(),
     eventType: v.union(
@@ -979,7 +984,8 @@ export default defineSchema({
       v.literal("reminder_sent"),
       v.literal("uploaded"),
       v.literal("voided"),
-      v.literal("error")
+      v.literal("error"),
+      v.literal("reopened")
     ),
     severity: v.union(
       v.literal("info"),
