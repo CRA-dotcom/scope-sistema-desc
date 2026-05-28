@@ -85,15 +85,22 @@ async function setupFixture(t: ReturnType<typeof convexTest>) {
 const asAdmin = {
   subject: "u",
   tokenIdentifier: "t|u",
-  org_id: "org_test",
-  org_role: "org:admin",
+  orgId: "org_test",
+  orgRole: "org:admin",
+};
+
+const asMember = {
+  subject: "u3",
+  tokenIdentifier: "t|u3",
+  orgId: "org_test",
+  orgRole: "org:member",
 };
 
 const asOtherOrg = {
   subject: "u2",
   tokenIdentifier: "t|u2",
-  org_id: "org_other",
-  org_role: "org:admin",
+  orgId: "org_other",
+  orgRole: "org:admin",
 };
 
 describe("projectionServices.setSubserviceIds (#1)", () => {
@@ -113,6 +120,40 @@ describe("projectionServices.setSubserviceIds (#1)", () => {
     expect(ps!.subserviceIds).toEqual([sub1, sub2]);
     // Legacy backcompat: first element
     expect(ps!.subserviceId).toBe(sub1);
+  });
+
+  it("empty array clears both subserviceIds and legacy subserviceId", async () => {
+    const t = convexTest(schema);
+    const { projServiceId, sub1 } = await setupFixture(t);
+
+    // First assign something
+    await t.withIdentity(asAdmin).mutation(
+      api.functions.projectionServices.mutations.setSubserviceIds,
+      { projServiceId, subserviceIds: [sub1] }
+    );
+    let ps = await t.run((ctx) => ctx.db.get(projServiceId));
+    expect(ps!.subserviceId).toBe(sub1);
+
+    // Now clear
+    await t.withIdentity(asAdmin).mutation(
+      api.functions.projectionServices.mutations.setSubserviceIds,
+      { projServiceId, subserviceIds: [] }
+    );
+    ps = await t.run((ctx) => ctx.db.get(projServiceId));
+    expect(ps!.subserviceIds).toBeUndefined();
+    expect(ps!.subserviceId).toBeUndefined();
+  });
+
+  it("non-admin member is rejected", async () => {
+    const t = convexTest(schema);
+    const { projServiceId, sub1 } = await setupFixture(t);
+
+    await expect(
+      t.withIdentity(asMember).mutation(
+        api.functions.projectionServices.mutations.setSubserviceIds,
+        { projServiceId, subserviceIds: [sub1] }
+      )
+    ).rejects.toThrow();
   });
 
   it("cross-org access throws", async () => {

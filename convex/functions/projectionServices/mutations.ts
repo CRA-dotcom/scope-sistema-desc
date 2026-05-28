@@ -18,20 +18,25 @@ export const setSubserviceIds = mutation({
     subserviceIds: v.array(v.id("subservices")),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx);
+    await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const ps = await ctx.db.get(args.projServiceId);
     if (!ps || ps.orgId !== orgId) {
       throw new Error("Servicio no encontrado.");
     }
-    // Backcompat: keep legacy subserviceId = first element (undefined if empty).
-    const legacySubserviceId: Id<"subservices"> | undefined =
-      args.subserviceIds[0];
-    await ctx.db.patch(args.projServiceId, {
-      subserviceIds:
-        args.subserviceIds.length > 0 ? args.subserviceIds : undefined,
-      subserviceId: legacySubserviceId,
-    });
+    if (args.subserviceIds.length === 0) {
+      // Clear both fields atomically (empty array → no selection).
+      await ctx.db.patch(args.projServiceId, {
+        subserviceIds: undefined,
+        subserviceId: undefined,
+      });
+    } else {
+      // Persist array + keep legacy scalar in sync (backcompat).
+      await ctx.db.patch(args.projServiceId, {
+        subserviceIds: args.subserviceIds,
+        subserviceId: args.subserviceIds[0], // backcompat: primary subservice
+      });
+    }
   },
 });
 
