@@ -459,7 +459,11 @@ function NuevaProyeccionContent() {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-3">
           <TrendingUp className="text-accent" size={28} />
-          <h1 className="text-2xl font-bold">Nueva Proyección</h1>
+          <h1 className="text-2xl font-bold">
+            {clients?.find((c) => c._id === clientId)?.name
+              ? `${clients.find((c) => c._id === clientId)!.name} — Nueva proyección`
+              : "Nueva proyección"}
+          </h1>
         </div>
         <DraftSaveStatus status={saveStatus} retry={saveRetry} lastSavedAt={lastSavedAt} />
       </div>
