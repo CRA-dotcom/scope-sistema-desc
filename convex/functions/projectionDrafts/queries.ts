@@ -2,6 +2,21 @@ import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgIdSafe, requireAuth, getOrgId } from "../../lib/authHelpers";
 
+export const getDraftById = query({
+  args: { id: v.id("projectionDrafts") },
+  handler: async (ctx, { id }) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return null;
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const draft = await ctx.db.get(id);
+    if (!draft) return null;
+    // Guard: only return drafts owned by this org/user.
+    if (draft.orgId !== orgId || draft.userId !== identity.subject) return null;
+    return draft;
+  },
+});
+
 export const getMyDraft = query({
   args: { clientId: v.optional(v.id("clients")) },
   handler: async (ctx, { clientId }) => {

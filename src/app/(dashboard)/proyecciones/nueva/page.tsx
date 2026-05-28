@@ -34,6 +34,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useOrgConfig } from "@/lib/useOrgConfig";
 import { useAuth } from "@clerk/nextjs";
+import { useProjectionDraftSave } from "@/hooks/useProjectionDraftSave";
+import { DraftSaveStatus } from "@/components/projections/DraftSaveStatus";
 
 export default function NuevaProyeccionWrapper() {
   return (
@@ -74,6 +76,7 @@ function NuevaProyeccionContent() {
   const searchParams = useSearchParams();
   const preselectedClientId = searchParams.get("clientId");
   const preselectedPreviousProjectionId = searchParams.get("previousProjectionId");
+  const explicitDraftId = searchParams.get("draftId") as Id<"projectionDrafts"> | null;
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -81,7 +84,7 @@ function NuevaProyeccionContent() {
 
   // Step 1: Basic data
   const [clientId, setClientId] = useState(preselectedClientId ?? "");
-  const [previousProjectionId] = useState<string | null>(preselectedPreviousProjectionId);
+  const [previousProjectionId, setPreviousProjectionId] = useState<string | null>(preselectedPreviousProjectionId);
   const [year, setYear] = useState(new Date().getFullYear());
   const [annualSales, setAnnualSales] = useState(0);
   const [totalBudget, setTotalBudget] = useState(0);
@@ -168,9 +171,12 @@ function NuevaProyeccionContent() {
     authReady ? { clientId: draftClientId } : "skip"
   );
 
-  const upsertDraft = useMutation(
-    api.functions.projectionDrafts.mutations.upsertDraft
+  // For ?draftId=X explicit hydration: fetch the specific draft by _id directly.
+  const explicitDraftFull = useQuery(
+    api.functions.projectionDrafts.queries.getDraftById,
+    authReady && explicitDraftId ? { id: explicitDraftId } : "skip"
   );
+
   const deleteDraft = useMutation(
     api.functions.projectionDrafts.mutations.deleteMyDraft
   );
@@ -243,89 +249,31 @@ function NuevaProyeccionContent() {
     [effectiveBudget, annualSales, commissionRate, serviceStates]
   );
 
-  function hydrateFromDraft() {
-    if (!existingDraft) return;
-    const s = existingDraft.state;
-    if (s.year !== undefined) setYear(s.year);
-    if (s.annualSales !== undefined) setAnnualSales(s.annualSales);
-    if (s.totalBudget !== undefined) setTotalBudget(s.totalBudget);
-    if (s.commissionRate !== undefined) setCommissionRate(s.commissionRate);
-    if (s.startMonth !== undefined) setStartMonth(s.startMonth);
-    if (s.projectionMode !== undefined) setProjectionMode(s.projectionMode);
-    if (s.useSeasonality !== undefined) setUseSeasonality(s.useSeasonality);
-    // Sub-proyecto C: prefer the new outliers field if present.
-    // For legacy drafts (only seasonalityDeltas present), derive outliers from
-    // months with |deltaPercent| > 0.5 (the same threshold used in the chip UI).
-    if (s.seasonalityOutliers !== undefined) {
-      setSeasonalityOutliers(s.seasonalityOutliers);
-    } else if (s.seasonalityDeltas !== undefined) {
-      const derived: SeasonalityOutlier[] = s.seasonalityDeltas
-        .filter((d) => Math.abs(d.deltaPercent) > 0.5)
-        .map((d) => ({
-          month: d.month,
-          value: d.deltaPercent,
-          unit: "percent" as const,
-        }));
-      setSeasonalityOutliers(derived);
-    }
-    if (s.serviceStates !== undefined) {
-      // serviceStates from the draft only carries chosenPct/isActive — merge
-      // those onto the freshly-loaded service catalogue so name/min/max stay live.
-      setServiceStates((prev) =>
-        prev.map((p) => {
-          const draftRow = s.serviceStates!.find((d) => d.serviceId === p.serviceId);
-          return draftRow
-            ? { ...p, chosenPct: draftRow.chosenPct, isActive: draftRow.isActive }
-            : p;
-        })
-      );
-    }
-    setStep(s.step);
-    setDraftHydrated(true);
-  }
-
-  async function discardDraft() {
-    await deleteDraft({ clientId: draftClientId });
-    setDraftDismissed(true);
-  }
-
-  const saveDraft = useCallback(
-    async (nextStep: number, options?: { clearPreClientDraft?: boolean }) => {
-      if (!authReady) return;
-      try {
-        await upsertDraft({
-          clientId: draftClientId,
-          state: {
-            step: nextStep,
-            year,
-            annualSales,
-            totalBudget,
-            commissionRate,
-            startMonth,
-            projectionMode,
-            useSeasonality,
-            seasonalityOutliers,
-            serviceStates: serviceStates.map((s) => ({
-              serviceId: s.serviceId,
-              chosenPct: s.chosenPct,
-              isActive: s.isActive,
-            })),
-            previousProjectionId: previousProjectionId
-              ? (previousProjectionId as Id<"projections">)
-              : undefined,
-          },
-          clearPreClientDraft: options?.clearPreClientDraft,
-        });
-      } catch (err) {
-        // Silent — autosave is best-effort. The user can still submit.
-        if (process.env.NODE_ENV !== "production") {
-          console.warn("[wizard.autosave] failed", err);
-        }
-      }
-    },
+  // Stable snapshot of wizard form state passed to the autosave hook.
+  // Mirrors the `state` shape expected by upsertDraft (clientId is a separate
+  // top-level arg to the mutation, not part of `state`).
+  const formState = useMemo(
+    () => ({
+      step,
+      year,
+      annualSales,
+      totalBudget,
+      commissionRate,
+      startMonth,
+      projectionMode,
+      useSeasonality,
+      seasonalityOutliers,
+      serviceStates: serviceStates.map((s) => ({
+        serviceId: s.serviceId,
+        chosenPct: s.chosenPct,
+        isActive: s.isActive,
+      })),
+      previousProjectionId: previousProjectionId
+        ? (previousProjectionId as Id<"projections">)
+        : undefined,
+    }),
     [
-      authReady,
-      draftClientId,
+      step,
       year,
       annualSales,
       totalBudget,
@@ -336,9 +284,85 @@ function NuevaProyeccionContent() {
       seasonalityOutliers,
       serviceStates,
       previousProjectionId,
-      upsertDraft,
     ]
   );
+
+  const { status: saveStatus, retry: saveRetry, lastSavedAt } = useProjectionDraftSave(formState);
+
+  // Shared hydration logic — applies any draft's `state` object to local form state.
+  const applyDraftState = useCallback(
+    (s: NonNullable<typeof existingDraft>["state"]) => {
+      if (s.year !== undefined) setYear(s.year);
+      if (s.annualSales !== undefined) setAnnualSales(s.annualSales);
+      if (s.totalBudget !== undefined) setTotalBudget(s.totalBudget);
+      if (s.commissionRate !== undefined) setCommissionRate(s.commissionRate);
+      if (s.startMonth !== undefined) setStartMonth(s.startMonth);
+      if (s.projectionMode !== undefined) setProjectionMode(s.projectionMode);
+      if (s.useSeasonality !== undefined) setUseSeasonality(s.useSeasonality);
+      // Sub-proyecto C: prefer the new outliers field if present.
+      // For legacy drafts (only seasonalityDeltas present), derive outliers from
+      // months with |deltaPercent| > 0.5 (the same threshold used in the chip UI).
+      if (s.seasonalityOutliers !== undefined) {
+        setSeasonalityOutliers(s.seasonalityOutliers);
+      } else if (s.seasonalityDeltas !== undefined) {
+        const derived: SeasonalityOutlier[] = s.seasonalityDeltas
+          .filter((d) => Math.abs(d.deltaPercent) > 0.5)
+          .map((d) => ({
+            month: d.month,
+            value: d.deltaPercent,
+            unit: "percent" as const,
+          }));
+        setSeasonalityOutliers(derived);
+      }
+      if (s.serviceStates !== undefined) {
+        // serviceStates from the draft only carries chosenPct/isActive — merge
+        // those onto the freshly-loaded service catalogue so name/min/max stay live.
+        setServiceStates((prev) =>
+          prev.map((p) => {
+            const draftRow = s.serviceStates!.find((d) => d.serviceId === p.serviceId);
+            return draftRow
+              ? { ...p, chosenPct: draftRow.chosenPct, isActive: draftRow.isActive }
+              : p;
+          })
+        );
+      }
+      if (s.previousProjectionId !== undefined) {
+        setPreviousProjectionId(s.previousProjectionId as string);
+      }
+      setStep(s.step);
+      setDraftHydrated(true);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [] // setters are stable; no deps needed
+  );
+
+  function hydrateFromDraft() {
+    if (!existingDraft) return;
+    applyDraftState(existingDraft.state);
+  }
+
+  // Auto-hydrate when ?draftId=X is present and the full draft has loaded.
+  // Also restore clientId from the draft so the form is fully populated.
+  const explicitHydratedRef = useRef(false);
+  useEffect(() => {
+    if (
+      explicitDraftId &&
+      explicitDraftFull &&
+      !explicitHydratedRef.current &&
+      initialized.current // wait for services to be seeded first
+    ) {
+      explicitHydratedRef.current = true;
+      if (explicitDraftFull.clientId) {
+        setClientId(explicitDraftFull.clientId as string);
+      }
+      applyDraftState(explicitDraftFull.state);
+    }
+  }, [explicitDraftId, explicitDraftFull, applyDraftState]);
+
+  async function discardDraft() {
+    await deleteDraft({ clientId: draftClientId });
+    setDraftDismissed(true);
+  }
 
   async function handleSubmit() {
     if (!clientId) return;
@@ -420,12 +444,15 @@ function NuevaProyeccionContent() {
         Volver
       </Link>
 
-      <div className="flex items-center gap-3">
-        <TrendingUp className="text-accent" size={28} />
-        <h1 className="text-2xl font-bold">Nueva Proyección</h1>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <TrendingUp className="text-accent" size={28} />
+          <h1 className="text-2xl font-bold">Nueva Proyección</h1>
+        </div>
+        <DraftSaveStatus status={saveStatus} retry={saveRetry} lastSavedAt={lastSavedAt} />
       </div>
 
-      {existingDraft && !draftHydrated && !draftDismissed && (
+      {existingDraft && !draftHydrated && !draftDismissed && !explicitDraftId && (
         <div className="rounded-lg border border-accent/40 bg-accent/5 p-4">
           <p className="text-sm">
             Tienes un borrador en curso (último guardado:{" "}
@@ -449,14 +476,22 @@ function NuevaProyeccionContent() {
         </div>
       )}
 
+      {/* Re-edit banner: shown when the draft was seeded from a previousProjectionId */}
+      {previousProjectionId && draftHydrated && (
+        <div className="rounded-md border-l-4 border-amber-500 bg-amber-50 p-3 text-sm text-amber-900">
+          Re-editando proyección de <b>{clients?.find((c) => c._id === clientId)?.name ?? clientId}</b>{" "}
+          ({year}). Al guardar, se sobrescribirá la versión actual y se borrarán los
+          documentos downstream (cotizaciones, contratos, facturas, entregables).
+        </div>
+      )}
+
       {/* Step Indicator */}
       <div className="flex items-center gap-2">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-2">
             <button
-              onClick={async () => {
+              onClick={() => {
                 if (i < step) {
-                  await saveDraft(i);
                   setStep(i);
                 }
               }}
@@ -849,10 +884,8 @@ function NuevaProyeccionContent() {
       {/* Navigation Buttons */}
       <div className="flex justify-between">
         <button
-          onClick={async () => {
-            const prev = Math.max(0, step - 1);
-            await saveDraft(prev);
-            setStep(prev);
+          onClick={() => {
+            setStep((s) => Math.max(0, s - 1));
           }}
           disabled={step === 0}
           className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-30 cursor-pointer"
@@ -864,14 +897,13 @@ function NuevaProyeccionContent() {
         {step < 3 ? (
           <div className="flex flex-col items-end gap-1">
             <button
-              onClick={async () => {
-                const next = step + 1;
-                // If we're leaving Step 0 with a real client picked AND a prior null-slot draft existed,
-                // promote it cleanly via clearPreClientDraft.
-                const promotingClient =
-                  step === 0 && draftClientId !== undefined && !!existingDraft && existingDraft.clientId === undefined;
-                await saveDraft(next, promotingClient ? { clearPreClientDraft: true } : undefined);
-                setStep(next);
+              onClick={() => {
+                // Guard: if the autosave is in a terminal error state, warn before navigating.
+                // The user can still proceed — the hook will retry on the next formState change.
+                if (saveStatus === "error" && saveRetry >= 3) {
+                  console.warn("[wizard.nav] autosave failed after 3 retries — proceeding anyway");
+                }
+                setStep((s) => s + 1);
               }}
               disabled={
                 (step === 0 && (!clientId || annualSales <= 0 || totalBudget <= 0)) ||
