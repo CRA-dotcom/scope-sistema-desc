@@ -363,3 +363,39 @@ export const setPdfStorageId = mutation({
     await ctx.db.patch(args.id, { pdfStorageId: args.pdfStorageId });
   },
 });
+
+// ─────────────────────────────────────────────
+// #23 — Issuing company selector on contract form
+// ─────────────────────────────────────────────
+
+/**
+ * Override the issuing company on a contract (draft only).
+ * Pass null to clear the override and let the auto-resolve flow take over.
+ */
+export const updateIssuingCompany = mutation({
+  args: {
+    id: v.id("contracts"),
+    issuingCompanyId: v.union(v.id("issuingCompanies"), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgId(ctx);
+    const contract = await ctx.db.get(args.id);
+    if (!contract || contract.orgId !== orgId) {
+      throw new Error("Contrato no encontrado.");
+    }
+    if (contract.status !== "draft") {
+      throw new Error(
+        "Solo se puede cambiar la empresa emitente de contratos en borrador."
+      );
+    }
+    if (args.issuingCompanyId !== null) {
+      const company = await ctx.db.get(args.issuingCompanyId);
+      if (!company || company.orgId !== orgId) {
+        throw new Error("Empresa emitente no encontrada.");
+      }
+    }
+    await ctx.db.patch(args.id, {
+      issuingCompanyId: args.issuingCompanyId ?? undefined,
+    });
+  },
+});

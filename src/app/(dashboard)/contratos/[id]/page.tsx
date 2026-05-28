@@ -56,6 +56,16 @@ export default function ContractDetailPage() {
   const setPdfStorageId = useMutation(
     api.functions.contracts.mutations.setPdfStorageId
   );
+  // #23 — issuing company override on contract
+  const updateIssuingCompany = useMutation(
+    api.functions.contracts.mutations.updateIssuingCompany
+  );
+  const issuingCompanies = useQuery(
+    api.functions.issuingCompanies.queries.list,
+    {}
+  );
+  const [savingIssuer, setSavingIssuer] = useState(false);
+
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
 
   const { generate: generatePdf, download: downloadPdf, state: pdfState } =
@@ -298,6 +308,51 @@ export default function ContractDetailPage() {
       {pdfState.error && (
         <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           {pdfState.error}
+        </div>
+      )}
+
+      {/* #23 — Empresa emitente selector (draft only) */}
+      {isDraft && issuingCompanies && issuingCompanies.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="mb-2 text-sm font-medium text-foreground">
+            Empresa emitente
+          </p>
+          <div className="flex items-center gap-3">
+            <select
+              defaultValue={contract.issuingCompanyId ?? ""}
+              onChange={async (e) => {
+                setSavingIssuer(true);
+                try {
+                  await updateIssuingCompany({
+                    id: contract._id,
+                    issuingCompanyId: e.target.value
+                      ? (e.target.value as Id<"issuingCompanies">)
+                      : null,
+                  });
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setSavingIssuer(false);
+                }
+              }}
+              className="flex-1 rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              <option value="">Auto-resolver por servicio...</option>
+              {issuingCompanies.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                  {c.isDefault ? " (predeterminada)" : ""}
+                </option>
+              ))}
+            </select>
+            {savingIssuer && (
+              <Loader2 size={14} className="animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Opcional. Si no seleccionas, se resuelve automáticamente por mapa
+            de servicio.
+          </p>
         </div>
       )}
 
