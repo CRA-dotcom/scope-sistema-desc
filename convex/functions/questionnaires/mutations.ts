@@ -1,7 +1,7 @@
 import { mutation } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
-import { getOrgId } from "../../lib/authHelpers";
+import { requireAuth, getOrgId } from "../../lib/authHelpers";
 import { MASTER_QUESTIONS } from "./masterQuestionnaire";
 import { getOrgNotificationEmail } from "../email/resolveRecipients";
 
@@ -236,5 +236,39 @@ export const submit = mutation({
     }
 
     return { success: true };
+  },
+});
+
+export const reopen = mutation({
+  args: { id: v.id("questionnaireResponses") },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
+    const orgId = await getOrgId(ctx);
+    const userId = identity.subject;
+    const q = await ctx.db.get(args.id);
+    if (!q || q.orgId !== orgId) {
+      throw new Error("Cuestionario no encontrado.");
+    }
+    if (q.status !== "completed") {
+      throw new Error("Solo cuestionarios completados se pueden reabrir.");
+    }
+    await ctx.db.patch(args.id, {
+      status: "in_progress" as const,
+      completedAt: undefined,
+      reopenedAt: Date.now(),
+      reopenedBy: userId,
+    });
+    await ctx.db.insert("documentEvents", {
+      orgId,
+      clientId: q.clientId,
+      entityType: "questionnaire" as const,
+      entityId: args.id,
+      eventType: "reopened" as const,
+      severity: "info" as const,
+      actorUserId: userId,
+      actorType: "user" as const,
+      message: `Cuestionario reabierto por ${userId}`,
+      createdAt: Date.now(),
+    });
   },
 });
