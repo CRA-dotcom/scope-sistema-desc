@@ -40,5 +40,13 @@ export function useDebouncedAutosave<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, debounceMs]);
 
+  // Reset "saved" -> "idle" after 3s so consecutive saves show feedback again.
+  useEffect(() => {
+    if (status === "saved") {
+      const t = setTimeout(() => setStatus("idle"), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [status]);
+
   return { status };
 }

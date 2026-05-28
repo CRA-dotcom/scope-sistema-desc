@@ -80,4 +80,11 @@ describe("useDebouncedAutosave — implementation contracts", () => {
     expect(source).toContain("eslint-disable-next-line react-hooks/exhaustive-deps");
     expect(source).toMatch(/\}, \[value, debounceMs\]\);/);
   });
+
+  it("resets status from 'saved' back to 'idle' after a delay", () => {
+    // After a successful save, the hook should schedule a setStatus("idle")
+    // so that consecutive saves don't stay stuck at "saved".
+    expect(source).toMatch(/setStatus\("idle"\)/);
+    expect(source).toMatch(/status === "saved"/);
+  });
 });
