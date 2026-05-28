@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
@@ -68,11 +68,16 @@ export default function ConfigurarSubserviciosPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
 
-  // Hydrate local state once matrix is loaded (only once).
-  if (!hydrated && matrix && allSubservices) {
-    setSelections(initialSelections);
-    setHydrated(true);
-  }
+  // Hydrate local state once matrix + subservices are loaded (only once).
+  // Using useEffect avoids triggering a re-render mid-render-cycle, which
+  // can cause React warnings and subtle state-ordering bugs when Convex
+  // subscriptions resolve asynchronously.
+  useEffect(() => {
+    if (!hydrated && matrix && allSubservices) {
+      setSelections(initialSelections);
+      setHydrated(true);
+    }
+  }, [hydrated, matrix, allSubservices, initialSelections]);
 
   // Group active subservices by parentServiceId.
   const subservicesByParent = useMemo(() => {
@@ -114,13 +119,18 @@ export default function ConfigurarSubserviciosPage() {
     setSaveError(null);
     setSavedOk(false);
     try {
-      for (const svc of activeServices) {
-        const chosen = selections.get(svc._id as string) ?? [];
-        await setSubserviceIds({
-          projServiceId: svc._id as Id<"projectionServices">,
-          subserviceIds: chosen.map((id) => id as Id<"subservices">),
-        });
-      }
+      // Parallelize: all projectionService patches are independent — no shared
+      // state — so firing them concurrently halves round-trips on large service
+      // lists. Convex serializes writes server-side, so no transaction conflicts.
+      await Promise.all(
+        activeServices.map((svc) => {
+          const chosen = selections.get(svc._id as string) ?? [];
+          return setSubserviceIds({
+            projServiceId: svc._id as Id<"projectionServices">,
+            subserviceIds: chosen.map((id) => id as Id<"subservices">),
+          });
+        })
+      );
       setSavedOk(true);
     } catch (err) {
       setSaveError((err as Error).message || "Error al guardar");
