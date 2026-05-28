@@ -130,14 +130,11 @@ export async function applyDraftStateToProjection(
     // Resolve pricingModel: no subserviceId in draft state, so we fall
     // straight to the service-level isCommission check. This mirrors the
     // last branch of the three-step resolution in projections.create.
-    let resolvedPricingModel: PricingModel | undefined;
-    // No serviceState.subserviceId in draft schema → skip sub lookup.
-    if (!resolvedPricingModel) {
-      const svcRow = await ctx.db.get(serviceState.serviceId as Id<"services">);
-      resolvedPricingModel = svcRow?.isCommission
-        ? "commission"
-        : "fixed_retainer";
-    }
+    // (No serviceState.subserviceId in draft schema → skip sub lookup.)
+    const svcRow = await ctx.db.get(serviceState.serviceId as Id<"services">);
+    const resolvedPricingModel: PricingModel = svcRow?.isCommission
+      ? "commission"
+      : "fixed_retainer";
 
     const projServiceId = await ctx.db.insert("projectionServices", {
       orgId,

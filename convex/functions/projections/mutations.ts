@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { getOrgId, requireAuth } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
+import type { MutationCtx } from "../../_generated/server";
 import {
   calculateProjection,
   generateEvenSeasonality,
@@ -12,8 +13,160 @@ import {
 } from "../../lib/projectionEngine";
 import { seasonalityDataFromDeltas } from "../../lib/seasonality";
 import type { PricingModel } from "../../lib/pricingModel";
+import { getProjectionDownstreamCounts } from "../../lib/projectionDownstream";
+import { applyDraftStateToProjection } from "../../lib/applyDraftStateToProjection";
 // Note: convex/lib/seasonality.ts is a pure TS file with no browser-only APIs,
 // safe to import in Convex server functions.
+
+/**
+ * Internal helper — called by `create` when args.previousProjectionId is set.
+ *
+ * Cascade-deletes downstream rows in dependency order:
+ *   invoices → deliverables → contracts → quotations → monthlyAssignments → projectionServices
+ * Then patches the projection row with new top-level fields and rebuilds
+ * projectionServices + monthlyAssignments via applyDraftStateToProjection.
+ * Logs a "projection re-edited" documentEvent.
+ *
+ * Returns the (unchanged) projectionId — same ID is reused, no new row created.
+ */
+async function replaceProjection(
+  ctx: MutationCtx,
+  projectionId: Id<"projections">,
+  newArgs: {
+    clientId: Id<"clients">;
+    year: number;
+    annualSales: number;
+    totalBudget: number;
+    commissionRate: number;
+    serviceConfigs: Array<{
+      serviceId: Id<"services">;
+      chosenPct: number;
+      isActive: boolean;
+      subserviceId?: Id<"subservices">;
+      pricingModel?: PricingModel;
+    }>;
+    seasonalityData: Array<{ month: number; monthlySales: number; feFactor: number }>;
+    seasonalityDeltas?: Array<{ month: number; deltaPercent: number }>;
+    seasonalityMode?: "legacy" | "delta_percent" | "outliers";
+    seasonalityOutliers?: Array<{ month: number; value: number; unit: "percent" | "amount" }>;
+    startMonth?: number;
+    projectionMode?: "rolling" | "fiscal";
+    monthCount?: number;
+    effectiveBudget?: number;
+  }
+): Promise<Id<"projections">> {
+  const proj = await ctx.db.get(projectionId);
+  if (!proj) throw new Error("Proyección no encontrada.");
+  const orgId = proj.orgId;
+
+  // Capture downstream counts before deletion (for audit log metadata).
+  const counts = await getProjectionDownstreamCounts(ctx, projectionId);
+
+  // Collect projectionService IDs first — needed to cascade into quotations,
+  // contracts, and deliverables which index by_projServiceId.
+  const projServices = await ctx.db
+    .query("projectionServices")
+    .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
+    .collect();
+  const psIds = projServices.map((ps) => ps._id);
+
+  // 1. Delete invoices (index by_projectionId).
+  const invoices = await ctx.db
+    .query("invoices")
+    .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
+    .collect();
+  for (const inv of invoices) await ctx.db.delete(inv._id);
+
+  // 2. Delete deliverables, contracts, quotations (iterate by_projServiceId).
+  for (const psid of psIds) {
+    const ds = await ctx.db
+      .query("deliverables")
+      .withIndex("by_projServiceId", (q) => q.eq("projServiceId", psid))
+      .collect();
+    for (const d of ds) await ctx.db.delete(d._id);
+
+    const cs = await ctx.db
+      .query("contracts")
+      .withIndex("by_projServiceId", (q) => q.eq("projServiceId", psid))
+      .collect();
+    for (const c of cs) await ctx.db.delete(c._id);
+
+    const qs = await ctx.db
+      .query("quotations")
+      .withIndex("by_projServiceId", (q) => q.eq("projServiceId", psid))
+      .collect();
+    for (const q of qs) await ctx.db.delete(q._id);
+  }
+
+  // 3. Delete monthlyAssignments (index by_projectionId).
+  const assignments = await ctx.db
+    .query("monthlyAssignments")
+    .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
+    .collect();
+  for (const a of assignments) await ctx.db.delete(a._id);
+
+  // 4. Delete projectionServices.
+  for (const ps of projServices) await ctx.db.delete(ps._id);
+
+  // 5. Patch the projection row with new top-level fields.
+  await ctx.db.patch(projectionId, {
+    year: newArgs.year,
+    annualSales: newArgs.annualSales,
+    totalBudget: newArgs.totalBudget,
+    commissionRate: newArgs.commissionRate,
+    seasonalityData: newArgs.seasonalityData,
+    seasonalityDeltas: newArgs.seasonalityDeltas,
+    seasonalityMode:
+      newArgs.seasonalityMode ??
+      (newArgs.seasonalityOutliers
+        ? "outliers"
+        : newArgs.seasonalityDeltas
+          ? "delta_percent"
+          : "legacy"),
+    seasonalityOutliers: newArgs.seasonalityOutliers,
+    startMonth: newArgs.startMonth,
+    projectionMode: newArgs.projectionMode,
+    monthCount: newArgs.monthCount,
+    effectiveBudget: newArgs.effectiveBudget,
+    updatedAt: Date.now(),
+  });
+
+  // 6. Rebuild projectionServices + monthlyAssignments via the shared helper.
+  //    Build a draft-shaped serviceStates from the serviceConfigs passed in.
+  const draftLikeState = {
+    step: 3,
+    year: newArgs.year,
+    annualSales: newArgs.annualSales,
+    totalBudget: newArgs.totalBudget,
+    commissionRate: newArgs.commissionRate,
+    serviceStates: newArgs.serviceConfigs.map((sc) => ({
+      serviceId: sc.serviceId as string,
+      chosenPct: sc.chosenPct,
+      isActive: sc.isActive,
+    })),
+  };
+  await applyDraftStateToProjection(
+    ctx,
+    projectionId,
+    draftLikeState as Parameters<typeof applyDraftStateToProjection>[2]
+  );
+
+  // 7. Log audit event.
+  await ctx.db.insert("documentEvents", {
+    orgId,
+    clientId: proj.clientId,
+    entityType: "projection" as const,
+    entityId: projectionId,
+    eventType: "updated" as const,
+    severity: "warning" as const,
+    actorType: "user" as const,
+    message: `Proyección re-editada. Downstream borrado: ${JSON.stringify(counts)}`,
+    metadata: counts,
+    createdAt: Date.now(),
+  });
+
+  return projectionId;
+}
 
 export const create = mutation({
   args: {
@@ -85,6 +238,12 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await requireAuth(ctx);
     const orgId = await getOrgId(ctx);
+
+    // Re-edit path: delegate to replaceProjection which cascade-deletes
+    // downstream entities and re-runs the engine on the existing projection row.
+    if (args.previousProjectionId) {
+      return await replaceProjection(ctx, args.previousProjectionId, args);
+    }
 
     // Verify client belongs to this org
     const client = await ctx.db.get(args.clientId);
