@@ -241,6 +241,65 @@ export const submit = mutation({
   },
 });
 
+export const deleteQuestionnaire = mutation({
+  args: { id: v.id("questionnaireResponses") },
+  handler: async (ctx, args) => {
+    const identity = await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const q = await ctx.db.get(args.id);
+    if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
+
+    // Audit log BEFORE delete (so the row id is still valid)
+    await ctx.db.insert("documentEvents", {
+      orgId,
+      clientId: q.clientId,
+      entityType: "questionnaire" as const,
+      entityId: args.id,
+      eventType: "deleted" as const,
+      severity: "warning" as const,
+      actorUserId: identity.subject,
+      actorType: "user" as const,
+      message: "Cuestionario eliminado.",
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.delete(args.id);
+  },
+});
+
+export const editSingleResponse = mutation({
+  args: {
+    id: v.id("questionnaireResponses"),
+    questionId: v.string(),
+    answer: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAdmin(ctx);
+    const orgId = await getOrgId(ctx);
+    const q = await ctx.db.get(args.id);
+    if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
+
+    const updated = q.responses.map((r) =>
+      r.questionId === args.questionId ? { ...r, answer: args.answer } : r
+    );
+
+    await ctx.db.patch(args.id, { responses: updated });
+
+    await ctx.db.insert("documentEvents", {
+      orgId,
+      clientId: q.clientId,
+      entityType: "questionnaire" as const,
+      entityId: args.id,
+      eventType: "updated" as const,
+      severity: "info" as const,
+      actorUserId: identity.subject,
+      actorType: "user" as const,
+      message: `Respuesta editada: ${args.questionId}`,
+      createdAt: Date.now(),
+    });
+  },
+});
+
 export const reopen = mutation({
   args: { id: v.id("questionnaireResponses") },
   handler: async (ctx, args) => {
