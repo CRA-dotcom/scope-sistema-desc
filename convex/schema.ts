@@ -200,6 +200,9 @@ export default defineSchema({
     originalVersionAtClone: v.optional(v.number()),
     // SS6: % discount for year 2+ tier (admin opt-in via wizard).
     yearOverYearDiscount: v.optional(v.number()),
+    // SS4: flag para inyectar contexto financiero del cliente al prompt Claude
+    // cuando se genera un entregable de este subservicio. Admin opt-in.
+    isFinancialRelated: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -886,6 +889,65 @@ export default defineSchema({
     .index("by_orgId_status", ["orgId", "status"])
     .index("by_projServiceId", ["projServiceId"])
     .index("by_monthlyAssignmentId", ["monthlyAssignmentId"]),
+
+  // SS4: estados financieros del cliente para inyectar contexto al
+  // generateDeliverable. Excel-only V1; PDF/OCR diferido a V2.
+  // Per docs/superpowers/specs/2026-05-27-financial-statements-ingestion-design.md §4
+  clientFinancialData: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    period: v.string(), // "2026-01" / "2026-Q1" / "2026"
+    periodType: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("annual")
+    ),
+    // Railway S3 blob metadata
+    bucketKey: v.string(),
+    contentType: v.string(),
+    sizeBytes: v.number(),
+    filename: v.string(),
+    // Extracted line items (AI o manual)
+    lineItems: v.array(
+      v.object({
+        label: v.string(),
+        amount: v.number(),
+        category: v.union(
+          v.literal("ingresos"),
+          v.literal("gastos_operativos"),
+          v.literal("impuestos"),
+          v.literal("otros")
+        ),
+        satConcept: v.optional(v.string()),
+      })
+    ),
+    aiExtraction: v.optional(
+      v.object({
+        model: v.string(),
+        promptVersion: v.string(),
+        extractedAt: v.number(),
+        costUsd: v.optional(v.number()),
+        rawSnippet: v.optional(v.string()),
+        editedAt: v.optional(v.number()),
+      })
+    ),
+    status: v.union(
+      v.literal("uploaded"),
+      v.literal("extracted"),
+      v.literal("validated"),
+      v.literal("rejected"),
+      v.literal("error")
+    ),
+    rejectionReason: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    uploadedBy: v.string(),
+    uploadedAt: v.number(),
+    validatedBy: v.optional(v.string()),
+    validatedAt: v.optional(v.number()),
+  })
+    .index("by_orgId_clientId", ["orgId", "clientId"])
+    .index("by_orgId_clientId_period", ["orgId", "clientId", "period"])
+    .index("by_orgId_status", ["orgId", "status"]),
 
   // A3: append-only audit log of document lifecycle events.
   // Per docs/superpowers/specs/2026-05-23-document-lifecycle-design.md §2.3
