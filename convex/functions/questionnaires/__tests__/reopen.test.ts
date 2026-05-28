@@ -6,7 +6,7 @@ function asUserOfOrg(orgId: string, userId = "user_admin_1") {
   return {
     subject: userId,
     issuer: "test",
-    tokenIdentifier: `test|${userId}|${orgId}`,
+    tokenIdentifier: `test|user|${orgId}`,
     orgId,
   };
 }
