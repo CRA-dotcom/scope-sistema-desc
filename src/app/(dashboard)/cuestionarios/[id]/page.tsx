@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
@@ -84,6 +84,14 @@ export default function QuestionnaireDetailPage() {
   >([]);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Scope print styles to this page only
+  useEffect(() => {
+    document.body.classList.add("print-questionnaire-active");
+    return () => {
+      document.body.classList.remove("print-questionnaire-active");
+    };
+  }, []);
 
   const startEditing = () => {
     if (questionnaire) {
@@ -173,7 +181,7 @@ export default function QuestionnaireDetailPage() {
       try {
         await editSingleResponse({ id: questionnaire._id, questionId, answer: newAnswer });
       } catch (err) {
-        console.error("Error editing response:", err);
+        alert(`Error al editar: ${err instanceof Error ? err.message : "Error desconocido"}`);
       }
     }
   };
