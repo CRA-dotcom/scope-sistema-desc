@@ -706,6 +706,18 @@ export const cloneProjectionToDraft = mutation({
       isActive: ps.isActive,
     }));
 
+    // Delete any pre-existing draft for the same (orgId, userId, clientId) slot
+    // to preserve the unique-per-slot invariant that getMyDraft(.unique()) depends on.
+    const existingDraft = await ctx.db
+      .query("projectionDrafts")
+      .withIndex("by_orgId_userId_clientId", (q) =>
+        q.eq("orgId", orgId).eq("userId", userId).eq("clientId", proj.clientId)
+      )
+      .unique();
+    if (existingDraft) {
+      await ctx.db.delete(existingDraft._id);
+    }
+
     const draftId = await ctx.db.insert("projectionDrafts", {
       orgId,
       userId,
