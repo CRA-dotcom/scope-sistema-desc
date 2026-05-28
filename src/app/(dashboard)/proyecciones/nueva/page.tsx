@@ -180,6 +180,9 @@ function NuevaProyeccionContent() {
   const deleteDraft = useMutation(
     api.functions.projectionDrafts.mutations.deleteMyDraft
   );
+  const upsertDraft = useMutation(
+    api.functions.projectionDrafts.mutations.upsertDraft
+  );
 
   const [draftDismissed, setDraftDismissed] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -287,7 +290,10 @@ function NuevaProyeccionContent() {
     ]
   );
 
-  const { status: saveStatus, retry: saveRetry, lastSavedAt } = useProjectionDraftSave(formState);
+  const { status: saveStatus, retry: saveRetry, lastSavedAt } = useProjectionDraftSave(
+    formState,
+    draftClientId
+  );
 
   // Shared hydration logic — applies any draft's `state` object to local form state.
   const applyDraftState = useCallback(
@@ -902,6 +908,19 @@ function NuevaProyeccionContent() {
                 // The user can still proceed — the hook will retry on the next formState change.
                 if (saveStatus === "error" && saveRetry >= 3) {
                   console.warn("[wizard.nav] autosave failed after 3 retries — proceeding anyway");
+                }
+                // Step 4 (clearPreClientDraft promotion): when the user advances from
+                // step 0 (where they pick a client) to step 1, migrate any pre-client
+                // draft (undefined-slot) to the client-specific slot and delete the
+                // undefined-slot orphan.
+                if (step === 0 && draftClientId) {
+                  upsertDraft({
+                    clientId: draftClientId,
+                    state: formState as never,
+                    clearPreClientDraft: true,
+                  }).catch((e) =>
+                    console.warn("[wizard.nav] clearPreClientDraft promotion failed (non-fatal):", e)
+                  );
                 }
                 setStep((s) => s + 1);
               }}

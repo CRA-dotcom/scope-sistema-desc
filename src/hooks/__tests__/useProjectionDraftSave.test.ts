@@ -35,4 +35,10 @@ describe("useProjectionDraftSave — API surface", () => {
     expect(source).toContain("useMutation");
     expect(source).toMatch(/projectionDrafts\.mutations\.upsertDraft|api\.\w+projectionDrafts/);
   });
+
+  it("accepts optional clientId parameter", () => {
+    const source = readFileSync(SOURCE_PATH, "utf-8");
+    expect(source).toMatch(/clientId\??:\s*Id<"clients">/);
+    expect(source).toMatch(/clientId \? \{ clientId \} : \{\}/);
+  });
 });

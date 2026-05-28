@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useDebouncedAutosave } from "./useDebouncedAutosave";
+import type { Id } from "../../convex/_generated/dataModel";
 
 const MAX_RETRIES = 3;
 const DEBOUNCE_MS = 1500;
@@ -11,7 +12,10 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export function useProjectionDraftSave<T>(state: T) {
+export function useProjectionDraftSave<T>(
+  state: T,
+  clientId?: Id<"clients">
+) {
   const upsert = useMutation(api.functions.projectionDrafts.mutations.upsertDraft);
   const [retry, setRetry] = useState(0);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -21,7 +25,10 @@ export function useProjectionDraftSave<T>(state: T) {
       let lastError: unknown = null;
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
-          await upsert({ state: v as never });
+          await upsert({
+            ...(clientId ? { clientId } : {}),
+            state: v as never,
+          });
           setRetry(0);
           setLastSavedAt(Date.now());
           return;
@@ -35,7 +42,7 @@ export function useProjectionDraftSave<T>(state: T) {
       }
       throw lastError;
     },
-    [upsert]
+    [upsert, clientId]
   );
 
   const { status } = useDebouncedAutosave(state, save, DEBOUNCE_MS);
