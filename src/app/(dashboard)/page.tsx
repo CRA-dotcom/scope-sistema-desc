@@ -14,6 +14,7 @@ import {
   Download,
   ChevronDown,
 } from "lucide-react";
+import { DraftPendingBanner } from "@/components/drafts/DraftPendingBanner";
 import {
   BarChart,
   Bar,
@@ -177,6 +178,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Draft Pending Banner */}
+      <DraftPendingBanner />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
