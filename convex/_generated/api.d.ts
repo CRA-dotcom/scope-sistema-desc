@@ -121,6 +121,7 @@ import type * as functions_superAdmin_metrics from "../functions/superAdmin/metr
 import type * as functions_users_mutations from "../functions/users/mutations.js";
 import type * as functions_users_queries from "../functions/users/queries.js";
 import type * as http from "../http.js";
+import type * as lib_applyDraftStateToProjection from "../lib/applyDraftStateToProjection.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_blobStorage from "../lib/blobStorage.js";
 import type * as lib_cfdiParser from "../lib/cfdiParser.js";
@@ -135,6 +136,7 @@ import type * as lib_financialExtractionPrompt from "../lib/financialExtractionP
 import type * as lib_firmameClient from "../lib/firmameClient.js";
 import type * as lib_pricingModel from "../lib/pricingModel.js";
 import type * as lib_projectionContext from "../lib/projectionContext.js";
+import type * as lib_projectionDownstream from "../lib/projectionDownstream.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
 import type * as lib_questionnaireMappings from "../lib/questionnaireMappings.js";
 import type * as lib_seasonality from "../lib/seasonality.js";
@@ -264,6 +266,7 @@ declare const fullApi: ApiFromModules<{
   "functions/users/mutations": typeof functions_users_mutations;
   "functions/users/queries": typeof functions_users_queries;
   http: typeof http;
+  "lib/applyDraftStateToProjection": typeof lib_applyDraftStateToProjection;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/blobStorage": typeof lib_blobStorage;
   "lib/cfdiParser": typeof lib_cfdiParser;
@@ -278,6 +281,7 @@ declare const fullApi: ApiFromModules<{
   "lib/firmameClient": typeof lib_firmameClient;
   "lib/pricingModel": typeof lib_pricingModel;
   "lib/projectionContext": typeof lib_projectionContext;
+  "lib/projectionDownstream": typeof lib_projectionDownstream;
   "lib/projectionEngine": typeof lib_projectionEngine;
   "lib/questionnaireMappings": typeof lib_questionnaireMappings;
   "lib/seasonality": typeof lib_seasonality;
