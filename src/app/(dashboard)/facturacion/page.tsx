@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { useOrganization } from "@clerk/nextjs";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useState, useMemo, useEffect, useRef, Suspense } from "react";
@@ -86,6 +86,7 @@ export default function FacturacionPage() {
 
 function FacturacionPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const currentYear = new Date().getFullYear();
   const initialYear = Number(searchParams.get("year")) || currentYear;
   const initialMonth = (() => {
@@ -104,9 +105,21 @@ function FacturacionPageInner() {
   // SS5: edit issueDate modal
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRow | null>(null);
   const [editIssueDate, setEditIssueDate] = useState<string>("");
-  // #25-bis: cliente + proveedor filters
-  const [selectedClientId, setSelectedClientId] = useState<string | undefined>(undefined);
-  const [selectedIssuingCompanyId, setSelectedIssuingCompanyId] = useState<string | undefined>(undefined);
+  // #25-bis: cliente + proveedor filters — URL-stateful
+  const selectedClientId = searchParams.get("clientId") ?? "";
+  const selectedIssuingCompanyId = searchParams.get("issuingCompanyId") ?? "";
+
+  function setClientFilter(id: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) params.set("clientId", id); else params.delete("clientId");
+    router.push(`?${params.toString()}`);
+  }
+
+  function setIssuingCompanyFilter(id: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) params.set("issuingCompanyId", id); else params.delete("issuingCompanyId");
+    router.push(`?${params.toString()}`);
+  }
 
   const { membership } = useOrganization();
   const isAdmin = membership?.role === "org:admin";
@@ -134,8 +147,8 @@ function FacturacionPageInner() {
       month: selectedMonth,
       issueDateFrom: issueDateFrom ? new Date(issueDateFrom).getTime() : undefined,
       issueDateTo: issueDateTo ? new Date(issueDateTo).getTime() : undefined,
-      clientId: selectedClientId as Id<"clients"> | undefined,
-      issuingCompanyId: selectedIssuingCompanyId as Id<"issuingCompanies"> | undefined,
+      clientId: selectedClientId ? (selectedClientId as Id<"clients">) : undefined,
+      issuingCompanyId: selectedIssuingCompanyId ? (selectedIssuingCompanyId as Id<"issuingCompanies">) : undefined,
     }
   ) as InvoiceRow[] | undefined;
 
@@ -399,11 +412,11 @@ function FacturacionPageInner() {
           />
         </div>
 
-        {/* #25-bis: Cliente filter */}
+        {/* #25-bis: Cliente filter — URL-stateful */}
         <div className="relative">
           <select
-            value={selectedClientId ?? ""}
-            onChange={(e) => setSelectedClientId(e.target.value || undefined)}
+            value={selectedClientId}
+            onChange={(e) => setClientFilter(e.target.value)}
             aria-label="Cliente"
             className="appearance-none rounded-md border border-border bg-secondary px-3 py-1.5 pr-8 text-sm text-foreground"
           >
@@ -417,11 +430,11 @@ function FacturacionPageInner() {
           <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
         </div>
 
-        {/* #25-bis: Proveedor (empresa emisora) filter */}
+        {/* #25-bis: Proveedor (empresa emisora) filter — URL-stateful */}
         <div className="relative">
           <select
-            value={selectedIssuingCompanyId ?? ""}
-            onChange={(e) => setSelectedIssuingCompanyId(e.target.value || undefined)}
+            value={selectedIssuingCompanyId}
+            onChange={(e) => setIssuingCompanyFilter(e.target.value)}
             aria-label="Proveedor (empresa emisora)"
             className="appearance-none rounded-md border border-border bg-secondary px-3 py-1.5 pr-8 text-sm text-foreground"
           >

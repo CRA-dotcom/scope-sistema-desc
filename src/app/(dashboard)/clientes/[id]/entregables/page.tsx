@@ -172,7 +172,8 @@ function ClientEntregablesPageInner() {
     assignmentServiceNames.set(a.projServiceId as unknown as string, a.serviceName);
   }
   const matrixServiceIds = new Set(services.map((s) => s.projServiceId));
-  const assignmentOnlyServices: typeof services = [];
+  type MatrixService = (typeof services)[number];
+  const assignmentOnlyServices: MatrixService[] = [];
   for (const [psId, svcName] of assignmentServiceNames) {
     if (!matrixServiceIds.has(psId)) {
       assignmentOnlyServices.push({
