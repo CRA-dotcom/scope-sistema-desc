@@ -26,3 +26,9 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+@media print {
+  nav, aside, header, .no-print { display: none !important; }
+  body { background: white !important; color: black !important; }
+  .print-questionnaire { padding: 0; }
+}
