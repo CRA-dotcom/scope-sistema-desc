@@ -69,6 +69,7 @@ export default function QuestionnaireDetailPage() {
       questionText: string;
       answer: string;
       serviceNames: string[];
+      section?: string;
     }>
   >([]);
   const [saving, setSaving] = useState(false);
@@ -170,11 +171,10 @@ export default function QuestionnaireDetailPage() {
   const isCompleted = questionnaire.status === "completed";
   const responses = editing ? localResponses : questionnaire.responses;
 
-  // Group responses by service
+  // Group responses by section (falls back to "Sin sección" for legacy data)
   const serviceGroups = new Map<string, typeof responses>();
   for (const r of responses) {
-    const key =
-      r.serviceNames.length > 1 ? "General" : r.serviceNames[0] ?? "General";
+    const key = r.section ?? "Sin sección";
     const group = serviceGroups.get(key) ?? [];
     group.push(r);
     serviceGroups.set(key, group);
@@ -349,15 +349,15 @@ export default function QuestionnaireDetailPage() {
         </div>
       )}
 
-      {/* Questions grouped by service */}
-      {Array.from(serviceGroups.entries()).map(([serviceName, questions]) => (
+      {/* Questions grouped by section */}
+      {Array.from(serviceGroups.entries()).map(([sectionName, questions]) => (
         <div
-          key={serviceName}
+          key={sectionName}
           className="rounded-lg border border-border bg-card"
         >
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-accent">
-              {serviceName}
+              {sectionName}
             </h2>
           </div>
           <div className="divide-y divide-border/50">
