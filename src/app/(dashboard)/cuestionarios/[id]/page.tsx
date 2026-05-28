@@ -62,6 +62,7 @@ export default function QuestionnaireDetailPage() {
   const [editing, setEditing] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenSuccess, setReopenSuccess] = useState(false);
+  const [reopenError, setReopenError] = useState<string | null>(null);
   const [localResponses, setLocalResponses] = useState<
     Array<{
       questionId: string;
@@ -127,14 +128,15 @@ export default function QuestionnaireDetailPage() {
 
   const handleReopen = async () => {
     if (!questionnaire) return;
+    setReopenError(null);
     setSaving(true);
     try {
       await reopen({ id: questionnaire._id });
-      setReopenOpen(false);
       setReopenSuccess(true);
+      setReopenOpen(false);
       setTimeout(() => setReopenSuccess(false), 3000);
     } catch (err) {
-      console.error("Error reopening questionnaire:", err);
+      setReopenError(err instanceof Error ? err.message : "Error al reabrir.");
     } finally {
       setSaving(false);
     }
@@ -400,9 +402,9 @@ export default function QuestionnaireDetailPage() {
           aria-modal="true"
           aria-label="Confirmar reabrir cuestionario"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setReopenOpen(false)}
+          onClick={() => { setReopenOpen(false); setReopenError(null); }}
           onKeyDown={(e) => {
-            if (e.key === "Escape") setReopenOpen(false);
+            if (e.key === "Escape") { setReopenOpen(false); setReopenError(null); }
           }}
         >
           <div
@@ -418,12 +420,15 @@ export default function QuestionnaireDetailPage() {
                   nuevo. La fecha de completado se borrará. La acción queda
                   registrada en el log.
                 </p>
+                {reopenError && (
+                  <p className="mt-2 text-sm text-red-600">{reopenError}</p>
+                )}
               </div>
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setReopenOpen(false)}
+                onClick={() => { setReopenOpen(false); setReopenError(null); }}
                 disabled={saving}
                 className="rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
               >

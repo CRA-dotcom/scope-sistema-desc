@@ -1,7 +1,7 @@
 import { mutation } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
-import { requireAuth, getOrgId } from "../../lib/authHelpers";
+import { requireAdmin, getOrgId } from "../../lib/authHelpers";
 import { MASTER_QUESTIONS } from "./masterQuestionnaire";
 import { getOrgNotificationEmail } from "../email/resolveRecipients";
 
@@ -203,6 +203,8 @@ export const submit = mutation({
     await ctx.db.patch(args.id, {
       status: "completed",
       completedAt: Date.now(),
+      reopenedAt: undefined,
+      reopenedBy: undefined,
     });
 
     // Get client info for notification email
@@ -242,7 +244,7 @@ export const submit = mutation({
 export const reopen = mutation({
   args: { id: v.id("questionnaireResponses") },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
+    const identity = await requireAdmin(ctx);
     const orgId = await getOrgId(ctx);
     const userId = identity.subject;
     const q = await ctx.db.get(args.id);
@@ -267,7 +269,7 @@ export const reopen = mutation({
       severity: "info" as const,
       actorUserId: userId,
       actorType: "user" as const,
-      message: `Cuestionario reabierto por ${userId}`,
+      message: "Cuestionario reabierto.",
       createdAt: Date.now(),
     });
   },

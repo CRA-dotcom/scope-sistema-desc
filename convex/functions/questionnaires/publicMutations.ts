@@ -80,6 +80,8 @@ export const submitByToken = mutation({
     await ctx.db.patch(questionnaire._id, {
       status: "completed",
       completedAt: Date.now(),
+      reopenedAt: undefined,
+      reopenedBy: undefined,
     });
 
     // Notif por email al responsable del org (espejo de markCompleted en

@@ -258,6 +258,15 @@ export default function PublicQuestionnairePage() {
         </div>
       </div>
 
+      {/* Reopened notice — visible when admin reopened the questionnaire */}
+      {questionnaire.reopenedAt && (
+        <div className="max-w-5xl mx-auto px-6 pt-6">
+          <div className="mb-4 rounded-md border-l-4 border-amber-500 bg-amber-50 p-3 text-sm text-amber-900">
+            Este cuestionario fue reabierto para que puedas actualizar tus respuestas.
+          </div>
+        </div>
+      )}
+
       {/* Questions */}
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
         <div className="lg:flex lg:gap-8">

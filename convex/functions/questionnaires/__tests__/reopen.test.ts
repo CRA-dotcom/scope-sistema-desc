@@ -2,12 +2,13 @@ import { describe, it, expect } from "vitest";
 import { setupTest } from "../../../../tests/harness";
 import { api } from "../../../_generated/api";
 
-function asUserOfOrg(orgId: string, userId = "user_admin_1") {
+function asUserOfOrg(orgId: string, userId = "user_admin_1", orgRole = "org:admin") {
   return {
     subject: userId,
     issuer: "test",
     tokenIdentifier: `test|user|${orgId}`,
     orgId,
+    orgRole,
   };
 }
 
@@ -68,6 +69,8 @@ describe("questionnaires.reopen", () => {
         )
         .collect();
       expect(events.some((e) => e.eventType === "reopened")).toBe(true);
+      const reopenedEvent = events.find((e) => e.eventType === "reopened");
+      expect(reopenedEvent?.message).not.toMatch(/user_/);
     });
   });
 
@@ -104,5 +107,58 @@ describe("questionnaires.reopen", () => {
         .withIdentity(asUserOfOrg("org_other"))
         .mutation(api.functions.questionnaires.mutations.reopen, { id: qId })
     ).rejects.toThrow(/no encontrado/i);
+  });
+
+  it("throws when caller is not an admin (org:member)", async () => {
+    const t = setupTest();
+    const qId = await seedCompletedQuestionnaire(t);
+    await expect(
+      t
+        .withIdentity(asUserOfOrg("org_a", "user_member_1", "org:member"))
+        .mutation(api.functions.questionnaires.mutations.reopen, { id: qId })
+    ).rejects.toThrow("Acceso denegado. Se requiere rol de Administrador.");
+  });
+
+  it("audit log message does not contain raw userId", async () => {
+    const t = setupTest();
+    const qId = await seedCompletedQuestionnaire(t);
+    await t
+      .withIdentity(asUserOfOrg("org_a"))
+      .mutation(api.functions.questionnaires.mutations.reopen, { id: qId });
+    await t.run(async (ctx) => {
+      const events = await ctx.db
+        .query("documentEvents")
+        .withIndex("by_orgId_entityType_entityId", (q2) =>
+          q2.eq("orgId", "org_a").eq("entityType", "questionnaire").eq("entityId", qId)
+        )
+        .collect();
+      expect(events[0].message).not.toMatch(/user_/);
+    });
+  });
+
+  it("clears reopenedAt and reopenedBy after re-submission", async () => {
+    const t = setupTest();
+    const qId = await seedCompletedQuestionnaire(t);
+    // Reopen the questionnaire
+    await t
+      .withIdentity(asUserOfOrg("org_a"))
+      .mutation(api.functions.questionnaires.mutations.reopen, { id: qId });
+    // Verify it's now in_progress with reopenedAt set
+    await t.run(async (ctx) => {
+      const q = await ctx.db.get(qId);
+      expect(q?.status).toBe("in_progress");
+      expect(q?.reopenedAt).toBeTypeOf("number");
+    });
+    // Re-submit via the internal submit mutation (authenticated path)
+    await t
+      .withIdentity(asUserOfOrg("org_a"))
+      .mutation(api.functions.questionnaires.mutations.submit, { id: qId });
+    // Verify reopened fields are cleared
+    await t.run(async (ctx) => {
+      const q = await ctx.db.get(qId);
+      expect(q?.status).toBe("completed");
+      expect(q?.reopenedAt).toBeUndefined();
+      expect(q?.reopenedBy).toBeUndefined();
+    });
   });
 });
