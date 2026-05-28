@@ -1,9 +1,76 @@
-# Handoff — Próxima sesión (post 2026-05-28 EOD · SS7 cerrado + adversarial hardened + 6 quick wins papá-doc)
+# Handoff — Próxima sesión (post 2026-05-28 EOD · SS7 + adversarial + papá-doc + 4 fix-groups cerrados)
 
-**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS4-V1, SS5, SS6, SS7 cerrados en `main`. SS2 final + F6 contador siguen abiertos. SS7 añadió resiliencia de proyecciones y cuestionarios + 5 grupos de hardening post-adversarial + 6 quick wins del doc del papá (28-may).
+**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS4-V1, SS5, SS6, SS7 cerrados en `main`. SS2 final + F6 contador siguen abiertos. Papá-doc: 17/26 puntos done (todo lo posible sin papá).
 
-**Sesión origen:** 2026-05-28 (SS7 + adversarial + 6 quick wins del doc papá)
-**Estado código:** `main` **109 commits** ahead de `origin/main`. Tests **1059 passed | 1 skipped**. TypeScript: 1 pre-existing error (`applyDraftStateToProjection.ts:170 TS2367` — dead comparison, no runtime impact). Convex codegen clean. Sin push (per `feedback_no_push_default`).
+**Sesión origen:** 2026-05-28 (SS7 + adversarial + 6 quick wins papá-doc + 4 fases papá-doc + 4 fix-groups)
+
+---
+
+## Post-SS7: Implementación papá-doc completa (4 fases + 4 fix-groups)
+
+Sesión cerrada con **71 commits** desde `e347be3` (SS4-V1). Tests finales: **1096 passed | 1 skipped**. TypeScript: 0 errores. Convex codegen clean. Sin push (per `feedback_no_push_default`).
+
+### 4 Fases de implementación (commits principales)
+
+| Fase | Commits | Puntos papá-doc |
+|---|---|---|
+| **Fase 1 — Quick wins** (SS7 pre-adversarial) | `25cfc3d`–`ecb6e7d` | #1 subservicios picker, #3 deliverable list, #9 multi-subservicio, #12 budget widget footer |
+| **Fase 2 — Doc main features** | `4798872`–`9046b4f` | #22b crear cotización manual, #22c issuing company selector cotización, #23 issuing company selector contrato, #24 client document matrix |
+| **Fase 3 — Generate + Filters** | `0b3a4c2`–`fdcad21` | #25 generate button per cell, #25-bis facturación URL-stateful + sidebar reorder, #5 batch-generate quotations |
+| **Fase 4 — Adversarial fix-groups** | `3faf268`–`65cdc48` | C1 dup guard, C2 issuing override en send, C3 cross-org subservice, C4 subservice selector UI, C5 controlled issuing selects, C7 gate Cotizar button, B1-B6 subservicios picker persistence, security org-scoped queries, year-aware matrix |
+
+### 4 Fix-groups post-adversarial (detalle)
+
+| Grupo | Commits | Qué se corrigió |
+|---|---|---|
+| **Fix-A — Papa-doc adversarial** | `299292c`–`7418cb4` | A1 deleteQuestionnaire blob cleanup, A2 editOne error feedback, A3 orgId en deliverableTemplates.list, A4 monthCount en BudgetAllocationWidget, A5 print CSS scoped |
+| **Fix-B — Subservicios picker** | `e6626af`–`c68faddb` | B1 effectiveSubserviceIds helper, B2-B4 downstream readers, B5 useEffect hydration, B6 persist subserviceIds en draft state |
+| **Fix-C — Quotations hardening** | `3faf268`–`343a1ac` | C1 dup guard + cross-org validation, C2 issuingCompanyId en send path, C3-C5 UI selects controlados, C7 gate Cotizar button |
+| **Fix-D — Security + matrix** | `6347183`–`65cdc48` | org-scoped queries deliverables/invoices/saveGenerated idempotency, year-aware matrix lookup, facturación URL params |
+
+### Progresión de tests (sesión completa)
+
+| Punto | Tests |
+|---|---|
+| Baseline SS4 (inicio sesión) | 1017 |
+| Post SS7 F1+F2+F3 | 1045 / 1 skipped |
+| Post adversarial hardening (5 grupos) | 1056 / 1 skipped |
+| Post 6 quick wins papá-doc | **1059** |
+| Post fases 2-3 papá-doc (quotations, matrix, filters) | **1064** |
+| Post fix-group B (subservicios) | **1070** |
+| Post fix-group C (quotations hardening) | **1085** |
+| Post fix-group D (security + matrix) | **1091** |
+| Post fix-group A (papa-adv A1-A5) | **1094** |
+| **Final (cierre sesión)** | **1096 / 1 skipped** |
+
+### Doc del papá — audit 26 puntos
+
+**17/26 done** (todo lo posible sin papá). Desglose:
+
+| Status | Puntos |
+|---|---|
+| ✅ Done esta sesión | #1, #2, #3, #5, #9, #10, #12, #13, #14, #21c, #22a, #22b, #22c, #22d, #23, #24, #25, #25-bis |
+| ⏳ Requiere papá | #6 (tabulador fiscal), #15 (distribución inteligente), #17 (redondeo), #26-B (matriz docs cliente — spec pendiente) |
+| 🚫 Deferido a v2 | #26-A (multi-plataforma) |
+| ⬜ No tocado / pendiente spec | #21a (borrar todo), #21b (edit cerrado), #21d (imprimir), #4, #7, #8, #11, #16, #18, #19, #20 |
+
+### Smoke browser (4 flujos post-SS7)
+
+| Flujo | Status | Notas |
+|---|---|---|
+| **#22b — Crear cotización manual** | ⚠️ PARTIAL | Dialog renderiza OK (campos Proyección / Servicio / Empresa emitente). No hay proyecciones `active` en test org (todas en `draft`) — el filtro `status === "active"` es correcto; falta seed data |
+| **#22c/#23 — Issuing company selector** | ⚠️ PARTIAL | Selector condicionado a `isDraft && issuingCompanies.length > 0`. Test org sin empresas emitentes configuradas → selector no aparece (comportamiento correcto). Confirmed via source + config page |
+| **#24/#25 — Client deliverable matrix** | ✅ PASS | Matriz rinde: 7 servicios × 8 meses, year selector 2026, "Gen." botones por celda. Clic en Gen. disparó mutación (celda cambió a "Rech." = sin factura pagada — error claro) |
+| **#25-bis — Facturación filters URL-stateful** | ✅ PASS | Sidebar order: Facturación antes de Entregables ✅. URL params `clientId`+`issuingCompanyId` confirmados vía source (`useSearchParams` + `router.push`) |
+
+Screenshots: `/tmp/ss7-post/`
+
+### GitNexus post-sesión
+
+Reanalysis completado. Índice actualizado: **10,009 nodes | 11,217 edges | 108 clusters | 45 flows** (anterior: 9,831/10,944/40). Embeddings: crash libc++ post-write (no-op — índice escrito correctamente antes del crash).
+
+---
+**Estado código:** `main` **560 commits** total · **71 commits** esta sesión. Tests **1096 passed | 1 skipped**. TypeScript: 0 errores. Convex codegen clean. Sin push (per `feedback_no_push_default`).
 
 ---
 
@@ -217,17 +284,20 @@ V1 acepta sólo Excel. PDF + OCR (Claude vision) diferido a V2 una vez que el fl
 ```bash
 cd /Users/christiandarrelcoverlozano/Desktop/Projects/DESC
 git status                              # working tree clean
-git log --oneline -10                   # ver últimos commits SS7 + adversarial
-npm test 2>&1 | tail -3                 # baseline 1056
-npx tsc --noEmit 2>&1 | grep -v applyDraftState | head -5  # 1 pre-existing warning
+git log --oneline -10                   # ver últimos commits papá-doc + fix-groups
+npm test 2>&1 | tail -3                 # baseline 1096
+npx tsc --noEmit 2>&1 | head -5        # 0 errores
 ```
 
-### Opción A — Smoke browser SS7 (post-adversarial)
-Flow checklist arriba (4 flujos). Verificar fix del Flow 4 (duplicate draft + cascade questionnaire).
-
-### Opción B — Smoke browser SS4 (aún pendiente)
+### Opción A — Smoke SS4 (aún pendiente)
 Flow: upload Excel → validar line items → generar entregable → confirmar que HTML refleja datos financieros.
 Requiere `ANTHROPIC_API_KEY` + Railway S3 creds activas.
+
+### Opción B — Smoke papá-doc con seed data
+Para testear #22b y #22c, crear una proyección `active` + empresa emitente en test org. Los flujos están correctos en código; solo falta seed data.
+
+### Opción C (antigua B) — Smoke browser SS7 (flows 1-4)
+Flow checklist arriba (Questionnaire Reopen, Draft Save, Draft Banner, Re-edit Cascade).
 
 ### Opción C — Validar F6 con contador + fix timezone
 30 min fix en `convex/lib/cfdiParser.ts` una vez que contador confirme timezone CFDI (local CDMX vs UTC).

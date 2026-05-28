@@ -141,6 +141,7 @@ import type * as lib_projectionDownstream from "../lib/projectionDownstream.js";
 import type * as lib_projectionEngine from "../lib/projectionEngine.js";
 import type * as lib_questionnaireMappings from "../lib/questionnaireMappings.js";
 import type * as lib_seasonality from "../lib/seasonality.js";
+import type * as lib_subserviceIds from "../lib/subserviceIds.js";
 import type * as lib_templateAccess from "../lib/templateAccess.js";
 import type * as lib_templateContent from "../lib/templateContent.js";
 import type * as lib_templatePlaceholders from "../lib/templatePlaceholders.js";
@@ -287,6 +288,7 @@ declare const fullApi: ApiFromModules<{
   "lib/projectionEngine": typeof lib_projectionEngine;
   "lib/questionnaireMappings": typeof lib_questionnaireMappings;
   "lib/seasonality": typeof lib_seasonality;
+  "lib/subserviceIds": typeof lib_subserviceIds;
   "lib/templateAccess": typeof lib_templateAccess;
   "lib/templateContent": typeof lib_templateContent;
   "lib/templatePlaceholders": typeof lib_templatePlaceholders;

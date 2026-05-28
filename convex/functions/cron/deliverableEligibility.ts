@@ -113,9 +113,14 @@ export const run = internalAction({
           // Multi-subservicio (Option A): eligibility check uses the primary
           // subservice. effectiveSubserviceIds prefers the new array over the
           // legacy scalar, so legacy rows are handled correctly too.
-          const primarySubserviceId = effectiveSubserviceIds(ps)[0] as
-            | Id<"subservices">
-            | undefined;
+          // Cast: listProjServicesForClient returns plain strings; the helper
+          // accepts any shape with those optional fields.
+          const primarySubserviceId = effectiveSubserviceIds(
+            ps as {
+              subserviceId?: Id<"subservices">;
+              subserviceIds?: Id<"subservices">[];
+            }
+          )[0] as Id<"subservices"> | undefined;
 
           const selected = await ctx.runQuery(
             internal.functions.deliverables.internalQueries
