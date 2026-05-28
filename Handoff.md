@@ -1,9 +1,9 @@
-# Handoff — Próxima sesión (post 2026-05-28 EOD · SS7 cerrado)
+# Handoff — Próxima sesión (post 2026-05-28 EOD · SS7 cerrado + adversarial hardened)
 
-**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS4-V1, SS5, SS6, SS7 cerrados en `main`. SS2 final + F6 contador siguen abiertos. SS7 añadió resiliencia de proyecciones y cuestionarios (reopen, draft save defense, re-edit cascade).
+**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS4-V1, SS5, SS6, SS7 cerrados en `main`. SS2 final + F6 contador siguen abiertos. SS7 añadió resiliencia de proyecciones y cuestionarios (reopen, draft save defense, re-edit cascade) + 5 grupos de hardening post-adversarial.
 
-**Sesión origen:** 2026-05-28 (SS7 — projection + questionnaire resilience, 3 features: F1 reopen, F2 draft save, F3 re-edit cascade)
-**Estado código:** `main` **93 commits** ahead de `origin/main`. Tests **1045 passed | 1 skipped**. TypeScript: 1 pre-existing error (`applyDraftStateToProjection.ts:170 TS2367` — unintentional comparison warning, no runtime impact). Convex codegen clean. Sin push (per `feedback_no_push_default`).
+**Sesión origen:** 2026-05-28 (SS7 — projection + questionnaire resilience, 3 features: F1 reopen, F2 draft save, F3 re-edit cascade + adversarial pass completo)
+**Estado código:** `main` **102 commits** ahead de `origin/main`. Tests **1056 passed | 1 skipped**. TypeScript: 1 pre-existing error (`applyDraftStateToProjection.ts:170 TS2367` — dead comparison, no runtime impact). Convex codegen clean. Sin push (per `feedback_no_push_default`).
 
 ---
 
@@ -11,7 +11,9 @@
 
 ### Sub-spec 7 — Projection + Questionnaire Resilience
 
-3 features, 22 commits implementando resiliencia end-to-end.
+3 features implementadas + adversarial pass completo. **30 commits** en total (22 implementación + 8 fixes/hardening post-adversarial).
+
+#### Wave 0–3 (implementación original, 22 commits)
 
 | Commit | Contenido |
 |---|---|
@@ -23,10 +25,9 @@
 | `7fb9381` | feat(ss7-f1): UI button to reopen completed questionnaires |
 | `9adb5bb` | feat(ss7-f2): `useProjectionDraftSave` hook with retry + status |
 | `2a44a55` | feat(ss7-f2): `listMyActiveDrafts` query for navbar + dashboard |
-| `f367366` | fix(ss7-f1): align asUserOfOrg tokenIdentifier with sibling tests |
 | `85b0c05` | fix(ss7-f2): `useDebouncedAutosave` resets saved → idle after 3s |
-| `94ee836` | feat(ss7-f2): wire `useProjectionDraftSave` into the wizard |
-| `7343356` | feat(ss7-f2): wire `useProjectionDraftSave` into the wizard (wiring) |
+| `94ee836` | feat(ss7-f2): `DraftSaveStatus` component for wizard header |
+| `7343356` | feat(ss7-f2): wire `useProjectionDraftSave` into the wizard |
 | `5c4f06c` | fix(ss7-f2): plumb clientId through `useProjectionDraftSave` |
 | `2fdee1a` | feat(ss7-f2): `DraftPendingBanner` on dashboard home |
 | `60bff5a` | feat(ss7-f2): `DraftNavbarChip` — persistent draft indicator |
@@ -37,6 +38,27 @@
 | `e611139` | feat(ss7-f3): `replaceProjection` + `projections.create` branch on `previousProjectionId` |
 | `1c4c7e7` | fix(ss7-f3): cross-org guard on `replaceProjection` |
 | `4ea7fd7` | feat(ss7-f3): "Editar desde el inicio" button + downstream warning modal |
+| `138bed9` | docs(handoff): SS7 V1 handoff (pre-adversarial) |
+
+#### Bugs caught BEFORE production (smoke + adversarial)
+
+Tres problemas de correctness descubiertos y corregidos antes de llegar a producción:
+
+| Commit | Bug | Impacto evitado |
+|---|---|---|
+| `4c8de75` | `cloneProjectionToDraft` no eliminaba draft previo — duplicate draft silencioso | Usuario podría haber dos drafts del mismo original, datos inconsistentes |
+| `1c4c7e7` | `replaceProjection` sin guard cross-org — cualquier org podría reemplazar proyección ajena | Escalación de privilegios entre tenants |
+| `5c4f06c` | `clientId` nunca se pasaba a `saveDraft` — drafts guardados sin clientId | Drafts orphaned, sin aparezcer en listados por cliente |
+
+#### Adversarial pass (5 grupos de hardening, 8 commits)
+
+| Grupo | Commits | Qué se hizo |
+|---|---|---|
+| **G1 — Integration unified types** | `7e358f9`, `cf5587c` | `entityType`/`eventType` extraídos a `lib/documentEventTypes.ts` como single source of truth; eliminado literal duplication entre schema y validators |
+| **G2 — F1 hardening** | `88f72fd` | `requireAdmin` en `reopen` mutation; PII removido del log de eventos; `reopened` status se limpia al re-submit; error UI en botón reopen; notice público en formulario |
+| **G3 — F2 hardening** | `0e59eea` | `clientId` ref correcta; `beforeunload` flush para guardar antes de cerrar tab; filtro para excluir draft actual de `listMyActiveDrafts`; auth segura (no `!` assertion) |
+| **G4 — F3 hardening** | `1fbdddf` | Guard de proyección archivada en `cloneProjectionToDraft`; cascade delete de cuestionarios al re-edit; `actorUserId` propagado correctamente; status reset a `draft` explícito; bloqueo de add-on services en re-edit |
+| **G5 — Defense in depth** | `25bc0b8` | `ErrorBoundary` en componentes críticos de re-edit; validación `draftId` antes de mutaciones destructivas |
 
 ### Schema changes (SS7)
 
@@ -44,32 +66,34 @@
 |---|---|
 | `questionnaireResponses.reopenedAt` | `v.optional(v.number())` — timestamp del último reopen |
 | `questionnaireResponses.reopenCount` | `v.optional(v.number())` — número de veces reabierto |
-| `documentEvents.entityType` | Nuevos valores aceptados: `"questionnaire_response"`, `"projection_draft"` |
-| `contracts` | Nuevo index `by_projServiceId` — búsqueda por servicio de proyección |
-| `deliverables` | Nuevo index `by_projServiceId` — búsqueda downstream |
-| `invoices` | Nuevo index `by_projectionId` — búsqueda downstream para re-edit cascade |
+| `documentEvents.entityType` | Nuevos valores: `"questionnaire_response"`, `"projection_draft"` (via `lib/documentEventTypes.ts`) |
+| `contracts` | Nuevo index `by_projServiceId` |
+| `deliverables` | Nuevo index `by_projServiceId` |
+| `invoices` | Nuevo index `by_projectionId` |
 
-### Wave summary
+### Feature summary
 
 **F1 — Questionnaire Reopen**
 - `questionnaires.reopen` mutation: cambia status `completed` → `in_progress`, incrementa `reopenCount`, registra `reopenedAt`
-- UI: botón "Reabrir cuestionario" en `/cuestionarios/[id]` con confirmación
+- Admin-only: `requireAdmin` guard
+- UI: botón "Reabrir cuestionario" en `/cuestionarios/[id]` con confirmación + error state
 - 3 tests
 
 **F2 — Draft Save Defense + UI Indicators**
 - `useProjectionDraftSave` hook: autosave debounced (1s) con retry 3x exponencial, status `idle/saving/saved/error`
-- `DraftSaveStatus` component: indicador en header del wizard (spinner, checkmark, error)
-- `listMyActiveDrafts` query: drafts del usuario actual para navbar + dashboard
-- `DraftNavbarChip`: chip persistente en sidebar con badge de drafts activos
-- `DraftPendingBanner`: banner en dashboard home si hay drafts sin completar
+- `DraftSaveStatus` component: indicador en header del wizard
+- `listMyActiveDrafts` query: excluye draft actual del conteo
+- `DraftNavbarChip`: chip en sidebar con badge de drafts activos
+- `DraftPendingBanner`: banner en dashboard home
+- `beforeunload` flush: guarda antes de cerrar tab
 - 7 tests
 
 **F3 — Re-edit Cascade**
-- `getDownstreamSummary` query: cuenta contratos/entregables/facturas downstream para warning
-- `cloneProjectionToDraft` mutation: clona proyección existente a nuevo draft con `previousProjectionId`
-- `replaceProjection` mutation: reemplaza proyección (soft-delete anterior, activa nueva) con guard cross-org
-- `applyDraftStateToProjection` helper: aplica campos draft a proyección — extraído para testabilidad
-- "Editar desde el inicio" button en `/proyecciones/[id]` con modal de advertencia downstream
+- `getDownstreamSummary` query: cuenta contratos/entregables/facturas downstream
+- `cloneProjectionToDraft` mutation: clona a draft; elimina draft previo si existe; guard archivado; cascade delete questionnaires
+- `replaceProjection` mutation: soft-delete anterior, activa nueva; cross-org guard; actorUserId
+- `applyDraftStateToProjection` helper: aplica campos draft → proyección
+- "Editar desde el inicio" button + modal de advertencia downstream
 - 5 tests
 
 ### Test count progression
@@ -79,9 +103,57 @@
 | Baseline SS4 (inicio sesión) | 1017 |
 | Post F1 (reopen mutation + UI) | 1020 |
 | Post F2 (draft save hook + UI components) | 1027 |
-| Post F3 (re-edit cascade + UI) | **1045 / 1 skipped** |
+| Post F3 (re-edit cascade + UI) | 1045 / 1 skipped |
+| Post adversarial hardening (5 grupos) | **1056 / 1 skipped** |
 
-(+28 tests, meta ≥1045 — exactamente alcanzada)
+(+39 tests total desde baseline)
+
+### Known minor issues deferred (no bloquean beta)
+
+| Issue | Decisión |
+|---|---|
+| `applyDraftStateToProjection.ts:170` TS2367 dead comparison | Logicamente correcto; cleanup de follow-up |
+| Add-on services bloquean re-edit | Intencional — no hay wizard path para recrearlos; documentado en modal |
+| Subservice assignments se pierden en re-edit | Requiere re-hacer en matrix; documentado en modal de advertencia |
+| `useDebouncedAutosave` tests a nivel source (sin `@testing-library/react`) | No hay `@testing-library/react` en el repo; tests de hook son unit-level |
+
+---
+
+## Smoke browser verification — SS7 (post-adversarial)
+
+Dev server vivo en `localhost:3010` al cierre de sesión. 4/4 flujos PASS post-fixes.
+
+### Checklist para Christian (re-verificación manual)
+
+#### Flow 1 — Questionnaire Reopen
+1. Ir a `/cuestionarios` → abrir un cuestionario en status `completed`
+2. Verificar que aparece botón "Reabrir cuestionario" (sólo para admins de la org)
+3. Confirmar en modal → status cambia a `in_progress`
+4. Volver a `/cuestionarios` → status actualizado en tabla
+5. Verificar que error UI aparece si la mutación falla (simular forzando rol no-admin)
+
+#### Flow 2 — Draft Save Status Indicator
+1. Ir a `/proyecciones/nueva` → llenar algunos campos del wizard
+2. Verificar indicador en header: "Guardando..." (spinner) dentro de 1s de cada cambio
+3. Esperar 3s sin cambios → indicador "Guardado" (checkmark)
+4. Recargar página → draft persiste
+5. Cerrar tab mientras hay cambios pendientes → `beforeunload` debe hacer flush
+
+#### Flow 3 — Draft Notification Banner + Chip
+1. Dejar al menos 1 proyección en estado `draft` sin completar
+2. Ir a dashboard home (`/`) → verificar `DraftPendingBanner` con link
+3. Verificar `DraftNavbarChip` en sidebar con badge de drafts activos
+4. El chip no debe contar el draft que estás editando actualmente
+5. Completar o descartar el draft → banner y chip desaparecen
+
+#### Flow 4 — Re-edit Cascade (Editar desde el inicio)
+1. Ir a una proyección completada con ≥1 contrato o entregable asociado
+2. Verificar que aparece botón "Editar desde el inicio"
+3. Clic → modal lista conteo de documentos downstream afectados
+4. Confirmar → sistema crea nuevo draft (elimina previo si existía), redirige al wizard
+5. Completar wizard → `replaceProjection` reemplaza la proyección anterior
+6. Verificar que la proyección anterior queda soft-deleted y la nueva es activa
+7. Verificar que cuestionarios asociados a la proyección anterior fueron cascade-deleted/archived
 
 ---
 
@@ -96,7 +168,7 @@
 | 4 — Financial statements ingestion | ✅ V1 main |
 | 5 — Invoice issue date | ✅ main + 1 fix (F5 done; ⚠ F6 pendiente contador) |
 | 6 — Year-over-year tier | ✅ main + 4 fixes (F1+F2+F3+F4 done) |
-| 7 — Projection + questionnaire resilience | ✅ **main (este turno)** |
+| 7 — Projection + questionnaire resilience | ✅ **main + adversarial hardened (este turno)** |
 | 8 — Queue + scale infra | Post-MVP |
 
 ---
@@ -110,42 +182,10 @@ Min 1 contrato HTML para DESC org + 1 issuing company + 1-2 subservicios. Bloque
 Bloquea SS2 T11-T18 (8 tareas, ~3-4 días). Modelo: managed-BYO (memoria `project_firmame_account_model`).
 
 ### #3 — Validar timezone CFDI con contador (F6)
-Antes de cualquier filtro fiscal mensual en producción, confirmar con contador si `issueDate` debe ser local CDMX o UTC. F6 puede llevarse facturas al mes anterior/siguiente.
+Antes de cualquier filtro fiscal mensual en producción, confirmar con contador si `issueDate` debe ser local CDMX o UTC. F6 puede llevar facturas al mes anterior/siguiente.
 
 ### #4 — V2 SS4: PDF + OCR
 V1 acepta sólo Excel. PDF + OCR (Claude vision) diferido a V2 una vez que el flujo Excel esté validado en producción.
-
----
-
-## Smoke browser checklist SS7 (Christian)
-
-4 flujos que cubren las 3 features nuevas. Requiere dev server corriendo + datos existentes.
-
-### Flow 1 — Questionnaire Reopen
-1. Ir a `/cuestionarios` → abrir un cuestionario en status `completed`
-2. Verificar que aparece botón "Reabrir cuestionario"
-3. Confirmar en modal → status cambia a `in_progress`
-4. Volver a `/cuestionarios` → status actualizado en tabla
-
-### Flow 2 — Draft Save Status Indicator
-1. Ir a `/proyecciones/nueva` → llenar algunos campos del wizard
-2. Verificar indicador en header: debe mostrar "Guardando..." (spinner) dentro de 1s de cada cambio
-3. Esperar 3s sin cambios → indicador debe cambiar a "Guardado" (checkmark)
-4. Verificar que el draft persiste si recargas la página (puede ser en borrador)
-
-### Flow 3 — Draft Notification Banner + Chip
-1. Dejar al menos 1 proyección en estado `draft` sin completar
-2. Ir a dashboard home (`/`) → verificar que aparece `DraftPendingBanner` con link a la proyección
-3. Verificar que `DraftNavbarChip` en la barra lateral muestra badge con número de drafts activos
-4. Completar o descartar el draft → verificar que banner y chip desaparecen
-
-### Flow 4 — Re-edit Cascade (Editar desde el inicio)
-1. Ir a una proyección completada con al menos 1 contrato o entregable asociado
-2. Verificar que aparece botón "Editar desde el inicio"
-3. Hacer clic → modal de advertencia debe listar conteo de documentos downstream afectados
-4. Confirmar → sistema crea nuevo draft clonado, redirige al wizard
-5. Completar el wizard → `replaceProjection` reemplaza la proyección anterior
-6. Verificar que la proyección anterior queda soft-deleted y la nueva es la activa
 
 ---
 
@@ -154,13 +194,13 @@ V1 acepta sólo Excel. PDF + OCR (Claude vision) diferido a V2 una vez que el fl
 ```bash
 cd /Users/christiandarrelcoverlozano/Desktop/Projects/DESC
 git status                              # working tree clean
-git log --oneline -10                   # ver últimos commits SS7
-npm test 2>&1 | tail -3                 # baseline 1045
+git log --oneline -10                   # ver últimos commits SS7 + adversarial
+npm test 2>&1 | tail -3                 # baseline 1056
 npx tsc --noEmit 2>&1 | grep -v applyDraftState | head -5  # 1 pre-existing warning
 ```
 
-### Opción A — Smoke browser SS7
-Flow checklist arriba. Requiere `ANTHROPIC_API_KEY` accesible al deployment Convex.
+### Opción A — Smoke browser SS7 (post-adversarial)
+Flow checklist arriba (4 flujos). Verificar fix del Flow 4 (duplicate draft + cascade questionnaire).
 
 ### Opción B — Smoke browser SS4 (aún pendiente)
 Flow: upload Excel → validar line items → generar entregable → confirmar que HTML refleja datos financieros.
@@ -176,12 +216,12 @@ Branch `feature/sub-spec-2-contracts-firmame` preservada. T11-T18 desbloqueados 
 
 ## Action items manuales (Christian)
 
-1. **Smoke browser SS7** — 4 flujos del checklist arriba
+1. **Smoke browser SS7** — 4 flujos del checklist arriba (especialmente Flow 4 post-adversarial)
 2. **Smoke browser SS4** — upload Excel → validar → generar entregable
 3. **Validar timezone CFDI con contador (F6)** — único finding pendiente que afecta prod
 4. **Conseguir Firmame API docs + sandbox key** — SS2 final
 5. **Crear contratos HTML iniciales** para DESC
-6. **Decidir push a origin/main** (93 commits ahead)
+6. **Decidir push a origin/main** (102 commits ahead)
 7. **Decidir** próximo: SS2 (Firmame docs) vs F6 fix vs SS4 V2 polish
 
 ---
@@ -235,6 +275,7 @@ Branch `feature/sub-spec-2-contracts-firmame` preservada. T11-T18 desbloqueados 
 | CFDI parsing | `convex/lib/cfdiParser.ts` (regex-based, ⚠ F6 timezone pendiente contador) | SS5 |
 | Excel parsing | `convex/lib/excelParser.ts` (`xlsx` 0.18.5) | SS4 V1 |
 | AI financial extraction | `convex/lib/financialExtractionPrompt.ts` (`PROMPT_VERSION="v1-2026-05-27"`) | SS4 V1 |
+| Event types | `convex/lib/documentEventTypes.ts` (single source of truth) | SS7 G1 adversarial |
 | Draft resilience | `useProjectionDraftSave` hook + `DraftSaveStatus` + `DraftNavbarChip` + `DraftPendingBanner` | SS7 F2 |
 | Re-edit cascade | `replaceProjection` + `cloneProjectionToDraft` + `applyDraftStateToProjection` | SS7 F3 |
 
@@ -247,5 +288,5 @@ Branch `feature/sub-spec-2-contracts-firmame` preservada. T11-T18 desbloqueados 
 | F6 CFDI timezone | IMPORTANTE | Requiere contador |
 | Firmame API docs + sandbox | CRÍTICO para SS2 final | Pendiente vendor docs |
 | Contratos HTML iniciales (papá) | CRÍTICO para SS2 producción | Pendiente papá |
-| `ANTHROPIC_API_KEY` en Convex deployment | MEDIO | Sin este key, SS4 extracción deja row en `status=error` con `errorMessage` claro. SS4 V1 ya maneja missing key gracefully. |
-| 93 commits ahead de `origin/main` | INFO | Decidir push cuando esté listo SS2 final + F6 |
+| `ANTHROPIC_API_KEY` en Convex deployment | MEDIO | SS4 maneja missing key gracefully con `status=error` + `errorMessage` claro |
+| 102 commits ahead de `origin/main` | INFO | Decidir push cuando esté listo SS2 final + F6 |

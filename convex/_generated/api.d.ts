@@ -131,6 +131,7 @@ import type * as lib_deliverableEngine_aiBatchFill from "../lib/deliverableEngin
 import type * as lib_deliverableEngine_errors from "../lib/deliverableEngine/errors.js";
 import type * as lib_deliverableEngine_placeholders from "../lib/deliverableEngine/placeholders.js";
 import type * as lib_deliverableEngine_staticResolver from "../lib/deliverableEngine/staticResolver.js";
+import type * as lib_documentEventTypes from "../lib/documentEventTypes.js";
 import type * as lib_excelParser from "../lib/excelParser.js";
 import type * as lib_financialExtractionPrompt from "../lib/financialExtractionPrompt.js";
 import type * as lib_firmameClient from "../lib/firmameClient.js";
@@ -276,6 +277,7 @@ declare const fullApi: ApiFromModules<{
   "lib/deliverableEngine/errors": typeof lib_deliverableEngine_errors;
   "lib/deliverableEngine/placeholders": typeof lib_deliverableEngine_placeholders;
   "lib/deliverableEngine/staticResolver": typeof lib_deliverableEngine_staticResolver;
+  "lib/documentEventTypes": typeof lib_documentEventTypes;
   "lib/excelParser": typeof lib_excelParser;
   "lib/financialExtractionPrompt": typeof lib_financialExtractionPrompt;
   "lib/firmameClient": typeof lib_firmameClient;
