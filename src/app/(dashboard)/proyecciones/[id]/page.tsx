@@ -692,26 +692,28 @@ export default function ProjectionDetailPage() {
                   <td className="px-4 py-2.5 text-right font-medium text-accent">
                     <div className="flex flex-col items-end gap-1.5">
                       <span>{formatCurrency(svc.annualAmount)}</span>
-                      {/* #22d — "Cotizar" per service row, passes subserviceId when present */}
-                      <button
-                        type="button"
-                        disabled={quotingProjServiceId === svc._id}
-                        onClick={() =>
-                          handleQuotarServicio(
-                            svc._id,
-                            svc.subserviceId ?? undefined
-                          )
-                        }
-                        className="text-[10px] text-muted-foreground hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
-                        title="Crear cotización para este servicio"
-                      >
-                        {quotingProjServiceId === svc._id ? (
-                          <Loader2 size={10} className="animate-spin" />
-                        ) : (
-                          <FileText size={10} />
-                        )}
-                        Cotizar
-                      </button>
+                      {/* #22d — "Cotizar" per service row, gated by projection+questionnaire status (C7) */}
+                      {projection?.status !== "archived" && questionnaire?.status === "completed" && (
+                        <button
+                          type="button"
+                          disabled={quotingProjServiceId === svc._id}
+                          onClick={() =>
+                            handleQuotarServicio(
+                              svc._id,
+                              svc.subserviceId ?? undefined
+                            )
+                          }
+                          className="text-[10px] text-muted-foreground hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                          title="Crear cotización para este servicio"
+                        >
+                          {quotingProjServiceId === svc._id ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : (
+                            <FileText size={10} />
+                          )}
+                          Cotizar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
