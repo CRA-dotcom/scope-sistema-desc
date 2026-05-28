@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useDebouncedAutosave } from "./useDebouncedAutosave";
@@ -20,13 +20,24 @@ export function useProjectionDraftSave<T>(
   const [retry, setRetry] = useState(0);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
 
+  // Track clientId in a ref so the `save` closure always reads the latest value
+  // (matches the latestValueRef pattern in useDebouncedAutosave). Without this,
+  // changing the client mid-debounce would write to the previous client's slot.
+  const clientIdRef = useRef(clientId);
+  useEffect(() => { clientIdRef.current = clientId; }, [clientId]);
+
+  // Track latest state for the beforeunload/pagehide flush.
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
   const save = useCallback(
     async (v: T) => {
+      const cid = clientIdRef.current;
       let lastError: unknown = null;
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
           await upsert({
-            ...(clientId ? { clientId } : {}),
+            ...(cid ? { clientId: cid } : {}),
             state: v as never,
           });
           setRetry(0);
@@ -42,8 +53,27 @@ export function useProjectionDraftSave<T>(
       }
       throw lastError;
     },
-    [upsert, clientId]
+    [upsert] // intentionally NOT [upsert, clientId] — we use the ref instead
   );
+
+  // Flush pending state on page close to prevent data loss.
+  // Best-effort: fire the mutation immediately with the latest known state.
+  // Won't await — but keepalive lets the request finish even as tab closes.
+  useEffect(() => {
+    const handler = () => {
+      const cid = clientIdRef.current;
+      upsert({
+        ...(cid ? { clientId: cid } : {}),
+        state: stateRef.current as never,
+      }).catch(() => { /* nothing we can do at unload */ });
+    };
+    window.addEventListener("pagehide", handler);
+    window.addEventListener("beforeunload", handler);
+    return () => {
+      window.removeEventListener("pagehide", handler);
+      window.removeEventListener("beforeunload", handler);
+    };
+  }, [upsert]);
 
   const { status } = useDebouncedAutosave(state, save, DEBOUNCE_MS);
 

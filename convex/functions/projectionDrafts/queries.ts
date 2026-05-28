@@ -1,6 +1,6 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgIdSafe, requireAuth, getOrgId } from "../../lib/authHelpers";
+import { getOrgIdSafe } from "../../lib/authHelpers";
 
 export const getDraftById = query({
   args: { id: v.id("projectionDrafts") },
@@ -51,8 +51,10 @@ export const listMyDrafts = query({
 export const listMyActiveDrafts = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return [];
     const userId = identity.subject;
     const drafts = await ctx.db
       .query("projectionDrafts")

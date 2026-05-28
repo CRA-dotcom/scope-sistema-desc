@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useSearchParams, usePathname } from "next/navigation";
 
 function timeAgo(ts: number): string {
   const s = Math.round((Date.now() - ts) / 1000);
@@ -15,8 +16,17 @@ function timeAgo(ts: number): string {
 
 export function DraftPendingBanner() {
   const drafts = useQuery(api.functions.projectionDrafts.queries.listMyActiveDrafts, {});
-  if (!drafts || drafts.length === 0) return null;
-  const top = [...drafts].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3);
+
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const currentDraftId = pathname?.includes("/proyecciones/nueva")
+    ? searchParams.get("draftId")
+    : null;
+
+  const filteredDrafts = (drafts ?? []).filter((d) => d._id !== currentDraftId);
+  if (filteredDrafts.length === 0) return null;
+
+  const top = [...filteredDrafts].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3);
 
   return (
     <div className="rounded-md border-l-4 border-blue-500 bg-blue-50 p-4">

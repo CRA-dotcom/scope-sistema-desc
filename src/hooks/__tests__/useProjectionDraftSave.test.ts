@@ -39,6 +39,18 @@ describe("useProjectionDraftSave — API surface", () => {
   it("accepts optional clientId parameter", () => {
     const source = readFileSync(SOURCE_PATH, "utf-8");
     expect(source).toMatch(/clientId\??:\s*Id<"clients">/);
-    expect(source).toMatch(/clientId \? \{ clientId \} : \{\}/);
+    expect(source).toMatch(/cid \? \{ clientId: cid \} : \{\}/);
+  });
+
+  it("uses a ref to track latest clientId (avoids stale closure)", () => {
+    const source = readFileSync(SOURCE_PATH, "utf-8");
+    expect(source).toContain("clientIdRef");
+    expect(source).toContain("clientIdRef.current");
+  });
+
+  it("flushes pending state on pagehide/beforeunload to prevent data loss", () => {
+    const source = readFileSync(SOURCE_PATH, "utf-8");
+    expect(source).toMatch(/addEventListener\(["']pagehide["']/);
+    expect(source).toMatch(/addEventListener\(["']beforeunload["']/);
   });
 });
