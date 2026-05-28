@@ -520,6 +520,57 @@ export const recalculate = mutation({
   },
 });
 
+export const cloneProjectionToDraft = mutation({
+  args: { projectionId: v.id("projections") },
+  handler: async (ctx, { projectionId }) => {
+    const identity = await requireAuth(ctx);
+    const orgId = await getOrgId(ctx);
+    const userId = identity.subject;
+
+    const proj = await ctx.db.get(projectionId);
+    if (!proj || proj.orgId !== orgId) {
+      throw new Error("Proyección no encontrada.");
+    }
+
+    // Hydrate wizard state from existing projection.
+    const projServices = await ctx.db
+      .query("projectionServices")
+      .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
+      .collect();
+
+    const serviceStates = projServices.map((ps) => ({
+      serviceId: ps.serviceId as string,
+      chosenPct: ps.chosenPct,
+      isActive: ps.isActive,
+    }));
+
+    const draftId = await ctx.db.insert("projectionDrafts", {
+      orgId,
+      userId,
+      clientId: proj.clientId,
+      state: {
+        step: 0,
+        year: proj.year,
+        annualSales: proj.annualSales,
+        totalBudget: proj.totalBudget,
+        commissionRate: proj.commissionRate,
+        // Optional fields — only set if the projection has them:
+        ...(proj.startMonth !== undefined ? { startMonth: proj.startMonth } : {}),
+        ...(proj.projectionMode !== undefined ? { projectionMode: proj.projectionMode } : {}),
+        ...(proj.seasonalityOutliers !== undefined
+          ? { seasonalityOutliers: proj.seasonalityOutliers }
+          : {}),
+        serviceStates,
+        previousProjectionId: projectionId,
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return draftId;
+  },
+});
+
 export const updateStatus = mutation({
   args: {
     id: v.id("projections"),
