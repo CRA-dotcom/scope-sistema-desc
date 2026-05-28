@@ -102,4 +102,53 @@ describe("questionnaires.editSingleResponse", () => {
         })
     ).rejects.toThrow("Acceso denegado. Se requiere rol de Administrador.");
   });
+
+  it("editSingleResponse on draft questionnaire throws", async () => {
+    const t = setupTest();
+    const qId = await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: "org_a",
+        name: "Draft Co",
+        rfc: "CCC010101CCC",
+        industry: "Z",
+        annualRevenue: 200_000,
+        billingFrequency: "mensual" as const,
+        isArchived: false,
+        assignedTo: "user_admin_1",
+        createdAt: Date.now(),
+      });
+      const projectionId = await ctx.db.insert("projections", {
+        orgId: "org_a",
+        clientId,
+        year: 2026,
+        annualSales: 200_000,
+        totalBudget: 20_000,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return await ctx.db.insert("questionnaireResponses", {
+        orgId: "org_a",
+        clientId,
+        projectionId,
+        responses: [
+          { questionId: "q1", questionText: "¿Algo?", answer: "algo", serviceNames: [] },
+        ],
+        status: "draft" as const,
+        createdAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t
+        .withIdentity(asUserOfOrg("org_a"))
+        .mutation(api.functions.questionnaires.mutations.editSingleResponse, {
+          id: qId,
+          questionId: "q1",
+          answer: "nuevo",
+        })
+    ).rejects.toThrow("editSingleResponse solo aplica a cuestionarios completados.");
+  });
 });
