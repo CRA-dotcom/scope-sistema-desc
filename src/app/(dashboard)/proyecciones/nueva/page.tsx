@@ -839,6 +839,7 @@ function NuevaProyeccionContent() {
                   chosenPct: s.chosenPct,
                 }))}
                 allocation={allocation}
+                monthCount={monthCount}
               />
             </div>
           </div>
