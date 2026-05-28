@@ -31,6 +31,7 @@ import { applyDraftStateToProjection } from "../../lib/applyDraftStateToProjecti
  */
 async function replaceProjection(
   ctx: MutationCtx,
+  callerOrgId: string,
   projectionId: Id<"projections">,
   newArgs: {
     clientId: Id<"clients">;
@@ -56,7 +57,9 @@ async function replaceProjection(
   }
 ): Promise<Id<"projections">> {
   const proj = await ctx.db.get(projectionId);
-  if (!proj) throw new Error("Proyección no encontrada.");
+  if (!proj || proj.orgId !== callerOrgId) {
+    throw new Error("Proyección no encontrada.");
+  }
   const orgId = proj.orgId;
 
   // Capture downstream counts before deletion (for audit log metadata).
@@ -242,7 +245,7 @@ export const create = mutation({
     // Re-edit path: delegate to replaceProjection which cascade-deletes
     // downstream entities and re-runs the engine on the existing projection row.
     if (args.previousProjectionId) {
-      return await replaceProjection(ctx, args.previousProjectionId, args);
+      return await replaceProjection(ctx, orgId, args.previousProjectionId, args);
     }
 
     // Verify client belongs to this org

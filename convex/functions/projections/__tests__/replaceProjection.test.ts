@@ -137,4 +137,80 @@ describe("projections.create with previousProjectionId branches to replaceProjec
       expect(events.some((e) => e.message?.includes("re-edit"))).toBe(true);
     });
   });
+
+  it("throws when re-edit targets a projection from another org", async () => {
+    const t = convexTest(schema);
+    const asOtherOrg = t.withIdentity({
+      subject: "user_admin_other",
+      tokenIdentifier: "test|user_admin_other",
+      org_id: "org_other",
+      org_role: "org:admin",
+    });
+
+    const { projectionId, otherClientId } = await t.run(async (ctx) => {
+      await ctx.db.insert("orgConfigs", {
+        orgId: "org_other",
+        calculationMode: "weighted" as const,
+        commissionMode: "proportional" as const,
+        seasonalityEnabled: true,
+        featureFlags: {
+          advancedConfigVisible: true,
+          customServicesVisible: true,
+          seasonalityEditable: true,
+          manualOverrideAllowed: true,
+        },
+        updatedAt: Date.now(),
+      });
+      const victimClientId = await ctx.db.insert("clients", {
+        orgId: "org_a",
+        name: "Victim",
+        rfc: "BBB010101BBB",
+        industry: "X",
+        annualRevenue: 1,
+        billingFrequency: "mensual" as const,
+        isArchived: false,
+        assignedTo: "u",
+        createdAt: Date.now(),
+      });
+      const victimProjectionId = await ctx.db.insert("projections", {
+        orgId: "org_a",
+        clientId: victimClientId,
+        year: 2026,
+        annualSales: 1_000_000,
+        totalBudget: 100_000,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      // Attacker has their own client in org_other to pass the client.orgId check
+      // if it ran first — but the re-edit branch should reject before that.
+      const attackerClientId = await ctx.db.insert("clients", {
+        orgId: "org_other",
+        name: "Attacker",
+        rfc: "CCC010101CCC",
+        industry: "X",
+        annualRevenue: 1,
+        billingFrequency: "mensual" as const,
+        isArchived: false,
+        assignedTo: "u",
+        createdAt: Date.now(),
+      });
+      return { projectionId: victimProjectionId, otherClientId: attackerClientId };
+    });
+
+    await expect(
+      asOtherOrg.mutation(api.functions.projections.mutations.create, {
+        clientId: otherClientId,
+        year: 2026,
+        annualSales: 1_000_000,
+        totalBudget: 100_000,
+        commissionRate: 0,
+        seasonalityData: [],
+        serviceConfigs: [],
+        previousProjectionId: projectionId,
+      })
+    ).rejects.toThrow(/no encontrada/i);
+  });
 });
