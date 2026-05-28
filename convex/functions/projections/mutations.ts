@@ -32,6 +32,7 @@ import { applyDraftStateToProjection } from "../../lib/applyDraftStateToProjecti
 async function replaceProjection(
   ctx: MutationCtx,
   callerOrgId: string,
+  callerUserId: string,
   projectionId: Id<"projections">,
   newArgs: {
     clientId: Id<"clients">;
@@ -60,18 +61,41 @@ async function replaceProjection(
   if (!proj || proj.orgId !== callerOrgId) {
     throw new Error("Proyección no encontrada.");
   }
+  // Fix 1: block re-edit on archived projections.
+  if (proj.status === "archived") {
+    throw new Error("No se puede re-editar una proyección archivada.");
+  }
   const orgId = proj.orgId;
+
+  // Fix 5: block re-edit when add-on projectionServices exist.
+  // Add-ons are mid-year services the wizard can't re-create — deleting them silently loses data.
+  const allProjServicesCheck = await ctx.db
+    .query("projectionServices")
+    .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
+    .collect();
+  const addOns = allProjServicesCheck.filter(
+    (ps) => ps.addOnOfProjectionServiceId !== undefined
+  );
+  if (addOns.length > 0) {
+    throw new Error(
+      `No se puede re-editar: esta proyección tiene ${addOns.length} servicios add-on agregados durante el año. Eliminarlos requiere acción manual.`
+    );
+  }
 
   // Capture downstream counts before deletion (for audit log metadata).
   const counts = await getProjectionDownstreamCounts(ctx, projectionId);
 
   // Collect projectionService IDs first — needed to cascade into quotations,
   // contracts, and deliverables which index by_projServiceId.
-  const projServices = await ctx.db
-    .query("projectionServices")
+  const projServices = allProjServicesCheck;
+  const psIds = projServices.map((ps) => ps._id);
+
+  // Fix 2 (step 0): Delete questionnaireResponses tied to this projection.
+  const questionnaires = await ctx.db
+    .query("questionnaireResponses")
     .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
     .collect();
-  const psIds = projServices.map((ps) => ps._id);
+  for (const qr of questionnaires) await ctx.db.delete(qr._id);
 
   // 1. Delete invoices (index by_projectionId).
   const invoices = await ctx.db
@@ -112,6 +136,7 @@ async function replaceProjection(
   for (const ps of projServices) await ctx.db.delete(ps._id);
 
   // 5. Patch the projection row with new top-level fields.
+  // Fix 4: reset status to "draft" so the row is not left "active" with no downstream.
   await ctx.db.patch(projectionId, {
     year: newArgs.year,
     annualSales: newArgs.annualSales,
@@ -131,6 +156,7 @@ async function replaceProjection(
     projectionMode: newArgs.projectionMode,
     monthCount: newArgs.monthCount,
     effectiveBudget: newArgs.effectiveBudget,
+    status: "draft" as const,
     updatedAt: Date.now(),
   });
 
@@ -155,6 +181,7 @@ async function replaceProjection(
   );
 
   // 7. Log audit event.
+  // Fix 3: include actorUserId so the event is attributed to the user.
   await ctx.db.insert("documentEvents", {
     orgId,
     clientId: proj.clientId,
@@ -163,6 +190,7 @@ async function replaceProjection(
     eventType: "updated" as const,
     severity: "warning" as const,
     actorType: "user" as const,
+    actorUserId: callerUserId,
     message: `Proyección re-editada. Downstream borrado: ${JSON.stringify(counts)}`,
     metadata: counts,
     createdAt: Date.now(),
@@ -239,13 +267,13 @@ export const create = mutation({
     previousProjectionId: v.optional(v.id("projections")),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgId(ctx);
 
     // Re-edit path: delegate to replaceProjection which cascade-deletes
     // downstream entities and re-runs the engine on the existing projection row.
     if (args.previousProjectionId) {
-      return await replaceProjection(ctx, orgId, args.previousProjectionId, args);
+      return await replaceProjection(ctx, orgId, identity.subject, args.previousProjectionId, args);
     }
 
     // Verify client belongs to this org

@@ -8,13 +8,14 @@ export type DownstreamCounts = {
   contracts: number;
   deliverables: number;
   invoices: number;
+  questionnaires: number;
 };
 
 export async function getProjectionDownstreamCounts(
   ctx: QueryCtx | MutationCtx,
   projectionId: Id<"projections">
 ): Promise<DownstreamCounts> {
-  const [projServices, assignments, invoices] = await Promise.all([
+  const [projServices, assignments, invoices, questionnaireRows] = await Promise.all([
     ctx.db
       .query("projectionServices")
       .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
@@ -25,6 +26,10 @@ export async function getProjectionDownstreamCounts(
       .collect(),
     ctx.db
       .query("invoices")
+      .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
+      .collect(),
+    ctx.db
+      .query("questionnaireResponses")
       .withIndex("by_projectionId", (q) => q.eq("projectionId", projectionId))
       .collect(),
   ]);
@@ -60,5 +65,6 @@ export async function getProjectionDownstreamCounts(
     contracts,
     deliverables,
     invoices: invoices.length,
+    questionnaires: questionnaireRows.length,
   };
 }

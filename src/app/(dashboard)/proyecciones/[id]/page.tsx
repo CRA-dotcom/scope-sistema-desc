@@ -214,13 +214,15 @@ export default function ProjectionDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setReEditOpen(true)}
-            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
-          >
-            Editar desde el inicio
-          </button>
+          {projection!.status !== "archived" && (
+            <button
+              type="button"
+              onClick={() => setReEditOpen(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+            >
+              Editar desde el inicio
+            </button>
+          )}
 
           <button
             type="button"
@@ -553,6 +555,7 @@ export default function ProjectionDetailPage() {
                       <li>{downstream.invoices} facturas</li>
                       <li>{downstream.deliverables} entregables</li>
                       <li>{downstream.assignments} asignaciones mensuales</li>
+                      <li>{downstream.questionnaires} cuestionarios</li>
                     </ul>
                   ) : (
                     <p className="text-muted-foreground">Cargando…</p>

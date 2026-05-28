@@ -26,6 +26,7 @@ describe("projectionDownstream.getProjectionDownstreamCounts", () => {
       contracts: 0,
       deliverables: 0,
       invoices: 0,
+      questionnaires: 0,
     });
   });
 });
