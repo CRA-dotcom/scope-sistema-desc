@@ -1,6 +1,7 @@
 import { mutation } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
+import { Id } from "../../_generated/dataModel";
 import { requireAdmin, getOrgId } from "../../lib/authHelpers";
 import { MASTER_QUESTIONS } from "./masterQuestionnaire";
 import { getOrgNotificationEmail } from "../email/resolveRecipients";
@@ -249,6 +250,34 @@ export const deleteQuestionnaire = mutation({
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
 
+    // Block delete if any deliverable was generated from this questionnaire
+    const downstreamEvent = await ctx.db
+      .query("documentEvents")
+      .withIndex("by_orgId_entityType_entityId", (qb) =>
+        qb.eq("orgId", orgId).eq("entityType", "questionnaire").eq("entityId", args.id)
+      )
+      .filter((qb) => qb.eq(qb.field("eventType"), "audited"))
+      .first();
+    if (downstreamEvent) {
+      throw new Error(
+        "No se puede borrar: ya hay entregables generados desde este cuestionario."
+      );
+    }
+
+    // Clean up file_upload blobs before deleting the row
+    for (const r of q.responses) {
+      if (r.type === "file_upload" && r.answer) {
+        try {
+          await ctx.storage.delete(r.answer as Id<"_storage">);
+        } catch (err) {
+          console.warn(
+            `[deleteQuestionnaire] storage.delete failed for ${r.answer}:`,
+            err
+          );
+        }
+      }
+    }
+
     // Audit log BEFORE delete (so the row id is still valid)
     await ctx.db.insert("documentEvents", {
       orgId,
@@ -278,6 +307,10 @@ export const editSingleResponse = mutation({
     const orgId = await getOrgId(ctx);
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
+
+    if (q.status !== "completed") {
+      throw new Error("editSingleResponse solo aplica a cuestionarios completados.");
+    }
 
     const updated = q.responses.map((r) =>
       r.questionId === args.questionId ? { ...r, answer: args.answer } : r
