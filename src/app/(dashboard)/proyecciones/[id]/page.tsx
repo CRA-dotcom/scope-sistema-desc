@@ -6,7 +6,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2, AlertTriangle, FileText } from "lucide-react";
+import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2, AlertTriangle, FileText, Settings2 } from "lucide-react";
 // SS3-T4: month labels for the window picker selectors
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -238,6 +238,15 @@ export default function ProjectionDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* #1 — Post-creation subservices picker */}
+          <Link
+            href={`/proyecciones/${projectionId}/subservicios`}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+          >
+            <Settings2 size={14} />
+            Configurar subservicios
+          </Link>
+
           {projection!.status !== "archived" && (
             <button
               type="button"

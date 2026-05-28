@@ -3,6 +3,38 @@ import { v } from "convex/values";
 import { getOrgId, requireAuth, requireAdmin } from "../../lib/authHelpers";
 import { Id } from "../../_generated/dataModel";
 
+/**
+ * #1 — Post-creation subservice picker.
+ *
+ * Patches the subserviceIds (and the legacy subserviceId backcompat field) on
+ * a projectionServices row. Called from /proyecciones/[id]/subservicios.
+ *
+ * - Passing an empty array clears both fields (user removed all selections).
+ * - Cross-org access throws.
+ */
+export const setSubserviceIds = mutation({
+  args: {
+    projServiceId: v.id("projectionServices"),
+    subserviceIds: v.array(v.id("subservices")),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+    const orgId = await getOrgId(ctx);
+    const ps = await ctx.db.get(args.projServiceId);
+    if (!ps || ps.orgId !== orgId) {
+      throw new Error("Servicio no encontrado.");
+    }
+    // Backcompat: keep legacy subserviceId = first element (undefined if empty).
+    const legacySubserviceId: Id<"subservices"> | undefined =
+      args.subserviceIds[0];
+    await ctx.db.patch(args.projServiceId, {
+      subserviceIds:
+        args.subserviceIds.length > 0 ? args.subserviceIds : undefined,
+      subserviceId: legacySubserviceId,
+    });
+  },
+});
+
 export const toggleActive = mutation({
   args: {
     id: v.id("projectionServices"),
