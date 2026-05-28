@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { OrganizationSwitcher, UserButton, useUser } from "@clerk/nextjs";
+import { DraftNavbarChip } from "./DraftNavbarChip";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -148,6 +149,11 @@ export function Sidebar() {
           </>
         )}
       </nav>
+
+      {/* Draft chip */}
+      <div className="px-3 pb-2">
+        <DraftNavbarChip />
+      </div>
 
       {/* User */}
       <div className="border-t border-border p-3">
