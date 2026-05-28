@@ -46,17 +46,34 @@ export const createManualQuotation = mutation({
       }
     }
 
-    // Validate subserviceId if provided
+    // Validate subserviceId if provided (C3: cross-org guard)
     if (args.subserviceId) {
       const sub = await ctx.db.get(args.subserviceId);
       if (!sub) throw new Error("Subservicio no encontrado.");
+      if (sub.orgId !== undefined && sub.orgId !== orgId) {
+        throw new Error("Subservicio no encontrado.");
+      }
+    }
+
+    // C1: idempotency guard — return existing draft or throw for non-draft
+    const existingForService = await ctx.db
+      .query("quotations")
+      .withIndex("by_projServiceId", (q) =>
+        q.eq("projServiceId", args.projServiceId)
+      )
+      .first();
+    if (existingForService && existingForService.orgId === orgId) {
+      if (existingForService.status === "draft") {
+        return existingForService._id;
+      }
+      throw new Error("Ya existe una cotización para este servicio.");
     }
 
     const serviceName = args.serviceName ?? projService.serviceName;
     const amount = args.amount ?? projService.annualAmount;
     const content =
       args.content ??
-      `<div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;"><h1 style="font-size:24px;color:#1a1a2e;">COTIZACIÓN DE SERVICIOS</h1><p style="color:#666;font-size:14px;">Fecha: ${new Date().toLocaleDateString("es-MX")}</p><p><strong>Servicio:</strong> ${serviceName}</p><p><strong>Monto:</strong> $${amount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</p></div>`;
+      `<div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;"><h1 style="font-size:24px;color:#1a1a2e;">COTIZACIÓN DE SERVICIOS</h1><p style="color:#666;font-size:14px;">Fecha: ${new Date().toLocaleDateString("es-MX")}</p><p><strong>Servicio:</strong> ${escapeHtml(serviceName)}</p><p><strong>Monto:</strong> $${amount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</p></div>`;
 
     return await ctx.db.insert("quotations", {
       orgId,
@@ -137,9 +154,9 @@ export const generateAllForProjection = mutation({
     <h1 style="font-size: 24px; color: #1a1a2e;">COTIZACIÓN DE SERVICIOS</h1>
     <p style="color: #666; font-size: 14px;">Fecha: ${new Date().toLocaleDateString("es-MX")}</p>
   </div>
-  <p><strong>Cliente:</strong> ${client.name}</p>
-  <p><strong>RFC:</strong> ${client.rfc}</p>
-  <p><strong>Servicio:</strong> ${ps.serviceName}</p>
+  <p><strong>Cliente:</strong> ${escapeHtml(client.name)}</p>
+  <p><strong>RFC:</strong> ${escapeHtml(client.rfc)}</p>
+  <p><strong>Servicio:</strong> ${escapeHtml(ps.serviceName)}</p>
   <p><strong>Año fiscal:</strong> ${projection.year}</p>
   <p><strong>Monto anual:</strong> $${ps.annualAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</p>
   <p><strong>Monto mensual estimado:</strong> $${monthlyAmount}</p>
@@ -188,6 +205,15 @@ export const generate = mutation({
     const client = await ctx.db.get(projection.clientId);
     if (!client || client.orgId !== orgId) {
       throw new Error("Cliente no encontrado.");
+    }
+
+    // C3: cross-org subservice guard
+    if (args.subserviceId) {
+      const sub = await ctx.db.get(args.subserviceId);
+      if (!sub) throw new Error("Subservicio no encontrado.");
+      if (sub.orgId !== undefined && sub.orgId !== orgId) {
+        throw new Error("Subservicio no encontrado.");
+      }
     }
 
     // Get service details
