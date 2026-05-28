@@ -67,14 +67,15 @@ export const listForBilling = query({
     }
     // #25-bis: issuingCompanyId filter — join via servicesIssuingCompanyMap
     if (args.issuingCompanyId !== undefined) {
-      // Collect all serviceIds that map to this issuing company.
+      // Collect all serviceIds that map to this issuing company (org-scoped).
       const maps = await ctx.db
         .query("servicesIssuingCompanyMap")
         .withIndex("by_issuingCompanyId", (q) =>
           q.eq("issuingCompanyId", args.issuingCompanyId!)
         )
         .collect();
-      const mappedServiceIds = new Set(maps.map((m) => m.serviceId as unknown as string));
+      const orgMaps = maps.filter((m) => m.orgId === orgId);
+      const mappedServiceIds = new Set(orgMaps.map((m) => m.serviceId as unknown as string));
 
       // Bulk-fetch the projServices referenced by filtered rows.
       const projServiceIds = [...new Set(

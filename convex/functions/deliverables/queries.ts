@@ -26,12 +26,12 @@ export const listByClient = query({
 
     const results = await ctx.db
       .query("deliverables")
-      .withIndex("by_clientId", (q) => q.eq("clientId", args.clientId))
+      .withIndex("by_orgId_clientId", (q) =>
+        q.eq("orgId", orgId).eq("clientId", args.clientId)
+      )
       .collect();
 
-    return results
-      .filter((d) => d.orgId === orgId)
-      .sort((a, b) => b.createdAt - a.createdAt);
+    return results.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 
@@ -109,12 +109,12 @@ export const listByClientMatrix = query({
     const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return { services: [], months: [] };
 
-    const rows = await ctx.db
+    const mine = await ctx.db
       .query("deliverables")
-      .withIndex("by_clientId", (q) => q.eq("clientId", args.clientId))
+      .withIndex("by_orgId_clientId", (q) =>
+        q.eq("orgId", orgId).eq("clientId", args.clientId)
+      )
       .collect();
-
-    const mine = rows.filter((d) => d.orgId === orgId);
 
     // Group by projServiceId
     const byService = new Map<

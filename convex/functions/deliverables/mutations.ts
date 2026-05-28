@@ -215,6 +215,36 @@ export const saveGenerated = internalMutation({
           })
         : undefined;
 
+    // Idempotency guard: if a deliverable already exists for this assignment,
+    // overwrite it (patch) instead of inserting a duplicate.
+    const existing = await ctx.db
+      .query("deliverables")
+      .withIndex("by_assignmentId", (q) => q.eq("assignmentId", args.assignmentId))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        orgId: args.orgId,
+        projServiceId: args.projServiceId,
+        clientId: args.clientId,
+        serviceName: args.serviceName,
+        subserviceId: args.subserviceId,
+        month: args.month,
+        year: args.year,
+        shortContent: args.shortContent,
+        longContent: args.longContent,
+        templateId: args.templateId,
+        templateVersion: args.templateVersion,
+        templateHtmlSnapshot: args.templateHtmlSnapshot,
+        triggerSource: args.triggerSource,
+        triggerInvoiceId: args.triggerInvoiceId,
+        auditStatus,
+        auditFeedback,
+        aiLog: args.aiLog,
+      });
+      return existing._id;
+    }
+
     return await ctx.db.insert("deliverables", {
       orgId: args.orgId,
       assignmentId: args.assignmentId,

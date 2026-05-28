@@ -506,6 +506,7 @@ export default defineSchema({
     .index("by_assignmentId", ["assignmentId"])
     .index("by_projServiceId", ["projServiceId"])
     .index("by_clientId", ["clientId"])
+    .index("by_orgId_clientId", ["orgId", "clientId"])
     .index("by_orgId_auditStatus", ["orgId", "auditStatus"])
     .index("by_orgId_year_month", ["orgId", "year", "month"])
     // A2: "qué deliverables usan esta plantilla" para banner y restoreToGlobal
