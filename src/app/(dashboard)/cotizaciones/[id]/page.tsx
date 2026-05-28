@@ -83,6 +83,15 @@ export default function QuotationDetailPage() {
   const deleteQuotationMutation = useMutation(
     api.functions.quotations.mutations.deleteQuotation
   );
+  const updateIssuingCompany = useMutation(
+    api.functions.quotations.mutations.updateIssuingCompany
+  );
+  // #22c — issuing companies for selector
+  const issuingCompanies = useQuery(
+    api.functions.issuingCompanies.queries.list,
+    {}
+  );
+  const [savingIssuer, setSavingIssuer] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -413,6 +422,51 @@ export default function QuotationDetailPage() {
         respondedAt: quotation.respondedAt,
         declineReason: quotation.declineReason,
       }} />
+
+      {/* #22c — Empresa emitente selector (draft only) */}
+      {isDraft && issuingCompanies && issuingCompanies.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="mb-2 text-sm font-medium text-foreground">
+            Empresa emitente
+          </p>
+          <div className="flex items-center gap-3">
+            <select
+              defaultValue={quotation.issuingCompanyId ?? ""}
+              onChange={async (e) => {
+                setSavingIssuer(true);
+                try {
+                  await updateIssuingCompany({
+                    id: quotation._id,
+                    issuingCompanyId: e.target.value
+                      ? (e.target.value as Id<"issuingCompanies">)
+                      : null,
+                  });
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setSavingIssuer(false);
+                }
+              }}
+              className="flex-1 rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              <option value="">Auto-resolver por servicio...</option>
+              {issuingCompanies.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                  {c.isDefault ? " (predeterminada)" : ""}
+                </option>
+              ))}
+            </select>
+            {savingIssuer && (
+              <Loader2 size={14} className="animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Opcional. Si no seleccionas, se resuelve automáticamente por mapa
+            de servicio.
+          </p>
+        </div>
+      )}
 
       {/* Content */}
       <div className="rounded-lg border border-border bg-card">
