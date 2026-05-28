@@ -104,10 +104,15 @@ function FacturacionPageInner() {
   // SS5: edit issueDate modal
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRow | null>(null);
   const [editIssueDate, setEditIssueDate] = useState<string>("");
+  // #25-bis: cliente + proveedor filters
+  const [selectedClientId, setSelectedClientId] = useState<string | undefined>(undefined);
+  const [selectedIssuingCompanyId, setSelectedIssuingCompanyId] = useState<string | undefined>(undefined);
 
   const { membership } = useOrganization();
   const isAdmin = membership?.role === "org:admin";
   const updateIssueDate = useMutation(api.functions.invoices.mutations.updateIssueDate);
+  const clients = useQuery(api.functions.clients.queries.list, {});
+  const issuingCompanies = useQuery(api.functions.issuingCompanies.queries.list, {});
 
   // Drives the assignments table (one row per scheduled service-month).
   const assignments = useQuery(
@@ -129,6 +134,8 @@ function FacturacionPageInner() {
       month: selectedMonth,
       issueDateFrom: issueDateFrom ? new Date(issueDateFrom).getTime() : undefined,
       issueDateTo: issueDateTo ? new Date(issueDateTo).getTime() : undefined,
+      clientId: selectedClientId as Id<"clients"> | undefined,
+      issuingCompanyId: selectedIssuingCompanyId as Id<"issuingCompanies"> | undefined,
     }
   ) as InvoiceRow[] | undefined;
 
@@ -217,12 +224,20 @@ function FacturacionPageInner() {
     };
   }, []);
 
-  const serviceNames = assignments
-    ? [...new Set(assignments.map((a) => a.serviceName))].sort()
+  // Apply clientId filter to assignments in memory (listForInvoiceTracking doesn't
+  // accept clientId yet — kept to avoid scope creep on the assignments query).
+  const filteredAssignments = assignments
+    ? selectedClientId
+      ? assignments.filter((a) => (a.clientId as unknown as string) === selectedClientId)
+      : assignments
+    : undefined;
+
+  const serviceNames = filteredAssignments
+    ? [...new Set(filteredAssignments.map((a) => a.serviceName))].sort()
     : [];
 
-  const grouped = assignments
-    ? assignments.reduce(
+  const grouped = filteredAssignments
+    ? filteredAssignments.reduce(
         (acc, a) => {
           const key = `${a.year}-${String(a.month).padStart(2, "0")}`;
           if (!acc[key]) acc[key] = [];
@@ -235,8 +250,8 @@ function FacturacionPageInner() {
 
   const sortedMonthKeys = Object.keys(grouped).sort().reverse();
 
-  const totalAmount = assignments?.reduce((sum, a) => sum + a.amount, 0) ?? 0;
-  const statusCounts = assignments?.reduce(
+  const totalAmount = filteredAssignments?.reduce((sum, a) => sum + a.amount, 0) ?? 0;
+  const statusCounts = filteredAssignments?.reduce(
     (acc, a) => {
       acc[a.invoiceStatus] = (acc[a.invoiceStatus] || 0) + 1;
       return acc;
@@ -383,6 +398,42 @@ function FacturacionPageInner() {
             className="rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground"
           />
         </div>
+
+        {/* #25-bis: Cliente filter */}
+        <div className="relative">
+          <select
+            value={selectedClientId ?? ""}
+            onChange={(e) => setSelectedClientId(e.target.value || undefined)}
+            aria-label="Cliente"
+            className="appearance-none rounded-md border border-border bg-secondary px-3 py-1.5 pr-8 text-sm text-foreground"
+          >
+            <option value="">Todos los clientes</option>
+            {(clients ?? []).map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        </div>
+
+        {/* #25-bis: Proveedor (empresa emisora) filter */}
+        <div className="relative">
+          <select
+            value={selectedIssuingCompanyId ?? ""}
+            onChange={(e) => setSelectedIssuingCompanyId(e.target.value || undefined)}
+            aria-label="Proveedor (empresa emisora)"
+            className="appearance-none rounded-md border border-border bg-secondary px-3 py-1.5 pr-8 text-sm text-foreground"
+          >
+            <option value="">Todos los proveedores</option>
+            {(issuingCompanies ?? []).map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        </div>
       </div>
 
       {/* Loading / Empty / Table */}
@@ -392,7 +443,7 @@ function FacturacionPageInner() {
             <div key={i} className="h-16 animate-pulse rounded-lg border border-border bg-card" />
           ))}
         </div>
-      ) : assignments.length === 0 ? (
+      ) : filteredAssignments?.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
           <Receipt className="mx-auto mb-3 text-muted-foreground" size={40} />
           <p className="text-muted-foreground">No se encontraron asignaciones con los filtros seleccionados.</p>

@@ -37,6 +37,9 @@ export const listForBilling = query({
     // SS5: fiscal period filter — uses issueDate, falling back to uploadedAt
     issueDateFrom: v.optional(v.number()),
     issueDateTo: v.optional(v.number()),
+    // #25-bis: optional filters
+    clientId: v.optional(v.id("clients")),
+    issuingCompanyId: v.optional(v.id("issuingCompanies")),
   },
   handler: async (ctx, args) => {
     const orgId = await getOrgIdSafe(ctx);
@@ -57,6 +60,39 @@ export const listForBilling = query({
     }
     if (args.issueDateTo !== undefined) {
       rows = rows.filter((r) => (r.issueDate ?? r.uploadedAt) <= args.issueDateTo!);
+    }
+    // #25-bis: clientId filter
+    if (args.clientId !== undefined) {
+      rows = rows.filter((r) => r.clientId === args.clientId);
+    }
+    // #25-bis: issuingCompanyId filter — join via servicesIssuingCompanyMap
+    if (args.issuingCompanyId !== undefined) {
+      // Collect all serviceIds that map to this issuing company.
+      const maps = await ctx.db
+        .query("servicesIssuingCompanyMap")
+        .withIndex("by_issuingCompanyId", (q) =>
+          q.eq("issuingCompanyId", args.issuingCompanyId!)
+        )
+        .collect();
+      const mappedServiceIds = new Set(maps.map((m) => m.serviceId as unknown as string));
+
+      // Bulk-fetch the projServices referenced by filtered rows.
+      const projServiceIds = [...new Set(
+        rows.filter((r) => r.projServiceId).map((r) => r.projServiceId!)
+      )];
+      const projServices = await Promise.all(
+        projServiceIds.map((id) => ctx.db.get(id))
+      );
+      const psServiceMap = new Map<string, string>();
+      for (const ps of projServices) {
+        if (ps) psServiceMap.set(ps._id as unknown as string, ps.serviceId as unknown as string);
+      }
+
+      rows = rows.filter((r) => {
+        if (!r.projServiceId) return false;
+        const serviceId = psServiceMap.get(r.projServiceId as unknown as string);
+        return serviceId !== undefined && mappedServiceIds.has(serviceId);
+      });
     }
     return rows.sort((a, b) => b.createdAt - a.createdAt);
   },
