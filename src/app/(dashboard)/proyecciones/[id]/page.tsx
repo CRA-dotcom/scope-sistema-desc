@@ -92,6 +92,11 @@ export default function ProjectionDetailPage() {
 
   const projection = matrix?.projection ?? null;
 
+  const client = useQuery(
+    api.functions.clients.queries.getById,
+    authReady && projection ? { id: projection.clientId } : "skip"
+  );
+
   const successor = useQuery(
     api.functions.projections.queries.hasSuccessor,
     authReady && projection ? { projectionId: projection._id } : "skip"
@@ -204,7 +209,7 @@ export default function ProjectionDetailPage() {
         <div className="flex items-center gap-3">
           <TrendingUp className="text-accent" size={28} />
           <h1 className="text-2xl font-bold">
-            Proyección {projection!.year}
+            {client?.name ? `${client.name} — Proyección ${projection!.year}` : `Proyección ${projection!.year}`}
           </h1>
           {ctx.projectionMode === "fiscal" && (
             <div className="inline-flex items-center gap-2 rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-1 text-xs text-amber-700 dark:text-amber-400">
