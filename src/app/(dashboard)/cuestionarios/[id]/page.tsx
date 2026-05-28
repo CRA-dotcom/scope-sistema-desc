@@ -15,6 +15,8 @@ import {
   Copy,
   Check,
   Phone,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -55,8 +57,11 @@ export default function QuestionnaireDetailPage() {
   const submitQuestionnaire = useMutation(
     api.functions.questionnaires.mutations.submit
   );
+  const reopen = useMutation(api.functions.questionnaires.mutations.reopen);
 
   const [editing, setEditing] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenSuccess, setReopenSuccess] = useState(false);
   const [localResponses, setLocalResponses] = useState<
     Array<{
       questionId: string;
@@ -115,6 +120,21 @@ export default function QuestionnaireDetailPage() {
       await submitQuestionnaire({ id: questionnaire._id });
     } catch (err) {
       console.error("Error submitting:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    if (!questionnaire) return;
+    setSaving(true);
+    try {
+      await reopen({ id: questionnaire._id });
+      setReopenOpen(false);
+      setReopenSuccess(true);
+      setTimeout(() => setReopenSuccess(false), 3000);
+    } catch (err) {
+      console.error("Error reopening questionnaire:", err);
     } finally {
       setSaving(false);
     }
@@ -272,6 +292,26 @@ export default function QuestionnaireDetailPage() {
         </div>
       )}
 
+      {/* Reopen action — visible only when completed */}
+      {questionnaire.status === "completed" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setReopenOpen(true)}
+            className="flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+          >
+            <RotateCcw size={16} />
+            Reabrir cuestionario
+          </button>
+        </div>
+      )}
+
+      {/* Reopen success banner */}
+      {reopenSuccess && (
+        <div className="rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent font-medium">
+          Cuestionario reabierto correctamente.
+        </div>
+      )}
+
       {/* Public link for client */}
       {questionnaire.accessToken && (
         <div className="rounded-lg border border-border bg-secondary/30 p-4">
@@ -353,6 +393,54 @@ export default function QuestionnaireDetailPage() {
           </div>
         </div>
       ))}
+      {/* Reopen confirm dialog */}
+      {reopenOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmar reabrir cuestionario"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setReopenOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setReopenOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-card p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-400 shrink-0" size={22} />
+              <div>
+                <h2 className="text-lg font-semibold">¿Reabrir cuestionario?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  El cuestionario volverá a &quot;in progress&quot; y podrá editarse de
+                  nuevo. La fecha de completado se borrará. La acción queda
+                  registrada en el log.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReopenOpen(false)}
+                disabled={saving}
+                className="rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleReopen}
+                disabled={saving}
+                className="rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {saving ? "Reabriendo..." : "Sí, reabrir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
