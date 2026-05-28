@@ -15,6 +15,8 @@ interface BudgetAllocationWidgetProps {
   services: AllocationServiceInput[];
   /** Pre-computed allocation from the page. When provided, skips internal computation. */
   allocation?: AllocationResult;
+  /** Number of active projection months (1–12). Defaults to 12. Used to derive monthly averages. */
+  monthCount?: number;
   className?: string;
 }
 
@@ -27,6 +29,7 @@ export function BudgetAllocationWidget({
   commissionRate,
   services,
   allocation: allocationProp,
+  monthCount = 12,
   className,
 }: BudgetAllocationWidgetProps) {
   // If the parent hoists allocation via useMemo, use that directly (no double computation).
@@ -136,20 +139,37 @@ export function BudgetAllocationWidget({
       {/* Per-service breakdown */}
       {visibleServices.length > 0 && (
         <div className="px-4 py-3 space-y-1.5">
+          {/* Column headers */}
+          <div className="flex items-center justify-between gap-2 pb-1 border-b border-border/50">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide flex-1">
+              Servicio
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] text-muted-foreground w-10 text-right">%</span>
+              <span className="text-[10px] text-muted-foreground w-20 text-right">Anual</span>
+              <span className="text-[10px] text-muted-foreground w-20 text-right">
+                /mes{monthCount < 12 ? ` (÷${monthCount})` : ""}
+              </span>
+            </div>
+          </div>
+
           {topServices.map((svc) => (
             <div
               key={svc.serviceId}
               className="flex items-center justify-between gap-2"
             >
-              <span className="truncate text-muted-foreground max-w-[100px]" title={svc.serviceName}>
+              <span className="truncate text-muted-foreground max-w-[90px]" title={svc.serviceName}>
                 {svc.serviceName}
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs text-muted-foreground w-10 text-right">
                   {(svc.chosenPct * 100).toFixed(1)}%
                 </span>
-                <span className="font-medium w-28 text-right text-xs">
+                <span className="font-medium w-20 text-right text-xs">
                   {formatCurrency(svc.annualAmount)}
+                </span>
+                <span className="text-xs text-muted-foreground w-20 text-right">
+                  {formatCurrency(monthCount > 0 ? svc.annualAmount / monthCount : 0)}
                 </span>
               </div>
             </div>
@@ -157,12 +177,49 @@ export function BudgetAllocationWidget({
 
           {restServices.length > 0 && (
             <div className="flex items-center justify-between gap-2 text-muted-foreground">
-              <span>+ {restServices.length} más</span>
-              <span className="font-medium text-xs w-28 text-right">
-                {formatCurrency(restAmount)}
-              </span>
+              <span className="text-xs">+ {restServices.length} más</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="w-10" />
+                <span className="font-medium text-xs w-20 text-right">
+                  {formatCurrency(restAmount)}
+                </span>
+                <span className="text-xs w-20 text-right">
+                  {formatCurrency(monthCount > 0 ? restAmount / monthCount : 0)}
+                </span>
+              </div>
             </div>
           )}
+
+          {/* Total assigned footer */}
+          <div className="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-border/50">
+            <span className="text-xs font-semibold text-foreground">Total asignado</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className={cn(
+                  "text-xs font-semibold w-10 text-right",
+                  isOverBudget ? "text-destructive" : isBalanced ? "text-emerald-500" : "text-foreground"
+                )}
+              >
+                {budget > 0 ? ((assigned / budget) * 100).toFixed(1) : "0.0"}%
+              </span>
+              <span
+                className={cn(
+                  "font-semibold w-20 text-right text-xs",
+                  isOverBudget ? "text-destructive" : isBalanced ? "text-emerald-500" : "text-foreground"
+                )}
+              >
+                {formatCurrency(assigned)}
+              </span>
+              <span
+                className={cn(
+                  "text-xs w-20 text-right font-medium",
+                  isOverBudget ? "text-destructive" : "text-muted-foreground"
+                )}
+              >
+                {formatCurrency(monthCount > 0 ? assigned / monthCount : 0)}
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
