@@ -76,7 +76,13 @@ function NuevaProyeccionContent() {
   const searchParams = useSearchParams();
   const preselectedClientId = searchParams.get("clientId");
   const preselectedPreviousProjectionId = searchParams.get("previousProjectionId");
-  const explicitDraftId = searchParams.get("draftId") as Id<"projectionDrafts"> | null;
+  const rawDraftId = searchParams.get("draftId");
+  // Convex IDs are alphanumeric strings; quick sanity check before passing
+  // to the query (prevents Convex server validation error crash on garbage input)
+  const explicitDraftId =
+    rawDraftId && /^[a-z0-9]+$/i.test(rawDraftId)
+      ? (rawDraftId as Id<"projectionDrafts">)
+      : null;
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -479,6 +485,13 @@ function NuevaProyeccionContent() {
               Empezar de nuevo
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Stale/deleted/cross-org draft notice */}
+      {explicitDraftId && explicitDraftFull === null && (
+        <div className="rounded-md border-l-4 border-red-500 bg-red-50 p-3 text-sm text-red-900">
+          El borrador no existe o no tienes permiso para abrirlo. Empieza una nueva proyección desde cero.
         </div>
       )}
 
