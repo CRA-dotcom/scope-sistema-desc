@@ -15,6 +15,7 @@ import {
   Layers,
   Plus,
   ExternalLink,
+  FileOutput,
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -134,6 +135,13 @@ export default function ClientDetailPage() {
           >
             <GitBranchPlus size={14} />
             Ver Ciclo Documental
+          </Link>
+          <Link
+            href={`/clientes/${clientId}/entregables`}
+            className="flex items-center gap-2 rounded-md bg-accent/10 border border-accent/30 px-3 py-2 text-sm text-accent hover:bg-accent/20 transition-colors cursor-pointer"
+          >
+            <FileOutput size={14} />
+            Entregables
           </Link>
           <Link
             href={`/clientes/${clientId}/editar`}

@@ -102,3 +102,59 @@ export const getById = query({
     return deliverable;
   },
 });
+
+export const listByClientMatrix = query({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgIdSafe(ctx);
+    if (!orgId) return { services: [], months: [] };
+
+    const rows = await ctx.db
+      .query("deliverables")
+      .withIndex("by_clientId", (q) => q.eq("clientId", args.clientId))
+      .collect();
+
+    const mine = rows.filter((d) => d.orgId === orgId);
+
+    // Group by projServiceId
+    const byService = new Map<
+      string,
+      {
+        projServiceId: string;
+        serviceName: string;
+        deliverables: typeof mine;
+      }
+    >();
+
+    for (const d of mine) {
+      const key = d.projServiceId as unknown as string;
+      if (!byService.has(key)) {
+        byService.set(key, {
+          projServiceId: key,
+          serviceName: d.serviceName,
+          deliverables: [],
+        });
+      }
+      byService.get(key)!.deliverables.push(d);
+    }
+
+    const services = [...byService.values()].map((s) => ({
+      ...s,
+      deliverables: s.deliverables
+        .map((d) => ({
+          _id: d._id,
+          assignmentId: d.assignmentId,
+          month: d.month,
+          year: d.year,
+          auditStatus: d.auditStatus,
+          deliveredAt: d.deliveredAt,
+          createdAt: d.createdAt,
+        }))
+        .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month)),
+    }));
+
+    const allMonths = [...new Set(mine.map((d) => d.month))].sort((a, b) => a - b);
+
+    return { services, months: allMonths };
+  },
+});
