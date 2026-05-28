@@ -1,5 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+  documentEventEntityTypeValidator,
+  documentEventTypeValidator,
+} from "./lib/documentEventTypes";
 
 export default defineSchema({
   organizations: defineTable({
@@ -959,35 +963,9 @@ export default defineSchema({
   documentEvents: defineTable({
     orgId: v.string(),
     clientId: v.optional(v.id("clients")),
-    entityType: v.union(
-      v.literal("deliverable"),
-      v.literal("invoice"),
-      v.literal("quotation"),
-      v.literal("contract"),
-      v.literal("template"),
-      v.literal("subservice"),
-      v.literal("questionnaire"),
-      v.literal("financial_data"),
-      v.literal("projection")
-    ),
+    entityType: documentEventEntityTypeValidator,
     entityId: v.string(),
-    eventType: v.union(
-      v.literal("created"),
-      v.literal("updated"),
-      v.literal("sent"),
-      v.literal("signed"),
-      v.literal("paid"),
-      v.literal("generated"),
-      v.literal("audited"),
-      v.literal("deleted"),
-      v.literal("personalized"),
-      v.literal("restored"),
-      v.literal("reminder_sent"),
-      v.literal("uploaded"),
-      v.literal("voided"),
-      v.literal("error"),
-      v.literal("reopened")
-    ),
+    eventType: documentEventTypeValidator,
     severity: v.union(
       v.literal("info"),
       v.literal("warning"),

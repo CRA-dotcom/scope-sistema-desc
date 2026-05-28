@@ -55,16 +55,19 @@ describe("/platform/audit — filter wiring", () => {
     expect(source).toContain('data-testid="filter-client"');
   });
 
-  it("renders an Entidad dropdown with all 7 entityType options", () => {
+  it("renders an Entidad dropdown driven by the shared DOCUMENT_EVENT_ENTITY_TYPES constant (9 types)", () => {
     expect(source).toContain('data-testid="filter-entity"');
-    // ENTITY_TYPES array must list all 7 union members per schema §2.3.
-    expect(source).toContain('"deliverable"');
-    expect(source).toContain('"invoice"');
-    expect(source).toContain('"quotation"');
-    expect(source).toContain('"contract"');
-    expect(source).toContain('"template"');
-    expect(source).toContain('"subservice"');
-    expect(source).toContain('"questionnaire"');
+    // Entity types are now sourced from convex/lib/documentEventTypes.ts (DRY
+    // refactor, SS7 fix). The page imports DOCUMENT_EVENT_ENTITY_TYPES and
+    // spreads it into ENTITY_TYPES, so the individual string literals no longer
+    // appear inline — verify the import and the spread instead.
+    expect(source).toContain("DOCUMENT_EVENT_ENTITY_TYPES");
+    expect(source).toContain("documentEventTypes");
+    // Labels map must cover all 9 union members including SS7 additions.
+    expect(source).toContain('"financial_data"');
+    expect(source).toContain('"projection"');
+    expect(source).toContain("Proyección");
+    expect(source).toContain("Datos financieros");
   });
 
   it("renders Severity chips (info / warning / error)", () => {

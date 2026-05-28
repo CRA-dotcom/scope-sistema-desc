@@ -14,16 +14,13 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { formatLocalDateTime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
+import {
+  DOCUMENT_EVENT_ENTITY_TYPES,
+  type DocumentEventEntityType,
+} from "../../../../convex/lib/documentEventTypes";
 
-// Schema-mirroring local types — keep in sync with documentEvents schema.
-type EntityType =
-  | "deliverable"
-  | "invoice"
-  | "quotation"
-  | "contract"
-  | "template"
-  | "subservice"
-  | "questionnaire";
+// Alias for local use — single source of truth is convex/lib/documentEventTypes.ts
+type EntityType = DocumentEventEntityType;
 
 type Severity = "info" | "warning" | "error";
 
@@ -67,17 +64,11 @@ const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
   template: "Plantilla",
   subservice: "Subservicio",
   questionnaire: "Cuestionario",
+  "financial_data": "Datos financieros",
+  "projection": "Proyección",
 };
 
-const ENTITY_TYPES: EntityType[] = [
-  "deliverable",
-  "invoice",
-  "quotation",
-  "contract",
-  "template",
-  "subservice",
-  "questionnaire",
-];
+const ENTITY_TYPES: EntityType[] = [...DOCUMENT_EVENT_ENTITY_TYPES];
 
 const SEVERITY_OPTIONS: Severity[] = ["info", "warning", "error"];
 

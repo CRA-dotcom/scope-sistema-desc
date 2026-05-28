@@ -5,6 +5,7 @@ import {
   isSuperAdminFromIdentity,
   requireAuth,
 } from "../../lib/authHelpers";
+import { documentEventEntityTypeValidator } from "../../lib/documentEventTypes";
 
 /**
  * A3 — Audit queries for `documentEvents`.
@@ -15,15 +16,7 @@ import {
  * their own orgId regardless of what `args.orgId` says.
  */
 
-const entityTypeUnion = v.union(
-  v.literal("deliverable"),
-  v.literal("invoice"),
-  v.literal("quotation"),
-  v.literal("contract"),
-  v.literal("template"),
-  v.literal("subservice"),
-  v.literal("questionnaire")
-);
+const entityTypeUnion = documentEventEntityTypeValidator;
 
 const severityUnion = v.union(
   v.literal("info"),

@@ -1,5 +1,9 @@
 import { internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
+import {
+  documentEventEntityTypeValidator,
+  documentEventTypeValidator,
+} from "../../lib/documentEventTypes";
 
 /**
  * A3 — Append-only document lifecycle event wrapper.
@@ -16,22 +20,7 @@ import { v } from "convex/values";
  * Per docs/superpowers/specs/2026-05-23-document-lifecycle-design.md §3.5
  */
 
-const eventTypeUnion = v.union(
-  v.literal("created"),
-  v.literal("updated"),
-  v.literal("sent"),
-  v.literal("signed"),
-  v.literal("paid"),
-  v.literal("generated"),
-  v.literal("audited"),
-  v.literal("deleted"),
-  v.literal("personalized"),
-  v.literal("restored"),
-  v.literal("reminder_sent"),
-  v.literal("uploaded"),
-  v.literal("voided"),
-  v.literal("error")
-);
+const eventTypeUnion = documentEventTypeValidator;
 
 const severityUnion = v.union(
   v.literal("info"),
@@ -39,16 +28,7 @@ const severityUnion = v.union(
   v.literal("error")
 );
 
-const entityTypeUnion = v.union(
-  v.literal("deliverable"),
-  v.literal("invoice"),
-  v.literal("quotation"),
-  v.literal("contract"),
-  v.literal("template"),
-  v.literal("subservice"),
-  v.literal("questionnaire"),
-  v.literal("financial_data")
-);
+const entityTypeUnion = documentEventEntityTypeValidator;
 
 const actorTypeUnion = v.union(
   v.literal("user"),
