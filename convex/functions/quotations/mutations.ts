@@ -439,3 +439,18 @@ export const setPdfStorageId = mutation({
     await ctx.db.patch(args.id, { pdfStorageId: args.pdfStorageId });
   },
 });
+
+export const deleteQuotation = mutation({
+  args: { id: v.id("quotations") },
+  handler: async (ctx, args) => {
+    const orgId = await getOrgId(ctx);
+    const q = await ctx.db.get(args.id);
+    if (!q || q.orgId !== orgId) throw new Error("Cotización no encontrada.");
+    if (q.status !== "draft") {
+      throw new Error(
+        "Solo cotizaciones en estado borrador pueden eliminarse."
+      );
+    }
+    await ctx.db.delete(args.id);
+  },
+});

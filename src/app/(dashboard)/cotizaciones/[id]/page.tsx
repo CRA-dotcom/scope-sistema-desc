@@ -18,6 +18,8 @@ import {
   Plus,
   ArrowRight,
   Layers,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -78,6 +80,11 @@ export default function QuotationDetailPage() {
   );
   const orgBranding = useQuery(api.functions.orgBranding.queries.getByOrgId);
   const [isGeneratingContract, setIsGeneratingContract] = useState(false);
+  const deleteQuotationMutation = useMutation(
+    api.functions.quotations.mutations.deleteQuotation
+  );
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleGenerateContract = async () => {
     try {
@@ -239,6 +246,16 @@ export default function QuotationDetailPage() {
           >
             <Edit3 size={16} />
             Editar Contenido
+          </button>
+        )}
+
+        {isDraft && !editing && (
+          <button
+            onClick={() => setDeleteOpen(true)}
+            className="flex items-center gap-2 rounded-md border border-red-500/40 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+          >
+            <Trash2 size={16} />
+            Borrar cotización
           </button>
         )}
 
@@ -428,6 +445,63 @@ export default function QuotationDetailPage() {
           quotationId={quotation._id}
           onClose={() => setSendDialogOpen(false)}
         />
+      )}
+
+      {/* Delete confirm dialog */}
+      {deleteOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmar borrado de cotización"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setDeleteOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setDeleteOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-card p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={22} />
+              <div>
+                <h2 className="text-lg font-semibold">¿Borrar cotización?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Esta acción no se puede deshacer. La cotización se eliminará permanentemente.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(false)}
+                disabled={isDeleting}
+                className="rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  try {
+                    setIsDeleting(true);
+                    await deleteQuotationMutation({ id: quotation._id });
+                    router.push("/cotizaciones");
+                  } catch (err) {
+                    console.error("Error al borrar cotización:", err);
+                    setIsDeleting(false);
+                    setDeleteOpen(false);
+                  }
+                }}
+                className="rounded-md bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? "Borrando..." : "Sí, borrar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
