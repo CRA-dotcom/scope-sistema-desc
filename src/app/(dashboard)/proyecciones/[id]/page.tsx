@@ -6,7 +6,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2, AlertTriangle } from "lucide-react";
 // SS3-T4: month labels for the window picker selectors
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -96,6 +96,15 @@ export default function ProjectionDetailPage() {
     api.functions.projections.queries.hasSuccessor,
     authReady && projection ? { projectionId: projection._id } : "skip"
   );
+
+  // SS7-F3: "Editar desde el inicio" state + hooks
+  const [reEditOpen, setReEditOpen] = useState(false);
+  const downstream = useQuery(
+    api.functions.projections.queries.getDownstreamSummary,
+    reEditOpen && projection ? { projectionId: projection._id } : "skip"
+  );
+  const cloneToDraft = useMutation(api.functions.projections.mutations.cloneProjectionToDraft);
+  const [reEditSaving, setReEditSaving] = useState(false);
 
   const handleGenerateQuestionnaire = async () => {
     try {
@@ -205,6 +214,14 @@ export default function ProjectionDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setReEditOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+          >
+            Editar desde el inicio
+          </button>
+
           <button
             type="button"
             onClick={handleDownloadPdf}
@@ -506,6 +523,76 @@ export default function ProjectionDetailPage() {
           </tbody>
         </table>
       </div>
+
+      {/* SS7-F3: Re-edit warning modal */}
+      {reEditOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Re-editar proyección desde el inicio"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setReEditOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setReEditOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-card p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={22} />
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold">Re-editar proyección</h2>
+                <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                  <p>Re-editar esta proyección desde el inicio borrará todos los documentos generados a partir de ella:</p>
+                  {downstream ? (
+                    <ul className="ml-4 list-disc space-y-1">
+                      <li>{downstream.quotations} cotizaciones</li>
+                      <li>{downstream.contracts} contratos</li>
+                      <li>{downstream.invoices} facturas</li>
+                      <li>{downstream.deliverables} entregables</li>
+                      <li>{downstream.assignments} asignaciones mensuales</li>
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground">Cargando…</p>
+                  )}
+                  <p className="font-medium text-foreground">Esta acción no se puede deshacer.</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReEditOpen(false)}
+                disabled={reEditSaving}
+                className="rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!downstream || reEditSaving}
+                onClick={async () => {
+                  if (!projection) return;
+                  try {
+                    setReEditSaving(true);
+                    const draftId = await cloneToDraft({ projectionId: projection._id });
+                    setReEditOpen(false);
+                    router.push(`/proyecciones/nueva?draftId=${draftId}`);
+                  } catch (err) {
+                    console.error("Error al clonar proyección:", err);
+                    setReEditSaving(false);
+                  }
+                }}
+                className="rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {reEditSaving ? "Procesando..." : "Sí, re-editar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cell Detail Panel */}
       {selectedAssignment && (
