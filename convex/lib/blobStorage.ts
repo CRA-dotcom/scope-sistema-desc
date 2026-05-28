@@ -13,7 +13,8 @@ export type ClientScopedBlobKind =
   | "deliverables"
   | "quotations"
   | "contracts"
-  | "invoices";
+  | "invoices"
+  | "finanzas";
 
 export type BuildKeyArgs =
   | {

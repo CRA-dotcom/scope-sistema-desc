@@ -961,7 +961,8 @@ export default defineSchema({
       v.literal("contract"),
       v.literal("template"),
       v.literal("subservice"),
-      v.literal("questionnaire")
+      v.literal("questionnaire"),
+      v.literal("financial_data")
     ),
     entityId: v.string(),
     eventType: v.union(

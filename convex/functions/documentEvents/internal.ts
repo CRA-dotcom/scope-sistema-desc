@@ -46,7 +46,8 @@ const entityTypeUnion = v.union(
   v.literal("contract"),
   v.literal("template"),
   v.literal("subservice"),
-  v.literal("questionnaire")
+  v.literal("questionnaire"),
+  v.literal("financial_data")
 );
 
 const actorTypeUnion = v.union(
