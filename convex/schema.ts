@@ -891,6 +891,7 @@ export default defineSchema({
     .index("by_orgId_clientId", ["orgId", "clientId"])
     .index("by_orgId_clientId_year_month", ["orgId", "clientId", "year", "month"])
     .index("by_orgId_status", ["orgId", "status"])
+    .index("by_projectionId", ["projectionId"])
     .index("by_projServiceId", ["projServiceId"])
     .index("by_monthlyAssignmentId", ["monthlyAssignmentId"]),
 
