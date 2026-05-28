@@ -1,168 +1,59 @@
-# Handoff — Próxima sesión (post 2026-05-27 EOD)
+# Handoff — Próxima sesión (post 2026-05-27 EOD · SS4 V1 cerrada)
 
-**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS5, SS6 cerrados en `main` + **8 adversarial fixes aplicados** (3 críticos + 5 importantes). SS4 spec+plan ready, ejecución diferida.
+**Misión:** Sacar a mercado lo más rápido posible. SS0, SS1, SS2-foundation, SS3, SS4-V1, SS5, SS6 cerrados en `main`. SS2 final + F6 contador siguen abiertos.
 
-**Sesión origen:** 2026-05-26 → 2026-05-27 (SS2 brainstorm + ejecución parcial + SS5 + SS3 + SS6 full cycle + SS4 spec/plan + adversarial review + 8 fixes)
-**Estado código:** `main` **60 commits** ahead de `origin/main`. Tests **961 passed | 1 skipped**. TypeScript clean (excepto pre-existing `useDebouncedAutosave` ortogonal). Sin push (per `feedback_no_push_default`).
-
----
-
-## 🚨 ADVERSARIAL REVIEW — 14 FINDINGS (8 FIXED, 1 DEFERRED, 5 ACCEPTED)
-
-Ejecutado al cierre del turno. Revisor adversarial con persona "Codex hizo todo, malhumorado". Pidió ver SS3 + SS5 + SS6 (range `76140d8..5338f72`).
-
-**Fix summary:**
-
-| Finding | Severidad | Status | Commit |
-|---|---|---|---|
-| F1 setAnnualAmount rompe dynamic_retainer | CRÍTICO | ✅ Fixed | `a9eb330` |
-| F2 Auth-before-read order | IMPORTANTE | ✅ Fixed | `1db1efb` |
-| F3 discount=0 ≠ undefined | CRÍTICO | ✅ Fixed | `254651d` |
-| F4 getYearOverYearHint O(N) scan | IMPORTANTE | ✅ Fixed | `03b9141` |
-| F5 CFDI parser solo dobles comillas | IMPORTANTE | ✅ Fixed | `c85b248` |
-| F6 CFDI timezone UTC vs CDMX | IMPORTANTE | 🔴 **DEFERIDO — requiere contador** | — |
-| F7 Engine divide por FE chico | IMPORTANTE | ✅ Fixed | `f8010b1` |
-| F8 updateContractualWindow no recalc | CRÍTICO | ✅ Fixed | `5e4e91d` |
-| F9 UI window picker default-mixing | IMPORTANTE | ✅ Fixed | `c2d72d9` |
-| F10 Migration concurrent | MEDIO | ⚪ Aceptable | — |
-| F11 CFDI parser test coverage gap | MEDIO | ⚪ Cubierto por F5 fix tests | — |
-| F12 listForBilling org scan | MEDIO | ⚪ Pre-existente, no regresión | — |
-| F13 Test no discrimina | MENOR | ⚪ Aceptable | — |
-| F14 N+1 useQuery | MENOR | ⚪ Aceptable con volumen actual | — |
-
-**Detalle de los fixes (8 commits):**
-
-- `254651d` — F3: reject `discount=0`, must be > 0 or undefined
-- `a9eb330` — F1: `setAnnualAmount` triggers per-row recalc preserving overrides
-- `5e4e91d` — F8: `updateContractualWindow` recalcs `monthlyAssignments`
-- `1db1efb` — F2: auth check before read en `setYearOverYearDiscount`
-- `03b9141` — F4: `getYearOverYearHint` uses `by_clientId` index + orgId filter
-- `c85b248` — F5: CFDI parser regex acepta single quotes
-- `f8010b1` — F7: engine clamp `sumFE >= 0.1` con fallback uniform allocation
-- `c2d72d9` — F9: UI picker stores literal choices + botón "↺ Limpiar ventana"
-
-**Decisión técnica (F1/F8 fix):** extraído helper `recalcOneServiceCells` en `convex/functions/projectionServices/mutations.ts` que respeta `isManuallyOverridden` y redistribuye sobre cells eligible. TODO documenta la duplicación con `projections/mutations.ts:recalculate` para futuro refactor.
-
-### 🔴 F6 — Pendiente validar con contador
-
-Decisión necesaria: `Fecha` del CFDI ¿debe guardarse como hora local CDMX o UTC? Hoy el parser asume UTC (naive datetime + `Z`). Si tu contador interpreta `Fecha="2026-01-31T23:30:00"` como 31-ene 23:30 CDMX, el código actual lo guarda como 31-ene 23:30 UTC = 01-feb 05:30 CDMX → pierde el mes fiscal correcto.
-
-**Acción pendiente:** confirmar semántica fiscal con contador y actualizar `convex/lib/cfdiParser.ts` accordingly (probablemente parsing como CDMX = UTC-6 / UTC-5 DST).
-
-### CRÍTICO — fix antes de cualquier demo
-
-**F1. `setAnnualAmount` (SS6 mutation) rompe dynamic_retainer**
-`convex/functions/projectionServices/mutations.ts:90-104`
-- Patcha `annualAmount` directo, NO toca `monthlyAssignments`.
-- Para `dynamic_retainer` (cells `isManuallyOverridden=true`): suma mensual deja de cuadrar con `annualAmount`.
-- Botón "Aplicar año 2+" en `/proyecciones/[id]` dispara esto.
-- **Fix:** o llamar recalc, o avisar al admin si hay overrides activos, o deshabilitar el botón en presencia de overrides.
-
-**F2. `setYearOverYearDiscount` lee antes de auth check**
-`convex/functions/subservices/mutations.ts:382-414`
-- `db.get(subserviceId)` precede a `requireAdmin`/`requireSuperAdmin`. Hoy no leak directo, patrón incorrecto si helpers cambian.
-- **Fix:** auth first, read second.
-
-**F3. `discount=0` ≠ `discount=undefined` — bug semántico SS6**
-`convex/functions/subservices/queries.ts:138`
-- `getYearOverYearHint` filtra `discount===0` como "no available".
-- Admin escribe "0" en config → guarda 0 → hint dice "no configurado" silenciosamente.
-- **Fix:** distinguir 0 (explícito, sin descuento) de undefined (sin configurar) en hint logic + UI.
-
-### IMPORTANTE — fix antes de prod
-
-**F4. `getYearOverYearHint` escán completo de projections del org por celda**
-`convex/functions/subservices/queries.ts:143-150`
-- `.withIndex("by_orgId").collect()` + filter en memoria por clientId.
-- Llamado dentro de `useQuery` por cada `projectionService` activo.
-- O(N_proyecciones × N_servicios) por render.
-- **Fix:** usar `by_clientId` index o agregar `by_orgId_clientId` index.
-
-**F5. CFDI parser solo matchea doble comillas**
-`convex/lib/cfdiParser.ts:5`
-- `FECHA_REGEX = /\bFecha\s*=\s*"([^"]+)"/`
-- PACs que serializan con single quotes (Facturama) fallan → "missing Fecha".
-- **Fix:** regex que acepte ambos.
-
-**F6. CFDI date treatment como UTC — bug fiscal 🔥**
-`convex/lib/cfdiParser.ts:33-37`
-- Comment dice "treat as UTC for consistent storage"; SAT `Fecha` es hora LOCAL México.
-- Factura emitida 31-ene 23:30 CDMX → guardada como 1-feb UTC → pierde el mes fiscal correcto.
-- **Validar con contador antes de cualquier filtro fiscal mensual.**
-- **Fix:** parsear como CDMX (-06:00 / -05:00 DST) o guardar string original sin parsing, depende de cómo se use downstream.
-
-**F7. Engine SS3: división por FE patológicamente bajo**
-`convex/lib/projectionEngine.ts:447-463`
-- Si ventana = 1 mes con FE muy chico (ej 0.001), `monthlyBase = annualAmount/0.001 = 1000×`.
-- Guard `sumFE > 0` no lo atrapa.
-- **Fix:** clamp mínimo de sumFE o fallback a distribución uniforme.
-
-**F8. `updateContractualWindow` no recalcula — UI miente 🔥**
-`convex/functions/projectionServices/mutations.ts:121-163`
-- Cambiar window [1..12] → [7..12] persiste field pero `monthlyAssignments` quedan intactos.
-- Matrix muestra `—` en meses 1-6 PERO los amounts reales siguen >0.
-- Total anual visible diverge del total mensual.
-- **Fix:** mutation debe llamar recalc engine + patch monthly assignments.
-
-**F9. UI window picker default-mixing**
-`src/app/(dashboard)/proyecciones/[id]/page.tsx:365-417`
-- Logic `newStart = val === projection.startMonth && svc.endMonth === undefined ? undefined : val` mezcla "default proyección" con "ventana servicio".
-- Si projection.startMonth=7, admin escogiendo "julio" se interpreta como "clear override" pero pudo ser explícito.
-- **Fix:** botón "Reset" explícito o lógica más clara.
-
-### MEDIO
-
-**F10.** Migration `invoiceIssueDate.migrate` no atómica entre invocaciones (idempotente sí, eficiente no). Aceptable.
-
-**F11.** CFDI parser: tests no cubren XML con declaración namespace en root sin prefijo.
-
-**F12.** `listForBilling` ya hace full scan por org (pre-existente); nuevo filtro empeora pero no introduce regresión.
-
-### MENOR
-
-**F13.** Test "one_time startMonth=undefined" pasa por casualidad (comportamiento legacy), no certifica nada nuevo.
-
-**F14.** `<YearOverYearChip>` componente correcto vs rules-of-hooks; crea N+1 `useQuery` (N = servicios activos). Aceptable hasta 30+ servicios; revisar con volumen real.
+**Sesión origen:** 2026-05-27 (SS4 V1 full cycle — schema + xlsx + parsers + actions + mutations + queries + UI + feed deliverable)
+**Estado código:** `main` **70 commits** ahead de `origin/main`. Tests **1017 passed | 1 skipped**. TypeScript clean (excepto pre-existing `useDebouncedAutosave` ortogonal). Sin push (per `feedback_no_push_default`).
 
 ---
 
-## 🎯 Lo que se cerró este turno
+## 🎯 Lo que se cerró este turno (SS4 V1)
 
-### Sub-spec 2 — Contratos + Firmame (foundation merged)
+### Sub-spec 4 — Estados financieros ingestion ✅
 
-Merge `76140d8` previo a este turno. Branch `feature/sub-spec-2-contracts-firmame` preservada. 16/26 tasks done. T11-T18 GATED en Firmame API docs.
+10 commits implementando V1 completo (Excel + AI extraction + UI + feed a Claude).
 
-### Sub-spec 5 — Invoice issue date ✅
+| Commit | Contenido |
+|---|---|
+| `b34a339` | T1 schema: tabla `clientFinancialData` + flag `subservices.isFinancialRelated` |
+| `a1b5478` | T2 xlsx dependency |
+| `419d457` | T3 `excelParser` helper + 6 tests (TDD) |
+| `2c24822` | T4 `financialExtractionPrompt` + parser + 13 tests |
+| `1faeffc` | T5 upload + extractInternal actions + 6 upload tests |
+| `94f455d` | T6 extractInternal tests (5 tests; retry/error/idempotence) |
+| `0caf0b0` | T7 validation mutations (markValidated/markRejected/manuallySetLineItems) + deleteRecord action + 13 tests |
+| `3cbf8f5` | T8+T9 listByClient + getFinancialContext queries + 9 tests |
+| `de555d2` | T10-T12 UI page + UploadForm + PeriodsTable + ViewerDrawer |
+| `c1b0a1d` | T13 generateDeliverable feeds financial context + checkbox UI subservicios + 4 tests |
 
-11 commits TDD. Schema + CFDI parser + migración + mutation + query + UI. **⚠ F6 bug fiscal pendiente.**
+**Side schema changes (no breaking):**
+- `documentEvents.entityType` ahora acepta `"financial_data"`
+- `ClientScopedBlobKind` ahora acepta `"finanzas"` (Railway S3 path `<orgId>/<clientId>/finanzas/<period>-<filename>`)
+- `subservices.isFinancialRelated: v.optional(v.boolean())`
+- `subservices.create` y `update` mutations aceptan `isFinancialRelated`
 
-### Sub-spec 3 — Per-service start month + endMonth window ✅
-
-5 commits + 2 docs. Hallazgo: `startMonth`+`endMonth` ya existían en schema (B1 add-on). Engine, mutation, UI window picker + matrix dash. **⚠ F8 critical: mutation no recalc.**
-
-### Sub-spec 6 — Year-over-year update tier ✅
-
-5 commits + 2 docs. Schema + mutation + query + UI config + matrix chip. Decisión autopilot: % fijo per subservicio, admin opt-in. **⚠ F1 + F3 críticos pendientes.**
-
-### Sub-spec 4 — Financial statements ingestion 📋 (spec + plan only)
-
-`docs/superpowers/specs/2026-05-27-financial-statements-ingestion-design.md` + `docs/superpowers/plans/2026-05-27-financial-statements-ingestion.md`.
-- V1 Excel only (PDF/OCR diferido V2)
-- AI extraction con Claude
-- ~14 tareas, 5-7 días
-- Ejecución diferida a próxima sesión por scope
+**Flujo end-to-end (admin):**
+1. Admin marca subservicio como "Relacionado a finanzas" en `/configuracion/subservicios`.
+2. Admin va a `/clientes/[id]/finanzas`, sube Excel + periodo + tipo.
+3. Sistema sube blob a Railway S3, inserta row `status=uploaded`, schedule `extractInternal`.
+4. `extractInternal` descarga blob, parsea Excel, llama Claude con prompt versionado, patcha row con `lineItems[]` + `aiExtraction { model, promptVersion, costUsd, rawSnippet }`, `status=extracted`. Retry 3x con backoff exponencial; fallo total → `status=error` + `errorMessage`.
+5. Admin revisa line items agrupados por categoría en `ViewerDrawer`. Acciones: Validar / Rechazar (con razón) / Borrar / Descargar.
+6. Cuando se genera entregable para subservicio con `isFinancialRelated=true`, `generateDeliverable` busca el row validado más reciente `period <= ${year}-${month}` y lo inyecta al prompt Claude en sección `DATOS FINANCIEROS DEL CLIENTE` agrupada por categoría.
 
 ### Test count progression
 
 | Punto | Tests |
 |---|---|
-| Inicio turno (post SS2 merge) | 905 |
-| Post-SS5 | 927 |
-| Post-SS3 | 941 |
-| Post-SS6 | 951 |
-| **Final session** | **951 passed / 1 skipped** |
+| Inicio sesión (post adversarial fixes) | 961 |
+| Post T3 excelParser | 967 |
+| Post T4 prompt parser | 980 |
+| Post T5 upload action | 986 |
+| Post T6 extractInternal | 991 |
+| Post T7 mutations | 1004 |
+| Post T8+T9 queries | 1013 |
+| **Post T13 final (financial context test)** | **1017 / 1 skipped** |
 
-(+78 tests, ningún test broken)
+(+56 tests, meta T14 era ≥970 — superada con margen)
 
 ---
 
@@ -174,14 +65,14 @@ Merge `76140d8` previo a este turno. Branch `feature/sub-spec-2-contracts-firmam
 | 1 — Deliverable content catalog | ✅ main + hardened |
 | 2 — Contratos + Firmame | ⚙️ Foundation main. T11-T18 GATED |
 | 3 — Per-service start month | ✅ main + 3 fixes (F7+F8+F9 done) |
-| 4 — Financial statements ingestion | 📋 Spec + plan ready, exec diferida |
+| 4 — Financial statements ingestion | ✅ **V1 main** (este turno) |
 | 5 — Invoice issue date | ✅ main + 1 fix (F5 done; ⚠ F6 pendiente contador) |
 | 6 — Year-over-year tier | ✅ main + 4 fixes (F1+F2+F3+F4 done) |
 | 7 — Queue + scale infra | Post-MVP |
 
 ---
 
-## 🔴 Research items pendientes
+## 🔴 Research items pendientes (sin cambios desde turno previo)
 
 ### #1 — Contratos HTML iniciales (papá)
 Min 1 contrato HTML para DESC org + 1 issuing company + 1-2 subservicios. Bloquea producción SS2, no código.
@@ -192,6 +83,9 @@ Bloquea SS2 T11-T18 (8 tareas, ~3-4 días). Modelo: managed-BYO (memoria `projec
 ### #3 — Validar timezone CFDI con contador (F6)
 Antes de cualquier filtro fiscal mensual en producción, confirmar con contador si `issueDate` debe ser local CDMX o UTC. F6 puede llevarse facturas al mes anterior/siguiente.
 
+### #4 — V2 SS4: PDF + OCR
+V1 acepta sólo Excel. PDF + OCR (Claude vision) diferido a V2 una vez que el flujo Excel esté validado en producción.
+
 ---
 
 ## Cómo arrancar próxima sesión
@@ -199,83 +93,101 @@ Antes de cualquier filtro fiscal mensual en producción, confirmar con contador 
 ```bash
 cd /Users/christiandarrelcoverlozano/Desktop/Projects/DESC
 git status                              # working tree clean
-git log --oneline -10                   # ver últimos commits
-npm test 2>&1 | tail -3                 # baseline 951
+git log --oneline -10                   # ver últimos commits SS4
+npm test 2>&1 | tail -3                 # baseline 1017
 npx tsc --noEmit 2>&1 | grep -v useDebouncedAutosave | head -5  # clean
 ```
 
-### Opción A — Validar F6 con contador + fix timezone
+### Opción A — Smoke browser SS4
+Único pendiente antes de declarar SS4 producción-ready. Flow:
+1. `/configuracion/subservicios` → marcar 1 subservicio como "Relacionado a finanzas".
+2. `/clientes/[id]/finanzas` → subir un Excel real, ver row `uploaded` → `extracted` en unos segundos.
+3. Abrir drawer, revisar line items agrupados, validar.
+4. Generar entregable de ese subservicio para el mes → confirmar que el HTML resultante refleja los datos financieros (o pedir a Claude que los cite explícitamente vía template variable AI).
 
+Necesita `ANTHROPIC_API_KEY` accesible al deployment Convex + Railway S3 creds activas.
+
+### Opción B — Validar F6 con contador + fix timezone
 Único finding pendiente que afecta producción. Decide con contador: ¿CFDI `Fecha` es hora local CDMX o UTC? Después del input, fix en `convex/lib/cfdiParser.ts` toma 30 min.
 
-### Opción B — Ejecutar SS4 (financial statements V1)
-
-Plan listo en `docs/superpowers/plans/2026-05-27-financial-statements-ingestion.md`. 14 tareas, 5-7 días. Independiente de las correcciones del adversarial review.
-
 ### Opción C — Continuar SS2 si tienes Firmame docs
-
 Branch `feature/sub-spec-2-contracts-firmame` preservada. T11-T18 desbloqueados con docs.
+
+### Opción D — SS4 polish / V2 prep
+- Validación adversarial del flujo SS4 entero (ya cerrado V1 pero sin adversarial pass).
+- Considerar PDF+OCR (V2).
+- Edit inline de line items (V2; V1 tiene `manuallySetLineItems` replace-all).
+- Comparativas multi-periodo (V2 dashboard).
 
 ---
 
 ## Action items manuales (Christian)
 
-1. **Validar timezone CFDI con contador (F6)** — único finding pendiente que afecta prod
-2. **Conseguir Firmame API docs + sandbox key** — SS2 final
-3. **Crear contratos HTML iniciales** para DESC
-4. **Decidir push a origin/main** (60 commits ahead)
-5. **Smoke browser** flows nuevos (`/contratos`, `/facturacion`, `/proyecciones/[id]`)
-6. **Decidir** próximo: SS4 exec o esperar Firmame docs
+1. **Smoke browser SS4** — flow upload Excel → validar → generar entregable
+2. **Validar timezone CFDI con contador (F6)** — único finding pendiente que afecta prod
+3. **Conseguir Firmame API docs + sandbox key** — SS2 final
+4. **Crear contratos HTML iniciales** para DESC
+5. **Decidir push a origin/main** (70 commits ahead)
+6. **Decidir** próximo: SS2 (Firmame docs) vs F6 fix vs SS4 V2 polish
 
 ---
 
-## Specs + Plans nuevos este turno
+## Specs + Plans (este turno usó SS4)
 
 | Path | Status |
 |---|---|
-| `docs/superpowers/specs/2026-05-26-sub-spec-2-contracts-firmame-design.md` | SS2 — spec (foundation merged) |
-| `docs/superpowers/plans/2026-05-27-sub-spec-2-contracts-firmame.md` | SS2 — plan (T11-T18 gated) |
-| `docs/superpowers/specs/2026-05-27-invoice-issue-date-design.md` | SS5 — spec ✅ |
-| `docs/superpowers/plans/2026-05-27-invoice-issue-date.md` | SS5 — plan ✅ |
-| `docs/superpowers/specs/2026-05-27-per-service-start-month-design.md` | SS3 — spec ✅ |
-| `docs/superpowers/plans/2026-05-27-per-service-start-month.md` | SS3 — plan ✅ |
-| `docs/superpowers/specs/2026-05-27-year-over-year-tier-design.md` | SS6 — spec ✅ |
-| `docs/superpowers/plans/2026-05-27-year-over-year-tier.md` | SS6 — plan ✅ |
-| `docs/superpowers/specs/2026-05-27-financial-statements-ingestion-design.md` | SS4 — spec (exec deferred) |
-| `docs/superpowers/plans/2026-05-27-financial-statements-ingestion.md` | SS4 — plan (exec deferred) |
+| `docs/superpowers/specs/2026-05-27-financial-statements-ingestion-design.md` | SS4 — spec ✅ |
+| `docs/superpowers/plans/2026-05-27-financial-statements-ingestion.md` | SS4 — plan ✅ ejecutado |
 
 ---
 
-## Memorias actualizadas
+## Memorias (sin cambios este turno)
 
-- `feedback_design_full_dump` — full dump en design phases (creado este turno)
-- `project_firmame_account_model` — managed-BYO (creado este turno)
+Memorias relevantes para SS4 (consulta si necesitas contexto):
+- `project_blob_storage` — Railway S3, no Convex
+- `project_doc_lifecycle_pipeline` — orden cotización→contrato→factura→entregable
+- `reference_anthropic_api_key` — Keychain via get-secret
+- `feedback_design_full_dump` — full dump en design phases
+- `feedback_no_push_default` — no pushes ni deploys por default
 
 ---
 
 ## Rules of engagement (sin cambios)
 
-- Brainstorming → spec → writing-plans → subagent-driven (workflow validado en 5 sub-specs ya)
-- Feature branch + merge `--no-ff` para tareas grandes; main directo para tareas pequeñas (SS3/SS5/SS6 fueron main directo este turno)
+- Brainstorming → spec → writing-plans → subagent-driven (workflow validado en 6 sub-specs ya, ahora SS4 incluido)
+- Feature branch + merge `--no-ff` para tareas grandes; main directo para tareas pequeñas (SS3/SS4/SS5/SS6 fueron main directo — SS4 fue 10 commits main directo per decisión Christian arranque del turno)
 - Tras cada merge: `npx gitnexus analyze --embeddings`
-- `gitnexus_impact` antes de editar símbolos
+- `gitnexus_impact` antes de editar símbolos críticos
 - Smoke E2E manual hace Christian (browser)
 - Push branch requiere OK explícito (memoria `feedback_no_push_default`)
 - Full dump en design phases sin pausar por sección (memoria `feedback_design_full_dump`)
 
 ---
 
-## Stack arquitectónico
+## Stack arquitectónico (actualizaciones SS4)
 
 | Capa | Tech | Notas |
 |---|---|---|
 | Frontend | Next.js 15 + React 19 + Tailwind + shadcn | Deploy Railway |
-| Backend | Convex | 19+ tablas; nuevos campos SS3 + SS5 + SS6 este turno |
+| Backend | Convex | 20 tablas (+`clientFinancialData` este turno); `subservices.isFinancialRelated` flag nuevo |
 | Auth | Clerk Organizations | Test mode dev |
 | Email | Resend | FROM `noreply@businessinteligencehub.com` |
-| AI | Claude API | `claude-sonnet-4-20250514` |
-| Blob storage | Railway S3 | PDFs/facturas; metadata en Convex |
+| AI | Claude API | `claude-sonnet-4-20250514` (mismo modelo para deliverables y SS4 extraction) |
+| Blob storage | Railway S3 | PDFs/facturas/finanzas (nuevo kind `finanzas` este turno); metadata en Convex |
 | PDF gen | Puppeteer-core en Vercel | post-MVP: worker Railway |
 | Firma | Firmame (skeleton listo, integración pendiente docs) | branch + plan listos |
-| CFDI parsing | `convex/lib/cfdiParser.ts` (regex-based, ⚠ F5+F6 issues) | SS5 |
-| Excel parsing | `xlsx` (planeado SS4, no instalado todavía) | SS4 |
+| CFDI parsing | `convex/lib/cfdiParser.ts` (regex-based, ⚠ F6 timezone pendiente contador) | SS5 |
+| Excel parsing | `convex/lib/excelParser.ts` (`xlsx` 0.18.5) | SS4 V1 |
+| AI financial extraction | `convex/lib/financialExtractionPrompt.ts` (`PROMPT_VERSION="v1-2026-05-27"`) | SS4 V1 |
+
+---
+
+## Bloquantes activos
+
+| Blocker | Severidad | Status |
+|---|---|---|
+| F6 CFDI timezone | IMPORTANTE | 🔴 Requiere contador |
+| Firmame API docs + sandbox | CRÍTICO para SS2 final | 🔴 Pendiente vendor docs |
+| Contratos HTML iniciales (papá) | CRÍTICO para SS2 producción | 🔴 Pendiente papá |
+| `ANTHROPIC_API_KEY` en Convex deployment | MEDIO | Sin este key, SS4 extracción deja row en `status=error` con `errorMessage` claro. SS4 V1 ya maneja missing key gracefully. |
+| 70 commits ahead de `origin/main` | INFO | Decidir push cuando esté listo SS2 final + F6 |
