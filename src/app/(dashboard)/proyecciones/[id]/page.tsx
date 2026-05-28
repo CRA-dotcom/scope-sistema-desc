@@ -6,7 +6,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../../convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, TrendingUp, ClipboardList, Plus, ArrowRight, ChevronLeft, Download, Loader2, AlertTriangle, FileText } from "lucide-react";
 // SS3-T4: month labels for the window picker selectors
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -73,6 +73,25 @@ export default function ProjectionDetailPage() {
     [subservices]
   );
 
+
+  const allTemplates = useQuery(
+    api.functions.deliverableTemplates.queries.list,
+    authReady ? {} : "skip"
+  );
+  // Map serviceId → template names for the deliverables popover
+  const templatesByServiceId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const t of allTemplates ?? []) {
+      if (!t.isActive || !t.serviceId) continue;
+      const key = t.serviceId as string;
+      const names = map.get(key) ?? [];
+      names.push(t.name);
+      map.set(key, names);
+    }
+    return map;
+  }, [allTemplates]);
+
+  const [deliverablesOpenFor, setDeliverablesOpenFor] = useState<string | null>(null);
 
   const setMonthSubservice = useMutation(
     api.functions.monthlyAssignments.mutations.setSubservice
@@ -341,6 +360,9 @@ export default function ProjectionDetailPage() {
                   {label}
                 </th>
               ))}
+              <th className="px-3 py-3 text-center font-medium text-muted-foreground whitespace-nowrap">
+                Entregables
+              </th>
               <th className="px-4 py-3 text-right font-medium text-accent">
                 Total
               </th>
@@ -500,6 +522,62 @@ export default function ProjectionDetailPage() {
                       </td>
                     );
                   })}
+                  {/* Deliverables popover cell */}
+                  {(() => {
+                    const names = templatesByServiceId.get(svc.serviceId as string) ?? [];
+                    const isOpen = deliverablesOpenFor === (svc._id as string);
+                    return (
+                      <td className="px-3 py-2.5 text-center relative">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeliverablesOpenFor(isOpen ? null : (svc._id as string))
+                          }
+                          title="Ver entregables del servicio"
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors cursor-pointer",
+                            names.length > 0
+                              ? "text-accent hover:bg-accent/10"
+                              : "text-muted-foreground hover:bg-secondary"
+                          )}
+                        >
+                          <FileText size={12} />
+                          {names.length > 0 ? names.length : "—"}
+                        </button>
+                        {isOpen && (
+                          <div
+                            className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-border bg-card shadow-lg p-3 text-left"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+                              Entregables
+                            </p>
+                            {names.length === 0 ? (
+                              <p className="text-xs text-muted-foreground italic">
+                                Sin plantillas activas para este servicio.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {names.map((name, i) => (
+                                  <li key={i} className="text-xs flex items-center gap-1.5">
+                                    <FileText size={10} className="text-accent shrink-0" />
+                                    {name}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setDeliverablesOpenFor(null)}
+                              className="mt-3 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            >
+                              Cerrar
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })()}
                   <td className="px-4 py-2.5 text-right font-medium text-accent">
                     {formatCurrency(svc.annualAmount)}
                   </td>
@@ -521,6 +599,8 @@ export default function ProjectionDetailPage() {
                   </td>
                 );
               })}
+              {/* empty cell under Entregables column */}
+              <td />
               <td className="px-4 py-3 text-right text-accent">
                 {formatCurrency(
                   activeServices.reduce((sum, s) => sum + s.annualAmount, 0)
