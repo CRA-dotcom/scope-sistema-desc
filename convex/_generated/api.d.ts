@@ -9,6 +9,11 @@
  */
 
 import type * as crons from "../crons.js";
+import type * as functions_clientFinancialData_actions from "../functions/clientFinancialData/actions.js";
+import type * as functions_clientFinancialData_internalMutations from "../functions/clientFinancialData/internalMutations.js";
+import type * as functions_clientFinancialData_internalQueries from "../functions/clientFinancialData/internalQueries.js";
+import type * as functions_clientFinancialData_mutations from "../functions/clientFinancialData/mutations.js";
+import type * as functions_clientFinancialData_queries from "../functions/clientFinancialData/queries.js";
 import type * as functions_clients_mutations from "../functions/clients/mutations.js";
 import type * as functions_clients_queries from "../functions/clients/queries.js";
 import type * as functions_contracts_actions from "../functions/contracts/actions.js";
@@ -125,6 +130,8 @@ import type * as lib_deliverableEngine_aiBatchFill from "../lib/deliverableEngin
 import type * as lib_deliverableEngine_errors from "../lib/deliverableEngine/errors.js";
 import type * as lib_deliverableEngine_placeholders from "../lib/deliverableEngine/placeholders.js";
 import type * as lib_deliverableEngine_staticResolver from "../lib/deliverableEngine/staticResolver.js";
+import type * as lib_excelParser from "../lib/excelParser.js";
+import type * as lib_financialExtractionPrompt from "../lib/financialExtractionPrompt.js";
 import type * as lib_firmameClient from "../lib/firmameClient.js";
 import type * as lib_pricingModel from "../lib/pricingModel.js";
 import type * as lib_projectionContext from "../lib/projectionContext.js";
@@ -145,6 +152,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
+  "functions/clientFinancialData/actions": typeof functions_clientFinancialData_actions;
+  "functions/clientFinancialData/internalMutations": typeof functions_clientFinancialData_internalMutations;
+  "functions/clientFinancialData/internalQueries": typeof functions_clientFinancialData_internalQueries;
+  "functions/clientFinancialData/mutations": typeof functions_clientFinancialData_mutations;
+  "functions/clientFinancialData/queries": typeof functions_clientFinancialData_queries;
   "functions/clients/mutations": typeof functions_clients_mutations;
   "functions/clients/queries": typeof functions_clients_queries;
   "functions/contracts/actions": typeof functions_contracts_actions;
@@ -261,6 +273,8 @@ declare const fullApi: ApiFromModules<{
   "lib/deliverableEngine/errors": typeof lib_deliverableEngine_errors;
   "lib/deliverableEngine/placeholders": typeof lib_deliverableEngine_placeholders;
   "lib/deliverableEngine/staticResolver": typeof lib_deliverableEngine_staticResolver;
+  "lib/excelParser": typeof lib_excelParser;
+  "lib/financialExtractionPrompt": typeof lib_financialExtractionPrompt;
   "lib/firmameClient": typeof lib_firmameClient;
   "lib/pricingModel": typeof lib_pricingModel;
   "lib/projectionContext": typeof lib_projectionContext;
