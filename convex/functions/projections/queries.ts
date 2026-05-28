@@ -1,7 +1,8 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgIdSafe } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdSafe } from "../../lib/authHelpers";
 import { Id } from "../../_generated/dataModel";
+import { getProjectionDownstreamCounts } from "../../lib/projectionDownstream";
 
 export const getByClient = query({
   args: { clientId: v.id("clients") },
@@ -187,5 +188,15 @@ export const subservicesMissingContent = query({
     }
 
     return missing;
+  },
+});
+
+export const getDownstreamSummary = query({
+  args: { projectionId: v.id("projections") },
+  handler: async (ctx, { projectionId }) => {
+    const orgId = await getOrgId(ctx);
+    const p = await ctx.db.get(projectionId);
+    if (!p || p.orgId !== orgId) throw new Error("Proyección no encontrada.");
+    return await getProjectionDownstreamCounts(ctx, projectionId);
   },
 });
