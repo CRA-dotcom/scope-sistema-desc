@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
 
 /**
@@ -25,7 +25,7 @@ export const markValidated = mutation({
   args: { id: v.id("clientFinancialData") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const row = await ctx.db.get(args.id);
     if (!row || row.orgId !== orgId) {
       throw new Error("Estado financiero no encontrado.");
@@ -67,7 +67,7 @@ export const markRejected = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const row = await ctx.db.get(args.id);
     if (!row || row.orgId !== orgId) {
       throw new Error("Estado financiero no encontrado.");
@@ -110,7 +110,7 @@ export const manuallySetLineItems = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const row = await ctx.db.get(args.id);
     if (!row || row.orgId !== orgId) {
       throw new Error("Estado financiero no encontrado.");

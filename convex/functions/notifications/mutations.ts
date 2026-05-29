@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAuth } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 
 /**
  * Mark a notification as read. Only the user it is assigned to (or any
@@ -10,7 +10,7 @@ export const markRead = mutation({
   args: { notificationId: v.id("notifications") },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const notification = await ctx.db.get(args.notificationId);
     if (!notification || notification.orgId !== orgId) {
@@ -36,7 +36,7 @@ export const createFiscalCloseNotification = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     // Verify projection belongs to this org
     const projection = await ctx.db.get(args.projectionId);

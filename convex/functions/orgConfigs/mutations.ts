@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -115,7 +115,7 @@ export const updateNotificationPreferences = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     if (
       args.notificationEmail !== undefined &&

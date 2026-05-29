@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin } from "../../lib/authHelpers";
 
 /**
  * Mask an API key for safe display: first 7 chars + `****` + last 4.
@@ -27,7 +27,7 @@ export const upsertFirmameConfig = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     if (args.apiKey.trim().length < 8) {
       throw new Error("API key inválido (muy corto).");
@@ -79,7 +79,7 @@ export const deleteFirmameConfig = mutation({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const existing = await ctx.db
       .query("orgIntegrations")

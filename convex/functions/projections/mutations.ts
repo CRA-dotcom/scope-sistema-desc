@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAuth } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
@@ -272,7 +272,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     // Re-edit path: delegate to replaceProjection which cascade-deletes
     // downstream entities and re-runs the engine on the existing projection row.
@@ -531,7 +531,7 @@ export const recalculate = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const projection = await ctx.db.get(args.projectionId);
     if (!projection || projection.orgId !== orgId) {
@@ -734,7 +734,7 @@ export const cloneProjectionToDraft = mutation({
   args: { projectionId: v.id("projections") },
   handler: async (ctx, { projectionId }) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
 
     const proj = await ctx.db.get(projectionId);
@@ -803,7 +803,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const projection = await ctx.db.get(args.id);
     if (!projection || projection.orgId !== orgId) {
       throw new Error("Proyección no encontrada.");
@@ -853,7 +853,7 @@ export const addSubserviceMidYear = mutation({
   }),
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     // 1. Multi-tenant guards.
     const projection = await ctx.db.get(args.projectionId);

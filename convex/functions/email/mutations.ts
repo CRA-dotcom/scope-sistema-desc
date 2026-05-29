@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { requireAdmin, getOrgId } from "../../lib/authHelpers";
+import { requireAdmin, getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 
 function maskApiKey(apiKey: string): string {
   if (apiKey.length <= 4) return "****";
@@ -16,7 +16,7 @@ export const upsertResendConfig = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(args.fromEmail)) {
       throw new Error("fromEmail inválido");

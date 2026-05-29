@@ -2,6 +2,7 @@ import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import {
   getOrgId,
+  getOrgIdMutation,
   requireAdmin,
   requireAuth,
 } from "../../lib/authHelpers";
@@ -22,7 +23,7 @@ export const markSent = mutation({
   args: { invoiceId: v.id("invoices") },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const inv = await ctx.db.get(args.invoiceId);
     if (!inv || inv.orgId !== orgId) {
       throw new Error("Factura no encontrada.");
@@ -60,7 +61,7 @@ export const markPaid = mutation({
   args: { invoiceId: v.id("invoices") },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
 
     const inv = await ctx.db.get(args.invoiceId);
@@ -129,7 +130,7 @@ export const markVoid = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
 
     const inv = await ctx.db.get(args.invoiceId);
@@ -182,7 +183,7 @@ export const updateIssueDate = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const inv = await ctx.db.get(args.invoiceId);
     if (!inv || inv.orgId !== orgId) {
       throw new Error("Factura no encontrada.");

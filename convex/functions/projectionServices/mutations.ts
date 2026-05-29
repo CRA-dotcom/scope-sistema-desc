@@ -1,6 +1,6 @@
 import { mutation, MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAuth, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAuth, requireAdmin } from "../../lib/authHelpers";
 import { Id } from "../../_generated/dataModel";
 
 /**
@@ -19,7 +19,7 @@ export const setSubserviceIds = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ps = await ctx.db.get(args.projServiceId);
     if (!ps || ps.orgId !== orgId) {
       throw new Error("Servicio no encontrado.");
@@ -47,7 +47,7 @@ export const toggleActive = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ps = await ctx.db.get(args.id);
     if (!ps || ps.orgId !== orgId) throw new Error("No encontrado.");
     await ctx.db.patch(args.id, { isActive: args.isActive });
@@ -61,7 +61,7 @@ export const updateChosenPct = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ps = await ctx.db.get(args.id);
     if (!ps || ps.orgId !== orgId) throw new Error("No encontrado.");
     await ctx.db.patch(args.id, { chosenPct: args.chosenPct });
@@ -93,7 +93,7 @@ export const changePricingModel = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ps = await ctx.db.get(args.id);
     if (!ps || ps.orgId !== orgId) throw new Error("No encontrado.");
 
@@ -232,7 +232,7 @@ export const setAnnualAmount = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ps = await ctx.db.get(args.projServiceId);
     if (!ps || ps.orgId !== orgId) throw new Error("No encontrado.");
     if (args.annualAmount < 0) throw new Error("annualAmount debe ser ≥ 0.");
@@ -268,7 +268,7 @@ export const updateContractualWindow = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const ps = await ctx.db.get(args.projServiceId);
     if (!ps || ps.orgId !== orgId) {

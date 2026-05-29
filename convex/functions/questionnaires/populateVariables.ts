@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 import { buildTemplateVariables } from "../../lib/questionnaireMappings";
 
 /**
@@ -27,7 +27,7 @@ export const populateTemplateVariables = mutation({
   args: { projectionId: v.id("projections") },
   handler: async (ctx, { projectionId }) => {
     // 1. Auth check
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     // 2. Read projection and verify org ownership
     const projection = await ctx.db.get(projectionId);

@@ -1,6 +1,6 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin } from "../../lib/authHelpers";
 import { cancelFuturePendingAssignments } from "../../lib/projectionDownstream";
 
 export const generate = mutation({
@@ -8,7 +8,7 @@ export const generate = mutation({
     quotationId: v.id("quotations"),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     // Get quotation (must be approved)
     const quotation = await ctx.db.get(args.quotationId);
@@ -225,7 +225,7 @@ export const updateContent = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const contract = await ctx.db.get(args.id);
     if (!contract || contract.orgId !== orgId) {
       throw new Error("Contrato no encontrado.");
@@ -247,7 +247,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const contract = await ctx.db.get(args.id);
     if (!contract || contract.orgId !== orgId) {
       throw new Error("Contrato no encontrado.");
@@ -318,7 +318,7 @@ export const cancelContract = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const contract = await ctx.db.get(args.contractId);
     if (!contract) throw new Error("Contract not found");
@@ -364,7 +364,7 @@ export const setPdfStorageId = mutation({
     pdfStorageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const contract = await ctx.db.get(args.id);
     if (!contract || contract.orgId !== orgId) {
       throw new Error("Contrato no encontrado.");
@@ -387,7 +387,7 @@ export const updateIssuingCompany = mutation({
     issuingCompanyId: v.union(v.id("issuingCompanies"), v.null()),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const contract = await ctx.db.get(args.id);
     if (!contract || contract.orgId !== orgId) {
       throw new Error("Contrato no encontrado.");

@@ -1,6 +1,6 @@
 import { QueryCtx, MutationCtx } from "../_generated/server";
 import { Doc } from "../_generated/dataModel";
-import { getOrgId, requireAdmin, requireSuperAdmin } from "./authHelpers";
+import { getOrgIdMutation, requireAdmin, requireSuperAdmin } from "./authHelpers";
 import type { UserIdentity } from "convex/server";
 
 /**
@@ -22,7 +22,7 @@ export async function requireTemplateEditAccess(
     return await requireSuperAdmin(ctx);
   }
   const identity = await requireAdmin(ctx);
-  const callerOrg = await getOrgId(ctx);
+  const callerOrg = await getOrgIdMutation(ctx);
   if (template.orgId !== callerOrg) {
     throw new Error("No puedes editar plantillas de otra organización.");
   }

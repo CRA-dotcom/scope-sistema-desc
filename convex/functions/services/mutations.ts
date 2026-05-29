@@ -1,7 +1,7 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
-import { getOrgId, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
 
 export const createOrgOverride = mutation({
   args: {
@@ -12,7 +12,7 @@ export const createOrgOverride = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const source = await ctx.db.get(args.sourceServiceId);
     if (!source) throw new Error("Servicio base no encontrado.");
 
@@ -49,7 +49,7 @@ export const resetToDefault = mutation({
   args: { serviceId: v.id("services") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const service = await ctx.db.get(args.serviceId);
     if (!service || service.orgId !== orgId || service.isDefault) {
       throw new Error("No se puede resetear este servicio.");

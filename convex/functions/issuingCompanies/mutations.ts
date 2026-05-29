@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { requireAdmin, getOrgId } from "../../lib/authHelpers";
+import { requireAdmin, getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 import { isValidRFC } from "../../lib/validators";
 import { validateRegimenFiscal, getRegimenLabel } from "./helpers";
 
@@ -35,7 +35,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const rfcUpper = args.rfc.toUpperCase().trim();
 
@@ -120,7 +120,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const doc = await ctx.db.get(args.id);
     if (!doc || doc.orgId !== orgId) {
       throw new Error("Empresa emitente no encontrada");
@@ -173,7 +173,7 @@ export const setDefault = mutation({
   args: { id: v.id("issuingCompanies") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const target = await ctx.db.get(args.id);
     if (!target || target.orgId !== orgId) {
       throw new Error("Empresa emitente no encontrada");
@@ -204,7 +204,7 @@ export const remove = mutation({
   args: { id: v.id("issuingCompanies") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const doc = await ctx.db.get(args.id);
     if (!doc || doc.orgId !== orgId) {
       throw new Error("Empresa emitente no encontrada");
@@ -281,7 +281,7 @@ export const assignServicesToCompany = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const company = await ctx.db.get(args.issuingCompanyId);
     if (!company || company.orgId !== orgId) {
       throw new Error("Empresa emitente no encontrada");
@@ -329,7 +329,7 @@ export const generateUploadUrl = mutation({
   args: { id: v.id("issuingCompanies") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const doc = await ctx.db.get(args.id);
     if (!doc || doc.orgId !== orgId) {
       throw new Error("Empresa emitente no encontrada");
@@ -345,7 +345,7 @@ export const setLogoFromStorage = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const doc = await ctx.db.get(args.id);
     if (!doc || doc.orgId !== orgId) {
       throw new Error("Empresa emitente no encontrada");
@@ -365,7 +365,7 @@ export const removeLogo = mutation({
   args: { id: v.id("issuingCompanies") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const doc = await ctx.db.get(args.id);
     if (!doc || doc.orgId !== orgId) {
       throw new Error("Empresa emitente no encontrada");

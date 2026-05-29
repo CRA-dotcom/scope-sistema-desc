@@ -2,7 +2,7 @@ import { mutation, MutationCtx } from "../../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
-import { getOrgId, requireAdmin, requireAuth, requireSuperAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin, requireAuth, requireSuperAdmin } from "../../lib/authHelpers";
 
 /**
  * Internal helper: derive a stable kebab-case slug from a name.
@@ -51,7 +51,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const parent = await ctx.db.get(args.parentServiceId);
     if (!parent) throw new Error("Servicio padre no encontrado.");
 
@@ -138,7 +138,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
     if (sub.orgId === undefined) {
@@ -178,7 +178,7 @@ export const personalizeGlobal = mutation({
   args: { sourceId: v.id("subservices") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const source = await ctx.db.get(args.sourceId);
     if (!source) throw new Error("Subservicio fuente no encontrado.");
     if (source.orgId !== undefined) {
@@ -245,7 +245,7 @@ export const restoreToGlobal = mutation({
   args: { id: v.id("subservices") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
     if (sub.orgId === undefined) {
@@ -292,7 +292,7 @@ export const toggleActive = mutation({
   args: { id: v.id("subservices") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
     if (sub.orgId === undefined) {
@@ -334,7 +334,7 @@ export const remove = mutation({
   args: { id: v.id("subservices") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const sub = await ctx.db.get(args.id);
     if (!sub) throw new Error("Subservicio no encontrado.");
     if (sub.orgId === undefined) {
@@ -398,7 +398,7 @@ export const setYearOverYearDiscount = mutation({
       await requireSuperAdmin(ctx);
     } else {
       await requireAdmin(ctx);
-      const orgId = await getOrgId(ctx);
+      const orgId = await getOrgIdMutation(ctx);
       if (sub.orgId !== orgId) {
         throw new Error("Subservicio no pertenece al org");
       }

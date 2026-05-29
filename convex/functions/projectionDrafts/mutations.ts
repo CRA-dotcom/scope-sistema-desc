@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { requireAuth, getOrgId } from "../../lib/authHelpers";
+import { requireAuth, getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 
 const stateValidator = v.object({
   step: v.number(),
@@ -53,7 +53,7 @@ export const upsertDraft = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
 
     // If promoting from clientId=null to a real client, optionally clear the null slot.
@@ -102,7 +102,7 @@ export const deleteMyDraft = mutation({
   },
   handler: async (ctx, { clientId }) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
 
     const existing = await ctx.db

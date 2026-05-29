@@ -1,7 +1,7 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
-import { getOrgId } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 import { Doc, Id } from "../../_generated/dataModel";
 import { effectiveSubserviceIds } from "../../lib/subserviceIds";
 
@@ -27,7 +27,7 @@ export const createManualQuotation = mutation({
     amount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const projService = await ctx.db.get(args.projServiceId);
     if (!projService || projService.orgId !== orgId) {
@@ -105,7 +105,7 @@ export const generateAllForProjection = mutation({
   },
   returns: v.object({ created: v.number(), skipped: v.number() }),
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const projection = await ctx.db.get(args.projectionId);
     if (!projection || projection.orgId !== orgId) {
@@ -188,7 +188,7 @@ export const generate = mutation({
     subserviceId: v.optional(v.id("subservices")),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     // Get projection service
     const projService = await ctx.db.get(args.projServiceId);
@@ -391,7 +391,7 @@ export const updateContent = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const quotation = await ctx.db.get(args.id);
     if (!quotation || quotation.orgId !== orgId) {
       throw new Error("Cotización no encontrada.");
@@ -413,7 +413,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const quotation = await ctx.db.get(args.id);
     if (!quotation || quotation.orgId !== orgId) {
       throw new Error("Cotización no encontrada.");
@@ -644,7 +644,7 @@ export const setPdfStorageId = mutation({
     pdfStorageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const quotation = await ctx.db.get(args.id);
     if (!quotation || quotation.orgId !== orgId) {
       throw new Error("Cotización no encontrada.");
@@ -667,7 +667,7 @@ export const updateIssuingCompany = mutation({
     issuingCompanyId: v.union(v.id("issuingCompanies"), v.null()),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const quotation = await ctx.db.get(args.id);
     if (!quotation || quotation.orgId !== orgId) {
       throw new Error("Cotización no encontrada.");
@@ -692,7 +692,7 @@ export const updateIssuingCompany = mutation({
 export const deleteQuotation = mutation({
   args: { id: v.id("quotations") },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) throw new Error("Cotización no encontrada.");
     if (q.status !== "draft") {

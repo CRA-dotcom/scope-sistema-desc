@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin } from "../../lib/authHelpers";
 
 /**
  * D2 §3.1 — `assignToClient`
@@ -15,7 +15,7 @@ export const assignToClient = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const client = await ctx.db.get(args.clientId);
     if (!client) throw new Error("Cliente no encontrado.");
@@ -38,7 +38,7 @@ export const unassign = mutation({
   args: { clientId: v.id("clients") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const client = await ctx.db.get(args.clientId);
     if (!client || client.orgId !== orgId) {

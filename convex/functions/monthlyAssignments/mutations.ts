@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAdmin, requireAuth } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAdmin, requireAuth } from "../../lib/authHelpers";
 
 export const updateStatus = mutation({
   args: {
@@ -14,7 +14,7 @@ export const updateStatus = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ma = await ctx.db.get(args.id);
     if (!ma || ma.orgId !== orgId) throw new Error("No encontrado.");
     await ctx.db.patch(args.id, { status: args.status });
@@ -32,7 +32,7 @@ export const updateInvoiceStatus = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ma = await ctx.db.get(args.id);
     if (!ma || ma.orgId !== orgId) throw new Error("No encontrado.");
     await ctx.db.patch(args.id, { invoiceStatus: args.invoiceStatus });
@@ -46,7 +46,7 @@ export const updateAmount = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const ma = await ctx.db.get(args.id);
     if (!ma || ma.orgId !== orgId) throw new Error("No encontrado.");
     await ctx.db.patch(args.id, {
@@ -75,7 +75,7 @@ export const setSubservice = mutation({
     // matrix-cell-detail). El operator que captura el mes a mes no necesita
     // ser admin.
     await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const assignment = await ctx.db.get(args.id);
     if (!assignment || assignment.orgId !== orgId) {

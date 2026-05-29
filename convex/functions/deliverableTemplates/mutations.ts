@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { internal } from "../../_generated/api";
 import {
   getOrgId,
+  getOrgIdMutation,
   isSuperAdminFromIdentity,
   requireAdmin,
   requireAuth,
@@ -67,7 +68,7 @@ export const create = mutation({
       resolvedOrgId = args.orgId;
     } else {
       await requireAdmin(ctx);
-      const callerOrg = await getOrgId(ctx);
+      const callerOrg = await getOrgIdMutation(ctx);
       if (args.orgId !== undefined && args.orgId !== callerOrg) {
         throw new Error("No puedes crear plantillas para otra organización.");
       }
@@ -235,7 +236,7 @@ export const personalizeGlobal = mutation({
   args: { globalTemplateId: v.id("deliverableTemplates") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const source = await ctx.db.get(args.globalTemplateId);
     if (!source) throw new Error("Plantilla fuente no encontrada.");
@@ -303,7 +304,7 @@ export const restoreToGlobal = mutation({
   args: { orgTemplateId: v.id("deliverableTemplates") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const tpl = await ctx.db.get(args.orgTemplateId);
     if (!tpl) throw new Error("Plantilla no encontrada.");

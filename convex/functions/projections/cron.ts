@@ -12,6 +12,14 @@ import { resolveProjectionContext } from "../../lib/projectionContext";
  *
  * The cron is registered (commented) in convex/crons.ts and will be
  * activated on deploy when Christian re-enables crons per MOC blocker.
+ *
+ * BEHAVIOR CHANGE (Phase 2): Now only processes status="active" projections
+ * via the by_orgId_status index. Archived projections whose fiscal year ended
+ * will NOT receive a fiscal-close notification. If a user archives a fiscal
+ * projection between Dec 31 and Jan 1 (before the daily cron fires at
+ * midnight), the fiscal-close event for that projection is silently lost.
+ * Workaround: keep projections in "active" status until the next year's
+ * fiscal-close cron has fired.
  */
 export const notifyFiscalCloseEvents = internalMutation({
   args: {},

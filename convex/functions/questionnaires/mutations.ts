@@ -2,7 +2,7 @@ import { mutation } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import { Id } from "../../_generated/dataModel";
-import { requireAdmin, getOrgId } from "../../lib/authHelpers";
+import { requireAdmin, getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 import { MASTER_QUESTIONS } from "./masterQuestionnaire";
 import { getOrgNotificationEmail } from "../email/resolveRecipients";
 
@@ -11,7 +11,7 @@ export const generate = mutation({
     projectionId: v.id("projections"),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const projection = await ctx.db.get(args.projectionId);
     if (!projection || projection.orgId !== orgId) {
@@ -142,7 +142,7 @@ export const updateResponses = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const questionnaire = await ctx.db.get(args.id);
     if (!questionnaire || questionnaire.orgId !== orgId) {
       throw new Error("Cuestionario no encontrado.");
@@ -172,7 +172,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const questionnaire = await ctx.db.get(args.id);
     if (!questionnaire || questionnaire.orgId !== orgId) {
       throw new Error("Cuestionario no encontrado.");
@@ -192,7 +192,7 @@ export const submit = mutation({
     id: v.id("questionnaireResponses"),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const questionnaire = await ctx.db.get(args.id);
     if (!questionnaire || questionnaire.orgId !== orgId) {
       throw new Error("Cuestionario no encontrado.");
@@ -246,7 +246,7 @@ export const deleteQuestionnaire = mutation({
   args: { id: v.id("questionnaireResponses") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
 
@@ -304,7 +304,7 @@ export const editSingleResponse = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
 
@@ -337,7 +337,7 @@ export const reopen = mutation({
   args: { id: v.id("questionnaireResponses") },
   handler: async (ctx, args) => {
     const identity = await requireAdmin(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) {

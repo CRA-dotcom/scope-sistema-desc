@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAuth } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 
 export const create = mutation({
   args: {
@@ -18,7 +18,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     let normalizedContactEmail: string | undefined = undefined;
     if (args.contactEmail) {
@@ -64,7 +64,7 @@ export const update = mutation({
     contactName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const client = await ctx.db.get(args.id);
     if (!client || client.orgId !== orgId) {
       throw new Error("Cliente no encontrado.");
@@ -100,7 +100,7 @@ export const update = mutation({
 export const archive = mutation({
   args: { id: v.id("clients") },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const client = await ctx.db.get(args.id);
     if (!client || client.orgId !== orgId) {
       throw new Error("Cliente no encontrado.");
@@ -112,7 +112,7 @@ export const archive = mutation({
 export const restore = mutation({
   args: { id: v.id("clients") },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const client = await ctx.db.get(args.id);
     if (!client || client.orgId !== orgId) {
       throw new Error("Cliente no encontrado.");

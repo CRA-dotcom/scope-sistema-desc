@@ -2,6 +2,7 @@ import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import {
   getOrgId,
+  getOrgIdMutation,
   isSuperAdminFromIdentity,
   requireAdmin,
   requireAuth,
@@ -35,7 +36,7 @@ export const upsert = mutation({
       targetOrgId = args.orgId;
     } else {
       await requireAdmin(ctx);
-      targetOrgId = await getOrgId(ctx);
+      targetOrgId = await getOrgIdMutation(ctx);
       if (args.orgId !== undefined && args.orgId !== targetOrgId) {
         throw new Error("No puedes editar branding de otra organización.");
       }

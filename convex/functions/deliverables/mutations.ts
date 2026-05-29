@@ -1,6 +1,6 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, requireAuth } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
 
 // ─── Public mutations ────────────────────────────────────────────────
@@ -20,7 +20,7 @@ export const create = mutation({
     longContent: v.string(),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const assignment = await ctx.db.get(args.assignmentId);
     if (!assignment || assignment.orgId !== orgId) {
@@ -50,7 +50,7 @@ export const create = mutation({
 export const markDelivered = mutation({
   args: { id: v.id("deliverables") },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const deliverable = await ctx.db.get(args.id);
     if (!deliverable || deliverable.orgId !== orgId) {
       throw new Error("Entregable no encontrado.");
@@ -75,7 +75,7 @@ export const updateAuditStatus = mutation({
     auditFeedback: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
     const deliverable = await ctx.db.get(args.id);
     if (!deliverable || deliverable.orgId !== orgId) {
       throw new Error("Entregable no encontrado.");
@@ -105,7 +105,7 @@ export const deliver = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
-    const orgId = await getOrgId(ctx);
+    const orgId = await getOrgIdMutation(ctx);
 
     const deliverable = await ctx.db.get(args.deliverableId);
     if (!deliverable) {

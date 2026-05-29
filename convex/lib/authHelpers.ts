@@ -19,6 +19,45 @@ export async function getOrgId(ctx: QueryCtx | MutationCtx): Promise<string> {
 }
 
 /**
+ * Mutation-context variant of getOrgId: identical extraction logic, plus a
+ * lazy-seed of the `organizations` row if none exists yet for this Clerk org.
+ *
+ * This closes the operational gap where a SuperAdmin could create a new Clerk
+ * org without manually inserting an `organizations` row — causing paginated
+ * crons (monthlyCheck, overdueCheck, notifyFiscalCloseEvents) to silently
+ * skip the org. The first mutation executed by any member of the org
+ * auto-creates the row with safe defaults (status="active", plan="basic").
+ *
+ * MUST only be called from mutation handlers (MutationCtx), never from
+ * queries or internalQueries — use getOrgId for those.
+ */
+export async function getOrgIdMutation(ctx: MutationCtx): Promise<string> {
+  const identity = await requireAuth(ctx);
+  const orgId = (identity.orgId ?? (identity as Record<string, unknown>).org_id) as string | undefined;
+  if (!orgId) {
+    throw new Error("No se encontró la organización. Selecciona una organización.");
+  }
+  // Lazy-seed: create organizations row if it doesn't exist yet
+  const existing = await ctx.db
+    .query("organizations")
+    .withIndex("by_clerkOrgId", (q) => q.eq("clerkOrgId", orgId))
+    .first();
+  if (!existing) {
+    const orgName = (identity.orgSlug as string | undefined)
+      ?? `Org ${orgId.slice(-6)}`;
+    await ctx.db.insert("organizations", {
+      clerkOrgId: orgId,
+      name: orgName,
+      status: "active",
+      plan: "basic",
+      createdAt: Date.now(),
+    });
+    console.log(`[getOrgIdMutation] lazy-seeded organizations row for ${orgId}`);
+  }
+  return orgId;
+}
+
+/**
  * Safe version for queries - returns null instead of throwing
  * so Convex reactive queries don't error before auth is ready.
  */
