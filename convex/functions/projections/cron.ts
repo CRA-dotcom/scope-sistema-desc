@@ -1,4 +1,5 @@
 import { internalMutation } from "../../_generated/server";
+import { Doc } from "../../_generated/dataModel";
 import { resolveProjectionContext } from "../../lib/projectionContext";
 
 /**
@@ -28,8 +29,21 @@ export const notifyFiscalCloseEvents = internalMutation({
     }
     // prevMonth is now 1-indexed (1..12)
 
-    // Scan all projections across all orgs (system-level cron, no auth context).
-    const projections = await ctx.db.query("projections").collect();
+    // Iterate active orgs and only fetch active projections per org via index.
+    const orgs = await ctx.db
+      .query("organizations")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+    const projections: Doc<"projections">[] = [];
+    for (const org of orgs) {
+      const orgProjections = await ctx.db
+        .query("projections")
+        .withIndex("by_orgId_status", (q) =>
+          q.eq("orgId", org.clerkOrgId).eq("status", "active")
+        )
+        .collect();
+      projections.push(...orgProjections);
+    }
     let notified = 0;
 
     for (const p of projections) {
