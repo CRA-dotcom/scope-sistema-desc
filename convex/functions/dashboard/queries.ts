@@ -145,9 +145,8 @@ export const clientSummary = query({
     // Get all assignments for the year
     const assignments = await ctx.db
       .query("monthlyAssignments")
-      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
-      .collect()
-      .then((all) => all.filter((a) => a.year === year));
+      .withIndex("by_orgId_year", (q) => q.eq("orgId", orgId).eq("year", year))
+      .collect();
 
     // Get active projections
     const projections = await ctx.db
