@@ -40,6 +40,13 @@ export const updateStatus = mutation({
   },
 });
 
+type MAInvoiceStatus = "not_invoiced" | "invoiced" | "paid";
+
+const ALLOWED_INVOICE_STATUS_TRANSITIONS: readonly Transition<MAInvoiceStatus>[] = [
+  ["not_invoiced", "invoiced"],
+  ["invoiced", "paid"],
+] as const;
+
 export const updateInvoiceStatus = mutation({
   args: {
     id: v.id("monthlyAssignments"),
@@ -54,6 +61,13 @@ export const updateInvoiceStatus = mutation({
     const orgId = await getOrgIdMutation(ctx);
     const ma = await ctx.db.get(args.id);
     if (!ma || ma.orgId !== orgId) throw new Error("No encontrado.");
+    assertTransition(
+      "monthlyAssignments",
+      "invoiceStatus",
+      ma.invoiceStatus as MAInvoiceStatus,
+      args.invoiceStatus,
+      ALLOWED_INVOICE_STATUS_TRANSITIONS
+    );
     await ctx.db.patch(args.id, { invoiceStatus: args.invoiceStatus });
   },
 });
