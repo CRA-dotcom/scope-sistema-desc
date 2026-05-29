@@ -1,6 +1,6 @@
 "use node";
 
-import { internalAction, internalMutation } from "../../_generated/server";
+import { internalAction } from "../../_generated/server";
 import { internal, api } from "../../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../../_generated/dataModel";
@@ -209,7 +209,7 @@ export const generateFromInvoice = internalAction({
     //    Todos los guards pasaron; ahora reservamos el slot atómicamente.
     //    Si ya existe un placeholder (race loser), skip el AI batch.
     const claimed: boolean = await ctx.runMutation(
-      internal.functions.deliverables.invoiceFlow.claimInvoiceForGeneration,
+      internal.functions.deliverables.invoiceFlowMutations.claimInvoiceForGeneration,
       { invoiceId }
     );
     if (!claimed) {
@@ -261,7 +261,7 @@ export const generateFromInvoice = internalAction({
       );
       // Release empty placeholder so a future retry can re-claim cleanly.
       await ctx.runMutation(
-        internal.functions.deliverables.invoiceFlow.releaseClaimPlaceholder,
+        internal.functions.deliverables.invoiceFlowMutations.releaseClaimPlaceholder,
         { invoiceId }
       );
       return { skipped: "ai_failed" as const, error: msg };
@@ -294,85 +294,6 @@ export const generateFromInvoice = internalAction({
     );
 
     return { ok: true, deliverableId };
-  },
-});
-
-/**
- * Internal: release a stuck empty placeholder so a future retry can re-claim.
- *
- * Called from the catch block of generateFromInvoice when the AI batch throws.
- * Only deletes the placeholder when it is genuinely empty (shortContent === "",
- * longContent === "", auditStatus === "pending"). If it already has real content
- * — meaning saveGenerated ran successfully despite the action-level error —
- * it is left untouched to preserve user data.
- */
-export const releaseClaimPlaceholder = internalMutation({
-  args: { invoiceId: v.id("invoices") },
-  handler: async (ctx, { invoiceId }) => {
-    const existing = await ctx.db
-      .query("deliverables")
-      .withIndex("by_triggerInvoiceId", (q) =>
-        q.eq("triggerInvoiceId", invoiceId)
-      )
-      .first();
-    if (!existing) return { released: false };
-    if (
-      existing.shortContent !== "" ||
-      existing.longContent !== "" ||
-      existing.auditStatus !== "pending"
-    ) {
-      return { released: false };
-    }
-    await ctx.db.delete(existing._id);
-    return { released: true };
-  },
-});
-
-/**
- * Atomic claim para idempotencia de generateFromInvoice.
- * Inserta un placeholder deliverable con triggerInvoiceId set, retornando
- * false si ya existe (race winner ya reservó el slot).
- *
- * El placeholder se patchea con contenido real cuando termina el AI batch
- * vía deliverables.saveGenerated (dedup por by_assignmentId).
- */
-export const claimInvoiceForGeneration = internalMutation({
-  args: { invoiceId: v.id("invoices") },
-  handler: async (ctx, { invoiceId }) => {
-    const existing = await ctx.db
-      .query("deliverables")
-      .withIndex("by_triggerInvoiceId", (q) =>
-        q.eq("triggerInvoiceId", invoiceId)
-      )
-      .first();
-    if (existing) return false;
-
-    const invoice = await ctx.db.get(invoiceId);
-    if (!invoice) return false;
-
-    const assignment = invoice.monthlyAssignmentId
-      ? await ctx.db.get(invoice.monthlyAssignmentId)
-      : null;
-    if (!assignment) return false;
-
-    await ctx.db.insert("deliverables", {
-      orgId: invoice.orgId,
-      assignmentId: assignment._id,
-      projServiceId: assignment.projServiceId,
-      clientId: assignment.clientId,
-      serviceName: assignment.serviceName,
-      subserviceId: assignment.subserviceId,
-      month: assignment.month,
-      year: assignment.year,
-      shortContent: "",
-      longContent: "",
-      auditStatus: "pending" as const,
-      retryCount: 0,
-      triggerSource: "invoice_paid" as const,
-      triggerInvoiceId: invoiceId,
-      createdAt: Date.now(),
-    });
-    return true;
   },
 });
 

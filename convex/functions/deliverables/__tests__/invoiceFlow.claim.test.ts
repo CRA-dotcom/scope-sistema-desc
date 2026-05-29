@@ -133,14 +133,14 @@ async function seedPaidInvoice(
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("deliverables.invoiceFlow.releaseClaimPlaceholder", () => {
+describe("deliverables.invoiceFlowMutations.releaseClaimPlaceholder", () => {
   it("releaseClaimPlaceholder deletes empty pending placeholder", async () => {
     const t = setupTest();
     const seed = await seedPaidInvoice(t, ORG_A);
 
     // Create placeholder via claim
     await t.mutation(
-      internal.functions.deliverables.invoiceFlow.claimInvoiceForGeneration,
+      internal.functions.deliverables.invoiceFlowMutations.claimInvoiceForGeneration,
       { invoiceId: seed.invoiceId }
     );
 
@@ -152,7 +152,7 @@ describe("deliverables.invoiceFlow.releaseClaimPlaceholder", () => {
 
     // Release it
     const releaseResult = await t.mutation(
-      internal.functions.deliverables.invoiceFlow.releaseClaimPlaceholder,
+      internal.functions.deliverables.invoiceFlowMutations.releaseClaimPlaceholder,
       { invoiceId: seed.invoiceId }
     );
     expect(releaseResult.released).toBe(true);
@@ -189,7 +189,7 @@ describe("deliverables.invoiceFlow.releaseClaimPlaceholder", () => {
 
     // Attempt release
     const releaseResult = await t.mutation(
-      internal.functions.deliverables.invoiceFlow.releaseClaimPlaceholder,
+      internal.functions.deliverables.invoiceFlowMutations.releaseClaimPlaceholder,
       { invoiceId: seed.invoiceId }
     );
     expect(releaseResult.released).toBe(false);
@@ -201,13 +201,13 @@ describe("deliverables.invoiceFlow.releaseClaimPlaceholder", () => {
   });
 });
 
-describe("deliverables.invoiceFlow.claimInvoiceForGeneration", () => {
+describe("deliverables.invoiceFlowMutations.claimInvoiceForGeneration", () => {
   it("first call returns true and inserts a placeholder deliverable", async () => {
     const t = setupTest();
     const seed = await seedPaidInvoice(t, ORG_A);
 
     const claimed = await t.mutation(
-      internal.functions.deliverables.invoiceFlow.claimInvoiceForGeneration,
+      internal.functions.deliverables.invoiceFlowMutations.claimInvoiceForGeneration,
       { invoiceId: seed.invoiceId }
     );
 
@@ -231,11 +231,11 @@ describe("deliverables.invoiceFlow.claimInvoiceForGeneration", () => {
     const seed = await seedPaidInvoice(t, ORG_A);
 
     const first = await t.mutation(
-      internal.functions.deliverables.invoiceFlow.claimInvoiceForGeneration,
+      internal.functions.deliverables.invoiceFlowMutations.claimInvoiceForGeneration,
       { invoiceId: seed.invoiceId }
     );
     const second = await t.mutation(
-      internal.functions.deliverables.invoiceFlow.claimInvoiceForGeneration,
+      internal.functions.deliverables.invoiceFlowMutations.claimInvoiceForGeneration,
       { invoiceId: seed.invoiceId }
     );
 
