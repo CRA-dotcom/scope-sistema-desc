@@ -291,12 +291,10 @@ export const saveGenerated = internalMutation({
       .first();
 
     if (existing && existing.orgId === args.orgId) {
-      if (existing.status !== "draft") {
-        throw new Error(
-          "Ya existe un contrato para esta cotización que no está en borrador."
-        );
-      }
-      await ctx.db.patch(existing._id, { content: args.content });
+      // Phase 1 §3.1 — race guard: duplicate call (acceptQuotation double-click /
+      // tab-dup). Return the existing contract ID without overwriting its content
+      // so the race winner's data is preserved. Non-draft contracts are not
+      // expected here (acceptance only generates drafts), but guard anyway.
       return existing._id;
     }
 
