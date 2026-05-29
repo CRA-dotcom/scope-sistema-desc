@@ -123,8 +123,10 @@ export const deliver = mutation({
     }
 
     // Verify client has a contactEmail before doing any writes.
+    // Trim first so whitespace-only strings ("   ") are treated as absent.
     const client = await ctx.db.get(deliverable.clientId);
-    if (!client?.contactEmail) {
+    const trimmedEmail = client?.contactEmail?.trim();
+    if (!trimmedEmail) {
       await ctx.db.patch(args.deliverableId, {
         auditStatus: "rejected" as const,
         auditFeedback:
@@ -136,8 +138,10 @@ export const deliver = mutation({
         reason: "no_contact_email" as const,
       };
     }
-    const clientEmail = client.contactEmail;
-    const clientName = client.name;
+    const clientEmail = trimmedEmail;
+    // client is guaranteed non-null here: trimmedEmail being truthy implies
+    // client?.contactEmail was non-empty, which implies client was non-null.
+    const clientName = client!.name;
 
     await ctx.db.patch(args.deliverableId, {
       deliveredAt: Date.now(),

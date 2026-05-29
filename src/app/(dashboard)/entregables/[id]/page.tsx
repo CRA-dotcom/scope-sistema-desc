@@ -59,6 +59,7 @@ export default function EntregableDetailPage() {
 
   const [tab, setTab] = useState<ContentTab>("short");
   const [delivering, setDelivering] = useState(false);
+  const [deliverError, setDeliverError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
 
   const branding = {
@@ -95,10 +96,20 @@ export default function EntregableDetailPage() {
   const handleDeliver = async () => {
     if (!deliverable) return;
     setDelivering(true);
+    setDeliverError(null);
     try {
-      await deliver({ deliverableId: deliverable._id });
+      const result = await deliver({ deliverableId: deliverable._id }) as
+        | { success: true; deliverableId: string }
+        | { success: false; deliverableId: string; reason: string }
+        | undefined;
+      if (result && result.success === false && result.reason === "no_contact_email") {
+        setDeliverError(
+          "El cliente no tiene email de contacto. Agrégalo en su perfil y vuelve a aprobar el entregable."
+        );
+      }
     } catch (err) {
       console.error("Error delivering:", err);
+      setDeliverError("Error al entregar el entregable. Intenta de nuevo.");
     } finally {
       setDelivering(false);
     }
@@ -278,6 +289,13 @@ export default function EntregableDetailPage() {
       {pdfState.error && (
         <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           {pdfState.error}
+        </div>
+      )}
+
+      {/* Deliver error */}
+      {deliverError && (
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {deliverError}
         </div>
       )}
 

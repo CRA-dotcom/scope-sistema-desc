@@ -147,4 +147,27 @@ describe("deliverables.mutations.deliver — contactEmail guard", () => {
     const assignment = await t.run((ctx) => ctx.db.get(seed.assignmentId));
     expect(assignment!.status).not.toBe("delivered");
   });
+
+  it("rejects whitespace-only contactEmail (trims before check)", async () => {
+    const t = setupTest();
+    // Seed with whitespace-only contactEmail — should be treated same as missing
+    const seed = await seedDeliverable(t, ORG_A, { contactEmail: "   " });
+
+    const auth = t.withIdentity({ orgId: ORG_A, orgRole: "org:member" });
+    const result = (await auth.mutation(
+      api.functions.deliverables.mutations.deliver,
+      { deliverableId: seed.deliverableId }
+    )) as { success: boolean; deliverableId: Id<"deliverables">; reason?: string };
+
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe("no_contact_email");
+
+    const deliverable = await t.run((ctx) => ctx.db.get(seed.deliverableId));
+    expect(deliverable!.auditStatus).toBe("rejected");
+    expect(deliverable!.auditFeedback).toContain("contactEmail");
+    expect(deliverable!.deliveredAt).toBeUndefined();
+
+    const assignment = await t.run((ctx) => ctx.db.get(seed.assignmentId));
+    expect(assignment!.status).not.toBe("delivered");
+  });
 });
