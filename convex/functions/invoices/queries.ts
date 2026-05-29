@@ -44,16 +44,20 @@ export const listForBilling = query({
   handler: async (ctx, args) => {
     const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return [];
-    let rows = await ctx.db
-      .query("invoices")
-      .withIndex("by_orgId", (qb) => qb.eq("orgId", orgId))
-      .collect();
+    let rows = args.status
+      ? await ctx.db
+          .query("invoices")
+          .withIndex("by_orgId_status", (qb) =>
+            qb.eq("orgId", orgId).eq("status", args.status!)
+          )
+          .collect()
+      : await ctx.db
+          .query("invoices")
+          .withIndex("by_orgId", (qb) => qb.eq("orgId", orgId))
+          .collect();
     rows = rows.filter((r) => r.year === args.year);
     if (args.month !== undefined) {
       rows = rows.filter((r) => r.month === args.month);
-    }
-    if (args.status) {
-      rows = rows.filter((r) => r.status === args.status);
     }
     if (args.issueDateFrom !== undefined) {
       rows = rows.filter((r) => (r.issueDate ?? r.uploadedAt) >= args.issueDateFrom!);
