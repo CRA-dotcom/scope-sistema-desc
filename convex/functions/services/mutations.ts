@@ -1,5 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
+import { ConvexError } from "convex/values";
 import { getOrgId, requireAdmin, requireSuperAdmin } from "../../lib/authHelpers";
 
 export const createOrgOverride = mutation({
@@ -53,6 +54,51 @@ export const resetToDefault = mutation({
     if (!service || service.orgId !== orgId || service.isDefault) {
       throw new Error("No se puede resetear este servicio.");
     }
+
+    // Phase 1 §3.4 — guard: no permitir reset si hay refs activas
+    const refs: { table: string; count: number }[] = [];
+
+    const projServices = await ctx.db
+      .query("projectionServices")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .filter((q) => q.eq(q.field("serviceId"), args.serviceId))
+      .first();
+    if (projServices) refs.push({ table: "projectionServices", count: 1 });
+
+    const subs = await ctx.db
+      .query("subservices")
+      .withIndex("by_parent_slug", (q) => q.eq("parentServiceId", args.serviceId))
+      .first();
+    if (subs) refs.push({ table: "subservices", count: 1 });
+
+    const templates = await ctx.db
+      .query("deliverableTemplates")
+      .withIndex("by_serviceId", (q) => q.eq("serviceId", args.serviceId))
+      .first();
+    if (templates) refs.push({ table: "deliverableTemplates", count: 1 });
+
+    const maps = await ctx.db
+      .query("servicesIssuingCompanyMap")
+      .withIndex("by_orgId_serviceId", (q) =>
+        q.eq("orgId", orgId).eq("serviceId", args.serviceId)
+      )
+      .first();
+    if (maps) refs.push({ table: "servicesIssuingCompanyMap", count: 1 });
+
+    const overrides = await ctx.db
+      .query("clientIssuingCompanyOverride")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .filter((q) => q.eq(q.field("serviceId"), args.serviceId))
+      .first();
+    if (overrides) refs.push({ table: "clientIssuingCompanyOverride", count: 1 });
+
+    if (refs.length > 0) {
+      throw new ConvexError({
+        code: "HAS_ACTIVE_REFS",
+        message: `Servicio en uso: ${refs.map((r) => `${r.count} ${r.table}`).join(", ")}`,
+      });
+    }
+
     await ctx.db.delete(args.serviceId);
   },
 });
