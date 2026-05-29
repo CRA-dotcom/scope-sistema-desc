@@ -9,6 +9,21 @@ import { ConvexError } from "convex/values";
  * - Idempotente: si `from === to`, no-op.
  * - Throws ConvexError({ code: "INVALID_TRANSITION", message }) si la
  *   transición no está en `allowed`.
+ *
+ * INTENTIONAL BYPASSES (mutations especializadas que patchean status directo,
+ * sin pasar por updateStatus + assertTransition):
+ * - `invoices.markPaid` → sync MA.invoiceStatus="paid" (puede saltar
+ *   not_invoiced→paid si nunca se marcó invoiced explícito)
+ * - `deliverables.deliver` → sync MA.status="delivered" (validación propia:
+ *   auditStatus === "approved")
+ * - `questionnaires.submit` + `publicMutations.submitByToken` → status="completed"
+ *   (validación propia: cliente envía respuestas vía token)
+ * - `questionnaires.reopen` → completed→in_progress (admin-only escape hatch)
+ * - `projections.replaceProjection` → status="draft" sobre projection activa
+ *   (cascade destructiva con su propia lógica de invariantes)
+ *
+ * Si agregas un nuevo path que patchea status directamente, decide si debe
+ * pasar por assertTransition o documentarse aquí como bypass intencional.
  */
 
 export type Transition<S extends string> = readonly [from: S, to: S];
