@@ -1,5 +1,6 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
+import { ConvexError } from "convex/values";
 import { getOrgId } from "../../lib/authHelpers";
 import { Doc, Id } from "../../_generated/dataModel";
 import { effectiveSubserviceIds } from "../../lib/subserviceIds";
@@ -698,6 +699,17 @@ export const deleteQuotation = mutation({
       throw new Error(
         "Solo cotizaciones en estado borrador pueden eliminarse."
       );
+    }
+    // Phase 1 §3.5 — defensive guard: bloquear delete si hay contract apuntando
+    const contractRef = await ctx.db
+      .query("contracts")
+      .withIndex("by_quotationId", (q) => q.eq("quotationId", args.id))
+      .first();
+    if (contractRef) {
+      throw new ConvexError({
+        code: "HAS_CONTRACT",
+        message: `Cotización tiene contrato ${contractRef._id} asociado. Borra el contrato primero.`,
+      });
     }
     await ctx.db.delete(args.id);
   },
