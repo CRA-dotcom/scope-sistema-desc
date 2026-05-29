@@ -123,9 +123,9 @@ import type * as functions_superAdmin_metrics from "../functions/superAdmin/metr
 import type * as functions_users_mutations from "../functions/users/mutations.js";
 import type * as functions_users_queries from "../functions/users/queries.js";
 import type * as http from "../http.js";
-import type * as lib_applyDraftStateToProjection from "../lib/applyDraftStateToProjection.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_blobStorage from "../lib/blobStorage.js";
+import type * as lib_buildProjectionDownstream from "../lib/buildProjectionDownstream.js";
 import type * as lib_cfdiParser from "../lib/cfdiParser.js";
 import type * as lib_contractResolver from "../lib/contractResolver.js";
 import type * as lib_date from "../lib/date.js";
@@ -273,9 +273,9 @@ declare const fullApi: ApiFromModules<{
   "functions/users/mutations": typeof functions_users_mutations;
   "functions/users/queries": typeof functions_users_queries;
   http: typeof http;
-  "lib/applyDraftStateToProjection": typeof lib_applyDraftStateToProjection;
   "lib/authHelpers": typeof lib_authHelpers;
   "lib/blobStorage": typeof lib_blobStorage;
+  "lib/buildProjectionDownstream": typeof lib_buildProjectionDownstream;
   "lib/cfdiParser": typeof lib_cfdiParser;
   "lib/contractResolver": typeof lib_contractResolver;
   "lib/date": typeof lib_date;

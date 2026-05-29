@@ -7,15 +7,12 @@ import type { MutationCtx } from "../../_generated/server";
 import { assertTransition, type Transition } from "../../lib/stateMachines";
 import {
   calculateProjection,
-  generateEvenSeasonality,
   type ServiceConfig,
-  type MonthlyData,
   type EngineConfig,
 } from "../../lib/projectionEngine";
-import { seasonalityDataFromDeltas } from "../../lib/seasonality";
 import type { PricingModel } from "../../lib/pricingModel";
 import { getProjectionDownstreamCounts } from "../../lib/projectionDownstream";
-import { applyDraftStateToProjection } from "../../lib/applyDraftStateToProjection";
+import { buildProjectionDownstream } from "../../lib/buildProjectionDownstream";
 // Note: convex/lib/seasonality.ts is a pure TS file with no browser-only APIs,
 // safe to import in Convex server functions.
 
@@ -25,7 +22,7 @@ import { applyDraftStateToProjection } from "../../lib/applyDraftStateToProjecti
  * Cascade-deletes downstream rows in dependency order:
  *   invoices → deliverables → contracts → quotations → monthlyAssignments → projectionServices
  * Then patches the projection row with new top-level fields and rebuilds
- * projectionServices + monthlyAssignments via applyDraftStateToProjection.
+ * projectionServices + monthlyAssignments via buildProjectionDownstream.
  * Logs a "projection re-edited" documentEvent.
  *
  * Returns the (unchanged) projectionId — same ID is reused, no new row created.
@@ -158,24 +155,20 @@ async function replaceProjection(
   });
 
   // 6. Rebuild projectionServices + monthlyAssignments via the shared helper.
-  //    Build a draft-shaped serviceStates from the serviceConfigs passed in.
-  const draftLikeState = {
-    step: 3,
+  await buildProjectionDownstream(ctx, projectionId, orgId, {
+    clientId: newArgs.clientId,
     year: newArgs.year,
     annualSales: newArgs.annualSales,
     totalBudget: newArgs.totalBudget,
     commissionRate: newArgs.commissionRate,
-    serviceStates: newArgs.serviceConfigs.map((sc) => ({
-      serviceId: sc.serviceId as string,
-      chosenPct: sc.chosenPct,
-      isActive: sc.isActive,
-    })),
-  };
-  await applyDraftStateToProjection(
-    ctx,
-    projectionId,
-    draftLikeState as Parameters<typeof applyDraftStateToProjection>[2]
-  );
+    seasonalityData: newArgs.seasonalityData,
+    seasonalityDeltas: newArgs.seasonalityDeltas,
+    startMonth: newArgs.startMonth,
+    projectionMode: newArgs.projectionMode,
+    monthCount: newArgs.monthCount,
+    effectiveBudget: newArgs.effectiveBudget,
+    serviceConfigs: newArgs.serviceConfigs,
+  });
 
   // 7. Log audit event.
   // Fix 3: include actorUserId so the event is attributed to the user.
@@ -339,46 +332,6 @@ export const create = mutation({
       }
     }
 
-    // Resolve seasonality: if deltas provided, compute from them; else use raw data or even spread
-    const seasonality: MonthlyData[] =
-      args.seasonalityDeltas && args.seasonalityDeltas.length === 12
-        ? seasonalityDataFromDeltas(args.annualSales, args.seasonalityDeltas)
-        : args.seasonalityData.length === 12
-          ? args.seasonalityData
-          : generateEvenSeasonality(args.annualSales);
-
-    // Fetch org config for engine settings
-    const orgConfig = await ctx.db
-      .query("orgConfigs")
-      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
-      .unique();
-
-    const engineConfig: EngineConfig | undefined = orgConfig
-      ? {
-          calculationMode: orgConfig.calculationMode,
-          commissionMode: orgConfig.commissionMode,
-          seasonalityEnabled: orgConfig.seasonalityEnabled,
-        }
-      : undefined;
-
-    // Calculate projection
-    const result = calculateProjection(
-      {
-        annualSales: args.annualSales,
-        totalBudget: args.totalBudget,
-        commissionRate: args.commissionRate,
-        services: serviceDetails,
-        seasonalityData: seasonality,
-        // C2: pass projection period fields so the engine generates the correct
-        // month slice and uses effectiveBudget for fiscal projections
-        startMonth: args.startMonth,
-        projectionMode: args.projectionMode,
-        monthCount: args.monthCount,
-        effectiveBudget: args.effectiveBudget,
-      },
-      engineConfig
-    );
-
     const now = Date.now();
 
     // Create projection record
@@ -389,7 +342,7 @@ export const create = mutation({
       annualSales: args.annualSales,
       totalBudget: args.totalBudget,
       commissionRate: args.commissionRate,
-      seasonalityData: seasonality,
+      seasonalityData: args.seasonalityData,
       seasonalityDeltas: args.seasonalityDeltas,
       seasonalityOutliers: args.seasonalityOutliers,
       // C2: projection period fields
@@ -415,75 +368,22 @@ export const create = mutation({
       hasProjectionMode: args.projectionMode !== undefined,
     });
 
-    // Create projection services and monthly assignments
-    for (const svc of result.services) {
-      const serviceConfig = args.serviceConfigs.find(
-        (sc) => (sc.serviceId as string) === svc.serviceId
-      );
-      if (!serviceConfig) continue;
-
-      // Resolve pricingModel: explicit override on serviceConfig > subservice.defaultPricingModel
-      //                    > derive from service.isCommission
-      // #9: prefer subserviceIds (multi); fall back to legacy subserviceId scalar.
-      const effectiveSubserviceIds: Array<Id<"subservices">> =
-        serviceConfig.subserviceIds && serviceConfig.subserviceIds.length > 0
-          ? serviceConfig.subserviceIds
-          : serviceConfig.subserviceId
-            ? [serviceConfig.subserviceId]
-            : [];
-      // For backward compat, the legacy `subserviceId` field is set to the FIRST
-      // element of the resolved list (or undefined when empty).
-      const legacySubserviceId: Id<"subservices"> | undefined =
-        effectiveSubserviceIds[0];
-
-      let resolvedPricingModel: PricingModel | undefined =
-        serviceConfig.pricingModel;
-      if (!resolvedPricingModel && legacySubserviceId) {
-        const sub = await ctx.db.get(legacySubserviceId);
-        resolvedPricingModel = sub?.defaultPricingModel;
-      }
-      if (!resolvedPricingModel) {
-        const svcRow = await ctx.db.get(serviceConfig.serviceId);
-        resolvedPricingModel = svcRow?.isCommission ? "commission" : "fixed_retainer";
-      }
-
-      const projServiceId = await ctx.db.insert("projectionServices", {
-        orgId,
-        projectionId,
-        serviceId: serviceConfig.serviceId,
-        serviceName: svc.serviceName,
-        subserviceId: legacySubserviceId,
-        subserviceIds:
-          effectiveSubserviceIds.length > 0 ? effectiveSubserviceIds : undefined,
-        chosenPct: svc.chosenPct,
-        isActive: svc.isActive,
-        annualAmount: svc.annualAmount,
-        normalizedWeight: svc.normalizedWeight,
-        pricingModel: resolvedPricingModel,
-      });
-
-      // Create monthly assignments for active services
-      if (svc.isActive) {
-        for (const ma of svc.monthlyAmounts) {
-          await ctx.db.insert("monthlyAssignments", {
-            orgId,
-            projServiceId,
-            projectionId,
-            clientId: args.clientId,
-            serviceName: svc.serviceName,
-            // subserviceId: undefined — operator picks per-cell from matrix.
-            // Spec: docs/superpowers/specs/2026-05-22-monthly-subservice-selection-design.md
-            month: ma.month,
-            year: args.year,
-            amount: ma.adjustedAmount,
-            feFactor: ma.feFactor,
-            status: "pending",
-            invoiceStatus: "not_invoiced",
-            isManuallyOverridden: resolvedPricingModel === "dynamic_retainer",
-          });
-        }
-      }
-    }
+    // Build downstream rows (projectionServices + monthlyAssignments) via
+    // the shared helper — same logic used by replaceProjection.
+    await buildProjectionDownstream(ctx, projectionId, orgId, {
+      clientId: args.clientId,
+      year: args.year,
+      annualSales: args.annualSales,
+      totalBudget: args.totalBudget,
+      commissionRate: args.commissionRate,
+      seasonalityData: args.seasonalityData,
+      seasonalityDeltas: args.seasonalityDeltas,
+      startMonth: args.startMonth,
+      projectionMode: args.projectionMode,
+      monthCount: args.monthCount,
+      effectiveBudget: args.effectiveBudget,
+      serviceConfigs: args.serviceConfigs,
+    });
 
     return projectionId;
   },

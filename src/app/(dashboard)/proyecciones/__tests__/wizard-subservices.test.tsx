@@ -23,6 +23,17 @@ const PROJECTIONS_MUT_SOURCE = readFileSync(
   "utf-8"
 );
 
+// The downstream build logic (projectionServices + monthlyAssignments insert)
+// was extracted to a shared helper in buildProjectionDownstream.ts.
+// Source gates that check insert patterns must read from the helper file.
+const BUILD_DOWNSTREAM_SOURCE = readFileSync(
+  resolve(
+    __dirname,
+    "../../../../../convex/lib/buildProjectionDownstream.ts"
+  ),
+  "utf-8"
+);
+
 describe("wizard Step 2 — subservice checkboxes (#9 multi-select)", () => {
   it("ServiceFormState carries a subserviceIds array field (multi-select)", () => {
     expect(WIZARD_SOURCE).toMatch(
@@ -96,7 +107,8 @@ describe("projections.create mutation — subserviceIds propagation (#9)", () =>
   });
 
   it("persists legacySubserviceId on the projectionServices insert (backcompat)", () => {
-    expect(PROJECTIONS_MUT_SOURCE).toMatch(
+    // The downstream build was extracted to buildProjectionDownstream.ts.
+    expect(BUILD_DOWNSTREAM_SOURCE).toMatch(
       /insert\(\s*"projectionServices"[\s\S]+?subserviceId:\s*legacySubserviceId/
     );
   });
