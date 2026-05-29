@@ -452,7 +452,7 @@ describe("projections.create with previousProjectionId branches to replaceProjec
     });
   });
 
-  it("re-edit resets projection.status to draft", async () => {
+  it("re-edit keeps projection.status as active (commit nace activo)", async () => {
     const t = convexTest(schema);
     const asAdmin = t.withIdentity({
       subject: "user_admin_1",
@@ -514,7 +514,7 @@ describe("projections.create with previousProjectionId branches to replaceProjec
 
     await t.run(async (ctx) => {
       const proj = await ctx.db.get(projectionId);
-      expect(proj?.status).toBe("draft");
+      expect(proj?.status).toBe("active");
     });
   });
 

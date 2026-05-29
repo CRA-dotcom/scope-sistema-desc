@@ -137,7 +137,10 @@ async function replaceProjection(
   for (const ps of projServices) await ctx.db.delete(ps._id);
 
   // 5. Patch the projection row with new top-level fields.
-  // Fix 4: reset status to "draft" so the row is not left "active" with no downstream.
+  // The row is set directly to "active" so it shows up in dashboards and the
+  // fiscal-close cron (by_orgId_status filter) without needing a separate
+  // "promote to active" UI step. Wizard state lives in `projectionDrafts` —
+  // the `projections` row is always either active or archived end-state.
   await ctx.db.patch(projectionId, {
     year: newArgs.year,
     annualSales: newArgs.annualSales,
@@ -150,7 +153,7 @@ async function replaceProjection(
     projectionMode: newArgs.projectionMode,
     monthCount: newArgs.monthCount,
     effectiveBudget: newArgs.effectiveBudget,
-    status: "draft" as const,
+    status: "active" as const,
     updatedAt: Date.now(),
   });
 
@@ -395,7 +398,10 @@ export const create = mutation({
       monthCount: args.monthCount,
       effectiveBudget: args.effectiveBudget,
       previousProjectionId: args.previousProjectionId,
-      status: "draft",
+      // Commit del wizard inserta directo a "active": wizard state vive en
+      // projectionDrafts, no necesitamos un "draft" intermedio en projections.
+      // Esto desbloquea el cron notifyFiscalCloseEvents que iteraba by_orgId_status.
+      status: "active",
       createdAt: now,
       updatedAt: now,
     });
@@ -404,7 +410,7 @@ export const create = mutation({
       projectionId,
       orgId,
       clientId: args.clientId,
-      status: "draft",
+      status: "active",
       hasMonthCount: args.monthCount !== undefined,
       hasProjectionMode: args.projectionMode !== undefined,
     });

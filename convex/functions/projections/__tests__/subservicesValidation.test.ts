@@ -145,7 +145,7 @@ describe("projections.create — subservice validation (A1 Phase 2)", () => {
     expect(projectionId).toBeDefined();
     const doc = await t.run((ctx) => ctx.db.get(projectionId));
     expect(doc?.orgId).toBe(ORG_A);
-    expect(doc?.status).toBe("draft");
+    expect(doc?.status).toBe("active");
   });
 
   it("accepts when service has NO active subservices (legacy path stays open)", async () => {
