@@ -841,32 +841,6 @@ export default defineSchema({
     .index("by_orgId_provider", ["orgId", "provider"])
     .index("by_orgId_status", ["orgId", "status"]),
 
-  satConcepts: defineTable({
-    orgId: v.optional(v.string()),
-    claveProdServ: v.string(),
-    description: v.string(),
-    claveUnidad: v.string(),
-    unidadLabel: v.optional(v.string()),
-    objetoImp: v.optional(
-      v.union(
-        v.literal("01"),
-        v.literal("02"),
-        v.literal("03"),
-        v.literal("04")
-      )
-    ),
-    serviceIds: v.optional(v.array(v.id("services"))),
-    tags: v.optional(v.array(v.string())),
-    isDefault: v.boolean(),
-    isActive: v.boolean(),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_orgId", ["orgId"])
-    .index("by_claveProdServ", ["claveProdServ"])
-    .index("by_orgId_active", ["orgId", "isActive"])
-    .index("by_orgId_isDefault", ["orgId", "isDefault"]),
-
   // A3: lifecycle de facturas V1 manuales. PDF en Railway bucket; metadata aquí.
   // Per docs/superpowers/specs/2026-05-23-document-lifecycle-design.md §2.1
   invoices: defineTable({
