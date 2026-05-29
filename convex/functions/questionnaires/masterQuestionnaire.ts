@@ -132,7 +132,12 @@ export const MASTER_QUESTIONS: MasterQuestion[] = [
   { key: "fin_monthly_sales", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Ventas mensuales promedio", type: "number", variableKey: "company_monthly_sales" },
   { key: "fin_profit_margin", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Margen aproximado de utilidad", type: "text", variableKey: "company_profit_margin" },
   { key: "fin_monthly_fixed_expenses", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos fijos mensuales", type: "number", variableKey: "company_monthly_fixed_expenses" },
-  { key: "fin_variable_expenses", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos variables principales", type: "textarea" },
+  { key: "fin_variable_expenses_nomina", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos variables — Nómina mensual", type: "number", variableKey: "company_variable_expenses_nomina" },
+  { key: "fin_variable_expenses_renta", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos variables — Renta", type: "number", variableKey: "company_variable_expenses_renta" },
+  { key: "fin_variable_expenses_servicios", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos variables — Servicios (luz, agua, internet)", type: "number", variableKey: "company_variable_expenses_servicios" },
+  { key: "fin_variable_expenses_insumos", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos variables — Insumos", type: "number", variableKey: "company_variable_expenses_insumos" },
+  { key: "fin_variable_expenses_mantenimiento", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos variables — Mantenimiento", type: "number", variableKey: "company_variable_expenses_mantenimiento" },
+  { key: "fin_variable_expenses_otros", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Gastos variables — Otros", type: "number", variableKey: "company_variable_expenses_otros" },
   { key: "fin_monthly_cashflow", section: SEC_4, subsection: "4.1 Información Financiera General", text: "Flujo mensual aproximado", type: "number", variableKey: "company_monthly_cashflow" },
   { key: "fin_is_profitable", section: SEC_4, subsection: "4.1 Información Financiera General", text: "¿La empresa actualmente es rentable?", type: "select", options: SI_NO_NS },
 
