@@ -17,11 +17,11 @@ import type { Id } from "../../_generated/dataModel";
  *
  * Flow (R1 §12.5, §12.9; doc-lifecycle §3.2):
  *  1. Load invoice; abort if missing / not paid.
- *  2. Idempotency check via `findByTriggerInvoiceId`.
- *  3. Resolve projection.
- *  4. Run the frequency-aware selector (`selectDeliverableForMonth`).
+ *  2. Resolve projection.
+ *  3. Run the frequency-aware selector (`selectDeliverableForMonth`).
  *     If no template: log warning + email operator + return early.
- *  5. Resolve `monthlyAssignment`.
+ *  4. Resolve `monthlyAssignment`.
+ *  5. Atomic claim via `claimInvoiceForGeneration`.
  *  6. Delegate to `generateDeliverable` with `templateOverride` so the
  *     snapshot used is the one the selector picked.
  *  7. Log success + notify executive.

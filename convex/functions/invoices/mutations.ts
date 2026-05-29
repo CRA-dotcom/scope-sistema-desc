@@ -111,7 +111,7 @@ export const markPaid = mutation({
       }
     );
 
-    // Fire-and-forget; the action checks idempotency via findByTriggerInvoiceId.
+    // Fire-and-forget; the action atomically claims via claimInvoiceForGeneration.
     await ctx.scheduler.runAfter(
       0,
       internal.functions.deliverables.invoiceFlow.generateFromInvoice,

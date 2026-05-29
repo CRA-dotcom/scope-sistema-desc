@@ -434,22 +434,6 @@ export const selectDeliverableForMonth = internalQuery({
 });
 
 /**
- * A3 — Idempotency check for generateFromInvoice. Returns the deliverable
- * row (if any) that was already generated from a specific invoice.
- */
-export const findByTriggerInvoiceId = internalQuery({
-  args: { invoiceId: v.id("invoices") },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("deliverables")
-      .withIndex("by_triggerInvoiceId", (q) =>
-        q.eq("triggerInvoiceId", args.invoiceId)
-      )
-      .first();
-  },
-});
-
-/**
  * A3 — Find the monthlyAssignment matching an invoice when the invoice
  * row does not carry `monthlyAssignmentId` directly. Disambiguates via
  * `projServiceId` when present.
