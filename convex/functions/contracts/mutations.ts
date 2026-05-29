@@ -1,6 +1,7 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId, requireAdmin } from "../../lib/authHelpers";
+import { cancelFuturePendingAssignments } from "../../lib/projectionDownstream";
 
 export const generate = mutation({
   args: {
@@ -332,6 +333,13 @@ export const cancelContract = mutation({
       status: "cancelled",
       cancellationReason: args.reason,
     });
+
+    // Phase 1 §3.2 — cascade: desactivar projService y cancelar MAs futuros pending
+    const projService = await ctx.db.get(contract.projServiceId);
+    if (projService && projService.isActive) {
+      await ctx.db.patch(projService._id, { isActive: false });
+      await cancelFuturePendingAssignments(ctx, projService._id);
+    }
 
     await ctx.db.insert("documentEvents", {
       orgId: contract.orgId,
