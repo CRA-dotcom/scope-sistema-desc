@@ -273,4 +273,115 @@ describe("services.mutations.resetToDefault – ref guard", () => {
     const gone = await t.run((ctx) => ctx.db.get(serviceId));
     expect(gone).toBeNull();
   });
+
+  // ── scope leak fix ──────────────────────────────────────────────────────────
+
+  it("does NOT block reset when only GLOBAL catalog rows reference the service", async () => {
+    const t = setupTest();
+    const serviceId = await seedOrgService(t, "Override No Global Refs");
+
+    // Seed global (orgId: undefined) subservice referencing the same serviceId
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("subservices", {
+        // orgId intentionally omitted — global catalog row
+        parentServiceId: serviceId,
+        name: "Global Sub",
+        slug: "global-sub",
+        defaultFrequency: "mensual" as const,
+        isActive: true,
+        isDefault: true,
+        sortOrder: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    // Seed global (orgId: undefined) deliverableTemplate referencing the same serviceId
+    await t.run(async (ctx) => {
+      await ctx.db.insert("deliverableTemplates", {
+        // orgId intentionally omitted — global catalog row
+        serviceId,
+        serviceName: "Override No Global Refs",
+        type: "contract" as const,
+        name: "Global Template",
+        htmlTemplate: "<p>{{clientName}}</p>",
+        variables: [],
+        version: 1,
+        isActive: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    // ORG_A admin resets their override — global rows must NOT block this
+    await t
+      .withIdentity(admin(ORG_A))
+      .mutation(api.functions.services.mutations.resetToDefault, {
+        serviceId,
+      });
+
+    const gone = await t.run((ctx) => ctx.db.get(serviceId));
+    expect(gone).toBeNull();
+  });
+
+  // ── count accuracy ──────────────────────────────────────────────────────────
+
+  it("reports accurate counts in HAS_ACTIVE_REFS error message", async () => {
+    const t = setupTest();
+    const serviceId = await seedOrgService(t, "Counted Service");
+
+    // Seed 3 projectionServices in ORG_A referencing the service
+    await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: ORG_A,
+        name: "Count Client",
+        rfc: "CNT010101AAA",
+        industry: "Tech",
+        annualRevenue: 1_000_000,
+        billingFrequency: "mensual" as const,
+        isArchived: false,
+        createdAt: Date.now(),
+      });
+      for (let i = 0; i < 3; i++) {
+        const projectionId = await ctx.db.insert("projections", {
+          orgId: ORG_A,
+          clientId,
+          year: 2026 + i,
+          annualSales: 1_000_000,
+          totalBudget: 120_000,
+          commissionRate: 0,
+          seasonalityData: [],
+          status: "active" as const,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        await ctx.db.insert("projectionServices", {
+          orgId: ORG_A,
+          projectionId,
+          serviceId,
+          serviceName: "Counted Service",
+          chosenPct: 0.05,
+          isActive: true,
+          annualAmount: 60_000,
+          normalizedWeight: 0.5,
+        });
+      }
+    });
+
+    let thrownError: unknown;
+    try {
+      await t
+        .withIdentity(admin(ORG_A))
+        .mutation(api.functions.services.mutations.resetToDefault, {
+          serviceId,
+        });
+    } catch (e) {
+      thrownError = e;
+    }
+
+    expect(thrownError).toBeDefined();
+    const msg = String((thrownError as { data?: { message?: string } })?.data?.message ?? thrownError);
+    expect(msg).toMatch(/3 projectionServices/);
+  });
 });

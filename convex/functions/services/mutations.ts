@@ -58,39 +58,57 @@ export const resetToDefault = mutation({
     // Phase 1 §3.4 — guard: no permitir reset si hay refs activas
     const refs: { table: string; count: number }[] = [];
 
-    const projServices = await ctx.db
+    // projectionServices: org-scoped, count accurate
+    const projServiceRows = await ctx.db
       .query("projectionServices")
       .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
       .filter((q) => q.eq(q.field("serviceId"), args.serviceId))
-      .first();
-    if (projServices) refs.push({ table: "projectionServices", count: 1 });
+      .collect();
+    if (projServiceRows.length > 0) {
+      refs.push({ table: "projectionServices", count: projServiceRows.length });
+    }
 
-    const subs = await ctx.db
+    // subservices: org-scoped via by_orgId_parentService (no global catalog rows)
+    const subRows = await ctx.db
       .query("subservices")
-      .withIndex("by_parent_slug", (q) => q.eq("parentServiceId", args.serviceId))
-      .first();
-    if (subs) refs.push({ table: "subservices", count: 1 });
+      .withIndex("by_orgId_parentService", (q) =>
+        q.eq("orgId", orgId).eq("parentServiceId", args.serviceId)
+      )
+      .collect();
+    if (subRows.length > 0) {
+      refs.push({ table: "subservices", count: subRows.length });
+    }
 
-    const templates = await ctx.db
+    // deliverableTemplates: by_serviceId index + post-filter orgId (no composite index exists)
+    const templateRows = await ctx.db
       .query("deliverableTemplates")
       .withIndex("by_serviceId", (q) => q.eq("serviceId", args.serviceId))
-      .first();
-    if (templates) refs.push({ table: "deliverableTemplates", count: 1 });
+      .filter((q) => q.eq(q.field("orgId"), orgId))
+      .collect();
+    if (templateRows.length > 0) {
+      refs.push({ table: "deliverableTemplates", count: templateRows.length });
+    }
 
-    const maps = await ctx.db
+    // servicesIssuingCompanyMap: org-scoped, count accurate
+    const mapRows = await ctx.db
       .query("servicesIssuingCompanyMap")
       .withIndex("by_orgId_serviceId", (q) =>
         q.eq("orgId", orgId).eq("serviceId", args.serviceId)
       )
-      .first();
-    if (maps) refs.push({ table: "servicesIssuingCompanyMap", count: 1 });
+      .collect();
+    if (mapRows.length > 0) {
+      refs.push({ table: "servicesIssuingCompanyMap", count: mapRows.length });
+    }
 
-    const overrides = await ctx.db
+    // clientIssuingCompanyOverride: org-scoped, count accurate
+    const overrideRows = await ctx.db
       .query("clientIssuingCompanyOverride")
       .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
       .filter((q) => q.eq(q.field("serviceId"), args.serviceId))
-      .first();
-    if (overrides) refs.push({ table: "clientIssuingCompanyOverride", count: 1 });
+      .collect();
+    if (overrideRows.length > 0) {
+      refs.push({ table: "clientIssuingCompanyOverride", count: overrideRows.length });
+    }
 
     if (refs.length > 0) {
       throw new ConvexError({
