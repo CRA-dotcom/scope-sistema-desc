@@ -1,6 +1,6 @@
 "use node";
 
-import { internalAction } from "../../_generated/server";
+import { internalAction, internalMutation } from "../../_generated/server";
 import { internal, api } from "../../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../../_generated/dataModel";
@@ -35,10 +35,11 @@ export const generateFromInvoice = internalAction({
     ctx,
     { invoiceId }
   ): Promise<{
-    ok: boolean;
+    ok?: boolean;
     reason?: string;
     deliverableId?: Id<"deliverables">;
     error?: string;
+    skipped?: "already_claimed";
   }> => {
     // 1. Load invoice.
     const invoice = await ctx.runQuery(
@@ -56,33 +57,6 @@ export const generateFromInvoice = internalAction({
         `[generateFromInvoice] invoice ${invoiceId} status=${invoice.status} — abort`
       );
       return { ok: false, reason: "invoice_not_paid" };
-    }
-
-    // 2. Idempotency.
-    const existing = await ctx.runQuery(
-      internal.functions.deliverables.internalQueries.findByTriggerInvoiceId,
-      { invoiceId }
-    );
-    if (existing) {
-      await ctx.runMutation(
-        internal.functions.documentEvents.internal.logEventMutation,
-        {
-          orgId: invoice.orgId,
-          clientId: invoice.clientId,
-          entityType: "invoice" as const,
-          entityId: invoiceId,
-          eventType: "generated" as const,
-          severity: "warning" as const,
-          actorType: "system" as const,
-          message: `Idempotencia: deliverable ${existing._id} ya existe para invoice ${invoiceId}; skip.`,
-          metadata: { existingDeliverableId: existing._id },
-        }
-      );
-      return {
-        ok: true,
-        reason: "idempotent_skip",
-        deliverableId: existing._id,
-      };
     }
 
     // 3. Resolve projection.
@@ -231,7 +205,21 @@ export const generateFromInvoice = internalAction({
       return { ok: false, reason: "missing_subservice" };
     }
 
-    // 6. Delegate to the engine with the snapshot we picked.
+    // 6. Phase 1 §3.7 — atomic claim antes del AI call.
+    //    Todos los guards pasaron; ahora reservamos el slot atómicamente.
+    //    Si ya existe un placeholder (race loser), skip el AI batch.
+    const claimed: boolean = await ctx.runMutation(
+      internal.functions.deliverables.invoiceFlow.claimInvoiceForGeneration,
+      { invoiceId }
+    );
+    if (!claimed) {
+      console.log(
+        `[generateFromInvoice] invoice ${invoiceId} already claimed — skip AI`
+      );
+      return { skipped: "already_claimed" as const };
+    }
+
+    // 7. Delegate to the engine with the snapshot we picked.
     let deliverableId: Id<"deliverables">;
     try {
       const result = await ctx.runAction(
@@ -270,7 +258,7 @@ export const generateFromInvoice = internalAction({
       return { ok: false, reason: "generation_failed", error: msg };
     }
 
-    // 7. Log success + notify executive.
+    // 8. Log success + notify executive.
     await ctx.runMutation(
       internal.functions.documentEvents.internal.logEventMutation,
       {
@@ -297,6 +285,54 @@ export const generateFromInvoice = internalAction({
     );
 
     return { ok: true, deliverableId };
+  },
+});
+
+/**
+ * Atomic claim para idempotencia de generateFromInvoice.
+ * Inserta un placeholder deliverable con triggerInvoiceId set, retornando
+ * false si ya existe (race winner ya reservó el slot).
+ *
+ * El placeholder se patchea con contenido real cuando termina el AI batch
+ * vía deliverables.saveGenerated (dedup por by_assignmentId).
+ */
+export const claimInvoiceForGeneration = internalMutation({
+  args: { invoiceId: v.id("invoices") },
+  handler: async (ctx, { invoiceId }) => {
+    const existing = await ctx.db
+      .query("deliverables")
+      .withIndex("by_triggerInvoiceId", (q) =>
+        q.eq("triggerInvoiceId", invoiceId)
+      )
+      .first();
+    if (existing) return false;
+
+    const invoice = await ctx.db.get(invoiceId);
+    if (!invoice) return false;
+
+    const assignment = invoice.monthlyAssignmentId
+      ? await ctx.db.get(invoice.monthlyAssignmentId)
+      : null;
+    if (!assignment) return false;
+
+    await ctx.db.insert("deliverables", {
+      orgId: invoice.orgId,
+      assignmentId: assignment._id,
+      projServiceId: assignment.projServiceId,
+      clientId: assignment.clientId,
+      serviceName: assignment.serviceName,
+      subserviceId: assignment.subserviceId,
+      month: assignment.month,
+      year: assignment.year,
+      shortContent: "",
+      longContent: "",
+      auditStatus: "pending" as const,
+      retryCount: 0,
+      triggerSource: "invoice_paid" as const,
+      triggerInvoiceId: invoiceId,
+      createdAt: Date.now(),
+    });
+    return true;
   },
 });
 

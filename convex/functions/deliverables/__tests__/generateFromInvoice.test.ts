@@ -279,7 +279,7 @@ describe("deliverables.invoiceFlow.generateFromInvoice", () => {
     expect(deliverables.length).toBe(0);
   });
 
-  it("idempotent: second call returns idempotent_skip; only one deliverable", async () => {
+  it("idempotent: second call skips AI (already_claimed); only one deliverable", async () => {
     const t = setupTest();
     const seed = await seedWithTemplate(t, ORG_A);
 
@@ -292,27 +292,13 @@ describe("deliverables.invoiceFlow.generateFromInvoice", () => {
     const second = (await t.action(
       internal.functions.deliverables.invoiceFlow.generateFromInvoice,
       { invoiceId: seed.invoiceId }
-    )) as { ok: boolean; reason?: string; deliverableId?: Id<"deliverables"> };
-    expect(second.ok).toBe(true);
-    expect(second.reason).toBe("idempotent_skip");
-    expect(second.deliverableId).toBe(first.deliverableId);
+    )) as { skipped?: string; ok?: boolean };
+    // Phase 1 §3.7: atomic claim — race loser skips AI entirely.
+    expect(second.skipped).toBe("already_claimed");
 
     const deliverables = await t.run(async (ctx) =>
       ctx.db.query("deliverables").collect()
     );
     expect(deliverables.length).toBe(1);
-
-    const events = await t.run(async (ctx) =>
-      ctx.db.query("documentEvents").collect()
-    );
-    expect(
-      events.some(
-        (e) =>
-          e.severity === "warning" &&
-          e.eventType === "generated" &&
-          (e.metadata as { existingDeliverableId?: string } | undefined)
-            ?.existingDeliverableId === first.deliverableId
-      )
-    ).toBe(true);
   });
 });
