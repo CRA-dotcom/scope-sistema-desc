@@ -1,5 +1,6 @@
 import { internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
+import { cancelFuturePendingAssignments } from "../../lib/projectionDownstream";
 
 export const rotateTokenAndMarkSent = internalMutation({
   args: {
@@ -86,6 +87,13 @@ export const applyDecline = internalMutation({
       declineReason: reason,
       accessTokenHash: undefined,
     });
+    // Phase 1 §3.2 — cascade: desactivar projService y cancelar MAs futuros pending
+    // Aplica tanto a base como a supplementary add-ons (§3.2-bis).
+    const projService = await ctx.db.get(quotation.projServiceId);
+    if (projService && projService.isActive) {
+      await ctx.db.patch(projService._id, { isActive: false });
+      await cancelFuturePendingAssignments(ctx, projService._id);
+    }
     // TODO(pipeline-visibility): emit notifications.insert when §3B.10 ships.
     return {
       quotationId: quotation._id,
