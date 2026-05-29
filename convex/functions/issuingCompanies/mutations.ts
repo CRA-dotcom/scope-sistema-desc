@@ -228,15 +228,40 @@ export const remove = mutation({
         .withIndex("by_issuingCompanyId", (q) => q.eq("issuingCompanyId", args.id))
         .collect(),
     ]);
-    // TODO: cuando secciones 3/4 agreguen issuingCompanyId a quotations/contracts/deliverables/deliverableTemplates,
-    // contar esas referencias aquí también.
+    // Phase 1 §3.6 — cerrar TODO: contar refs en quotations + contracts + deliverableTemplates
+    const quotationRefs = await ctx.db
+      .query("quotations")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .filter((q) => q.eq(q.field("issuingCompanyId"), args.id))
+      .collect();
 
-    const total = emailLogsArr.length + serviceMapsArr.length + clientOverridesArr.length;
+    const contractRefs = await ctx.db
+      .query("contracts")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .filter((q) => q.eq(q.field("issuingCompanyId"), args.id))
+      .collect();
+
+    const templateRefs = await ctx.db
+      .query("deliverableTemplates")
+      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+      .filter((q) => q.eq(q.field("issuingCompanyId"), args.id))
+      .collect();
+
+    const total =
+      emailLogsArr.length +
+      serviceMapsArr.length +
+      clientOverridesArr.length +
+      quotationRefs.length +
+      contractRefs.length +
+      templateRefs.length;
     if (total > 0) {
       const parts: string[] = [];
       if (emailLogsArr.length) parts.push(`${emailLogsArr.length} email(s)`);
       if (serviceMapsArr.length) parts.push(`${serviceMapsArr.length} asignación(es) de servicio`);
       if (clientOverridesArr.length) parts.push(`${clientOverridesArr.length} override(s) por cliente`);
+      if (quotationRefs.length) parts.push(`${quotationRefs.length} cotización(es)`);
+      if (contractRefs.length) parts.push(`${contractRefs.length} contrato(s)`);
+      if (templateRefs.length) parts.push(`${templateRefs.length} plantilla(s)`);
       throw new Error(
         `No puede borrarse: tiene ${parts.join(", ")}. Desactívala en lugar de borrar.`
       );
