@@ -122,6 +122,23 @@ export const deliver = mutation({
       );
     }
 
+    // Verify client has a contactEmail before doing any writes.
+    const client = await ctx.db.get(deliverable.clientId);
+    if (!client?.contactEmail) {
+      await ctx.db.patch(args.deliverableId, {
+        auditStatus: "rejected" as const,
+        auditFeedback:
+          "Cliente sin contactEmail — agregar en perfil del cliente antes de re-entregar",
+      });
+      return {
+        success: false,
+        deliverableId: args.deliverableId,
+        reason: "no_contact_email" as const,
+      };
+    }
+    const clientEmail = client.contactEmail;
+    const clientName = client.name;
+
     await ctx.db.patch(args.deliverableId, {
       deliveredAt: Date.now(),
     });
@@ -129,11 +146,6 @@ export const deliver = mutation({
     await ctx.db.patch(deliverable.assignmentId, {
       status: "delivered" as const,
     });
-
-    const client = await ctx.db.get(deliverable.clientId);
-    const clientName = client?.name ?? "Cliente";
-    // TODO: Add an `email` field to the clients table. For now, derive a placeholder email from the client RFC.
-    const clientEmail = client ? `${client.rfc}@placeholder.com` : "unknown@placeholder.com";
 
     await ctx.scheduler.runAfter(
       0,
