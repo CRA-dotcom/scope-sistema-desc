@@ -36,6 +36,7 @@ import type * as functions_deliverableTemplates_seedDefaults from "../functions/
 import type * as functions_deliverables_actions from "../functions/deliverables/actions.js";
 import type * as functions_deliverables_internalQueries from "../functions/deliverables/internalQueries.js";
 import type * as functions_deliverables_invoiceFlow from "../functions/deliverables/invoiceFlow.js";
+import type * as functions_deliverables_invoiceFlowMutations from "../functions/deliverables/invoiceFlowMutations.js";
 import type * as functions_deliverables_mutations from "../functions/deliverables/mutations.js";
 import type * as functions_deliverables_overrides from "../functions/deliverables/overrides.js";
 import type * as functions_deliverables_queries from "../functions/deliverables/queries.js";
@@ -183,6 +184,7 @@ declare const fullApi: ApiFromModules<{
   "functions/deliverables/actions": typeof functions_deliverables_actions;
   "functions/deliverables/internalQueries": typeof functions_deliverables_internalQueries;
   "functions/deliverables/invoiceFlow": typeof functions_deliverables_invoiceFlow;
+  "functions/deliverables/invoiceFlowMutations": typeof functions_deliverables_invoiceFlowMutations;
   "functions/deliverables/mutations": typeof functions_deliverables_mutations;
   "functions/deliverables/overrides": typeof functions_deliverables_overrides;
   "functions/deliverables/queries": typeof functions_deliverables_queries;
