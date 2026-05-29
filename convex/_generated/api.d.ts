@@ -80,6 +80,7 @@ import type * as functions_orgIntegrations_mutations from "../functions/orgInteg
 import type * as functions_orgIntegrations_queries from "../functions/orgIntegrations/queries.js";
 import type * as functions_organizations_mutations from "../functions/organizations/mutations.js";
 import type * as functions_organizations_queries from "../functions/organizations/queries.js";
+import type * as functions_organizations_webhookMutations from "../functions/organizations/webhookMutations.js";
 import type * as functions_projectionDrafts_mutations from "../functions/projectionDrafts/mutations.js";
 import type * as functions_projectionDrafts_queries from "../functions/projectionDrafts/queries.js";
 import type * as functions_projectionServices_mutations from "../functions/projectionServices/mutations.js";
@@ -229,6 +230,7 @@ declare const fullApi: ApiFromModules<{
   "functions/orgIntegrations/queries": typeof functions_orgIntegrations_queries;
   "functions/organizations/mutations": typeof functions_organizations_mutations;
   "functions/organizations/queries": typeof functions_organizations_queries;
+  "functions/organizations/webhookMutations": typeof functions_organizations_webhookMutations;
   "functions/projectionDrafts/mutations": typeof functions_projectionDrafts_mutations;
   "functions/projectionDrafts/queries": typeof functions_projectionDrafts_queries;
   "functions/projectionServices/mutations": typeof functions_projectionServices_mutations;

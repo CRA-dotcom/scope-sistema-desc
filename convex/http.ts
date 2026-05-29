@@ -77,4 +77,76 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/webhooks/clerk",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const body = await req.text();
+    const svixId = req.headers.get("svix-id") ?? "";
+    const svixTimestamp = req.headers.get("svix-timestamp") ?? "";
+    const svixSignature = req.headers.get("svix-signature") ?? "";
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      return new Response("Missing svix headers", { status: 400 });
+    }
+
+    let event: { type: string; data: Record<string, unknown> };
+    try {
+      event = JSON.parse(body);
+    } catch {
+      return new Response("Invalid JSON", { status: 400 });
+    }
+
+    const secret = process.env.CLERK_WEBHOOK_SECRET;
+    if (!secret) {
+      console.error("[Clerk webhook] CLERK_WEBHOOK_SECRET env var not set");
+      return new Response("Webhook secret not configured", { status: 500 });
+    }
+
+    try {
+      const wh = new Webhook(secret);
+      wh.verify(body, {
+        "svix-id": svixId,
+        "svix-timestamp": svixTimestamp,
+        "svix-signature": svixSignature,
+      });
+    } catch {
+      return new Response("Invalid signature", { status: 401 });
+    }
+
+    const data = event.data as Record<string, unknown>;
+
+    if (event.type === "organization.created") {
+      await ctx.runMutation(
+        internal.functions.organizations.webhookMutations.createFromClerkWebhook,
+        {
+          clerkOrgId: data.id as string,
+          name: data.name as string,
+          slug: (data.slug as string | undefined) ?? undefined,
+          imageUrl: (data.image_url as string | undefined) ?? undefined,
+          createdAt:
+            typeof data.created_at === "number"
+              ? data.created_at
+              : Date.now(),
+        }
+      );
+    } else if (event.type === "organization.updated") {
+      await ctx.runMutation(
+        internal.functions.organizations.webhookMutations.updateFromClerkWebhook,
+        {
+          clerkOrgId: data.id as string,
+          name: (data.name as string | undefined) ?? undefined,
+        }
+      );
+    } else if (event.type === "organization.deleted") {
+      await ctx.runMutation(
+        internal.functions.organizations.webhookMutations.markInactiveFromClerkWebhook,
+        { clerkOrgId: data.id as string }
+      );
+    }
+    // Unknown event types are silently accepted (200) — forward-compat.
+
+    return new Response(null, { status: 200 });
+  }),
+});
+
 export default http;

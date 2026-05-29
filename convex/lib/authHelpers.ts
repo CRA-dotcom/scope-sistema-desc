@@ -22,11 +22,12 @@ export async function getOrgId(ctx: QueryCtx | MutationCtx): Promise<string> {
  * Mutation-context variant of getOrgId: identical extraction logic, plus a
  * lazy-seed of the `organizations` row if none exists yet for this Clerk org.
  *
- * This closes the operational gap where a SuperAdmin could create a new Clerk
- * org without manually inserting an `organizations` row — causing paginated
- * crons (monthlyCheck, overdueCheck, notifyFiscalCloseEvents) to silently
- * skip the org. The first mutation executed by any member of the org
- * auto-creates the row with safe defaults (status="active", plan="basic").
+ * Defensive backup: the primary seed path is the Clerk webhook
+ * (POST /webhooks/clerk → organization.created). If the webhook does not
+ * deliver (network failure, webhook config gap, race with very first mutation),
+ * this lazy-seed creates the row at the first mutation so crons
+ * (monthlyCheck, overdueCheck, notifyFiscalCloseEvents) never silently skip
+ * the org. When the webhook fires first, the existing-check makes this a no-op.
  *
  * MUST only be called from mutation handlers (MutationCtx), never from
  * queries or internalQueries — use getOrgId for those.
