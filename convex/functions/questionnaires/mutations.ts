@@ -5,6 +5,16 @@ import { Id } from "../../_generated/dataModel";
 import { requireAdmin, getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 import { MASTER_QUESTIONS } from "./masterQuestionnaire";
 import { getOrgNotificationEmail } from "../email/resolveRecipients";
+import { assertTransition, type Transition } from "../../lib/stateMachines";
+
+type QStatus = "draft" | "sent" | "in_progress" | "completed";
+
+const ALLOWED_QUESTIONNAIRE_STATUS_TRANSITIONS: readonly Transition<QStatus>[] = [
+  ["draft", "sent"],
+  ["draft", "in_progress"],
+  ["sent", "in_progress"],
+  ["in_progress", "completed"],
+] as const;
 
 export const generate = mutation({
   args: {
@@ -177,6 +187,14 @@ export const updateStatus = mutation({
     if (!questionnaire || questionnaire.orgId !== orgId) {
       throw new Error("Cuestionario no encontrado.");
     }
+
+    assertTransition(
+      "questionnaireResponses",
+      "status",
+      questionnaire.status as QStatus,
+      args.status,
+      ALLOWED_QUESTIONNAIRE_STATUS_TRANSITIONS
+    );
 
     const patch: Record<string, unknown> = { status: args.status };
     if (args.status === "completed") {
