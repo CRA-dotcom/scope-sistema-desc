@@ -149,12 +149,15 @@ export function MatrixCellDetail({
           </div>
           {editAmount && flags.manualOverrideAllowed ? (
             <div className="flex gap-2 mt-1">
-              <input
-                type="number"
-                value={newAmount}
-                onChange={(e) => setNewAmount(Number(e.target.value))}
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm focus:border-accent focus:outline-none"
-              />
+              <div className="flex flex-1 items-center rounded-md border border-border bg-background focus-within:border-accent">
+                <span className="select-none pl-2 text-sm text-muted-foreground">$</span>
+                <input
+                  type="number"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(Number(e.target.value))}
+                  className="flex-1 bg-transparent px-2 py-1 text-sm focus:outline-none"
+                />
+              </div>
               <button
                 onClick={async () => {
                   await updateAmount({ id: assignment._id, amount: newAmount });

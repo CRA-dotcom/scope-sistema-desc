@@ -590,18 +590,21 @@ function NuevaProyeccionContent() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Tasa de Comisión (%)</label>
-                <input
-                  type="number"
-                  value={commissionRate * 100}
-                  onChange={(e) =>
-                    setCommissionRate(Number(e.target.value) / 100)
-                  }
-                  className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                  step={0.5}
-                  min={0}
-                  max={100}
-                />
+                <label className="text-sm font-medium">Tasa de Comisión</label>
+                <div className="flex items-center rounded-md border border-border bg-secondary focus-within:border-accent">
+                  <input
+                    type="number"
+                    value={commissionRate * 100}
+                    onChange={(e) =>
+                      setCommissionRate(Number(e.target.value) / 100)
+                    }
+                    className="flex-1 bg-transparent px-3 py-2 text-sm focus:outline-none"
+                    step={0.5}
+                    min={0}
+                    max={100}
+                  />
+                  <span className="select-none pr-3 text-sm text-muted-foreground">%</span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Solo aplica a conceptos de comisión, intermediación mercantil
                   o venta por comisión. NO aplica a servicios legales, marketing,
@@ -612,15 +615,19 @@ function NuevaProyeccionContent() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  Venta Anual Proyectada (MXN)
+                  Venta Anual Proyectada
                 </label>
-                <input
-                  type="number"
-                  value={annualSales || ""}
-                  onChange={(e) => setAnnualSales(Number(e.target.value))}
-                  className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                  placeholder="50,000,000"
-                />
+                <div className="flex items-center rounded-md border border-border bg-secondary focus-within:border-accent">
+                  <span className="select-none pl-3 text-sm text-muted-foreground">$</span>
+                  <input
+                    type="number"
+                    value={annualSales || ""}
+                    onChange={(e) => setAnnualSales(Number(e.target.value))}
+                    className="flex-1 bg-transparent px-2 py-2 text-sm focus:outline-none"
+                    placeholder="50,000,000"
+                  />
+                  <span className="select-none pr-3 text-xs text-muted-foreground">MXN</span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Lo que factura el cliente al año (referencia para calcular el
                   tope de mercado por servicio).
@@ -628,15 +635,19 @@ function NuevaProyeccionContent() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  Presupuesto Total a Contratar (MXN)
+                  Presupuesto Total a Contratar
                 </label>
-                <input
-                  type="number"
-                  value={totalBudget || ""}
-                  onChange={(e) => setTotalBudget(Number(e.target.value))}
-                  className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                  placeholder="30,000,000"
-                />
+                <div className="flex items-center rounded-md border border-border bg-secondary focus-within:border-accent">
+                  <span className="select-none pl-3 text-sm text-muted-foreground">$</span>
+                  <input
+                    type="number"
+                    value={totalBudget || ""}
+                    onChange={(e) => setTotalBudget(Number(e.target.value))}
+                    className="flex-1 bg-transparent px-2 py-2 text-sm focus:outline-none"
+                    placeholder="30,000,000"
+                  />
+                  <span className="select-none pr-3 text-xs text-muted-foreground">MXN</span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Lo que el cliente nos contrata. Se distribuye entre los meses
                   del contrato.
