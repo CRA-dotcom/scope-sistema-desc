@@ -4,6 +4,7 @@ import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
+import { assertTransition, type Transition } from "../../lib/stateMachines";
 import {
   calculateProjection,
   generateEvenSeasonality,
@@ -793,6 +794,14 @@ export const cloneProjectionToDraft = mutation({
   },
 });
 
+type ProjectionStatus = "draft" | "active" | "archived";
+
+const ALLOWED_PROJECTION_STATUS_TRANSITIONS: readonly Transition<ProjectionStatus>[] = [
+  ["draft", "active"],
+  ["active", "archived"],
+  ["archived", "active"],
+] as const;
+
 export const updateStatus = mutation({
   args: {
     id: v.id("projections"),
@@ -808,6 +817,13 @@ export const updateStatus = mutation({
     if (!projection || projection.orgId !== orgId) {
       throw new Error("Proyección no encontrada.");
     }
+    assertTransition(
+      "projections",
+      "status",
+      projection.status as ProjectionStatus,
+      args.status,
+      ALLOWED_PROJECTION_STATUS_TRANSITIONS
+    );
     await ctx.db.patch(args.id, {
       status: args.status,
       updatedAt: Date.now(),
