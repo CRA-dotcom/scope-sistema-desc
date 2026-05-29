@@ -127,11 +127,9 @@ export const deliver = mutation({
     const client = await ctx.db.get(deliverable.clientId);
     const trimmedEmail = client?.contactEmail?.trim();
     if (!trimmedEmail) {
-      await ctx.db.patch(args.deliverableId, {
-        auditStatus: "rejected" as const,
-        auditFeedback:
-          "Cliente sin contactEmail — agregar en perfil del cliente antes de re-entregar",
-      });
+      // Return soft-failure without mutating auditStatus. The deliverable stays
+      // "approved" so the "Marcar como Entregado" button remains visible after
+      // the operator adds contactEmail — no AI re-run needed.
       return {
         success: false,
         deliverableId: args.deliverableId,

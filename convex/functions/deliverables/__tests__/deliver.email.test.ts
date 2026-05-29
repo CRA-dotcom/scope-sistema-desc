@@ -125,7 +125,7 @@ describe("deliverables.mutations.deliver — contactEmail guard", () => {
     expect(assignment!.status).toBe("delivered");
   });
 
-  it("marks deliverable as rejected when client has no contactEmail", async () => {
+  it("returns soft-failure without mutating auditStatus when contactEmail missing", async () => {
     const t = setupTest();
     // Seed WITHOUT contactEmail
     const seed = await seedDeliverable(t, ORG_A, {});
@@ -140,15 +140,15 @@ describe("deliverables.mutations.deliver — contactEmail guard", () => {
     expect(result.reason).toBe("no_contact_email");
 
     const deliverable = await t.run((ctx) => ctx.db.get(seed.deliverableId));
-    expect(deliverable!.auditStatus).toBe("rejected");
-    expect(deliverable!.auditFeedback).toContain("contactEmail");
+    // auditStatus must remain "approved" — operator fixes email, no AI re-run needed
+    expect(deliverable!.auditStatus).toBe("approved");
     expect(deliverable!.deliveredAt).toBeUndefined();
 
     const assignment = await t.run((ctx) => ctx.db.get(seed.assignmentId));
-    expect(assignment!.status).not.toBe("delivered");
+    expect(assignment!.status).toBe("pending");
   });
 
-  it("rejects whitespace-only contactEmail (trims before check)", async () => {
+  it("returns soft-failure without mutating auditStatus for whitespace-only contactEmail", async () => {
     const t = setupTest();
     // Seed with whitespace-only contactEmail — should be treated same as missing
     const seed = await seedDeliverable(t, ORG_A, { contactEmail: "   " });
@@ -163,11 +163,11 @@ describe("deliverables.mutations.deliver — contactEmail guard", () => {
     expect(result.reason).toBe("no_contact_email");
 
     const deliverable = await t.run((ctx) => ctx.db.get(seed.deliverableId));
-    expect(deliverable!.auditStatus).toBe("rejected");
-    expect(deliverable!.auditFeedback).toContain("contactEmail");
+    // auditStatus must remain "approved" — operator fixes email, no AI re-run needed
+    expect(deliverable!.auditStatus).toBe("approved");
     expect(deliverable!.deliveredAt).toBeUndefined();
 
     const assignment = await t.run((ctx) => ctx.db.get(seed.assignmentId));
-    expect(assignment!.status).not.toBe("delivered");
+    expect(assignment!.status).toBe("pending");
   });
 });

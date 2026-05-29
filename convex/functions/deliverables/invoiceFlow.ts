@@ -39,7 +39,7 @@ export const generateFromInvoice = internalAction({
     reason?: string;
     deliverableId?: Id<"deliverables">;
     error?: string;
-    skipped?: "already_claimed";
+    skipped?: "already_claimed" | "ai_failed";
   }> => {
     // 1. Load invoice.
     const invoice = await ctx.runQuery(
@@ -241,6 +241,10 @@ export const generateFromInvoice = internalAction({
       deliverableId = result as Id<"deliverables">;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[generateFromInvoice] AI batch failed for invoice ${invoiceId}:`,
+        err
+      );
       await ctx.runMutation(
         internal.functions.documentEvents.internal.logEventMutation,
         {
@@ -255,7 +259,12 @@ export const generateFromInvoice = internalAction({
           metadata: { error: msg },
         }
       );
-      return { ok: false, reason: "generation_failed", error: msg };
+      // Release empty placeholder so a future retry can re-claim cleanly.
+      await ctx.runMutation(
+        internal.functions.deliverables.invoiceFlow.releaseClaimPlaceholder,
+        { invoiceId }
+      );
+      return { skipped: "ai_failed" as const, error: msg };
     }
 
     // 8. Log success + notify executive.
@@ -285,6 +294,37 @@ export const generateFromInvoice = internalAction({
     );
 
     return { ok: true, deliverableId };
+  },
+});
+
+/**
+ * Internal: release a stuck empty placeholder so a future retry can re-claim.
+ *
+ * Called from the catch block of generateFromInvoice when the AI batch throws.
+ * Only deletes the placeholder when it is genuinely empty (shortContent === "",
+ * longContent === "", auditStatus === "pending"). If it already has real content
+ * — meaning saveGenerated ran successfully despite the action-level error —
+ * it is left untouched to preserve user data.
+ */
+export const releaseClaimPlaceholder = internalMutation({
+  args: { invoiceId: v.id("invoices") },
+  handler: async (ctx, { invoiceId }) => {
+    const existing = await ctx.db
+      .query("deliverables")
+      .withIndex("by_triggerInvoiceId", (q) =>
+        q.eq("triggerInvoiceId", invoiceId)
+      )
+      .first();
+    if (!existing) return { released: false };
+    if (
+      existing.shortContent !== "" ||
+      existing.longContent !== "" ||
+      existing.auditStatus !== "pending"
+    ) {
+      return { released: false };
+    }
+    await ctx.db.delete(existing._id);
+    return { released: true };
   },
 });
 

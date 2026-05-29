@@ -133,6 +133,74 @@ async function seedPaidInvoice(
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
+describe("deliverables.invoiceFlow.releaseClaimPlaceholder", () => {
+  it("releaseClaimPlaceholder deletes empty pending placeholder", async () => {
+    const t = setupTest();
+    const seed = await seedPaidInvoice(t, ORG_A);
+
+    // Create placeholder via claim
+    await t.mutation(
+      internal.functions.deliverables.invoiceFlow.claimInvoiceForGeneration,
+      { invoiceId: seed.invoiceId }
+    );
+
+    // Verify placeholder exists
+    const before = await t.run(async (ctx) => ctx.db.query("deliverables").collect());
+    expect(before.length).toBe(1);
+    expect(before[0].shortContent).toBe("");
+    expect(before[0].auditStatus).toBe("pending");
+
+    // Release it
+    const releaseResult = await t.mutation(
+      internal.functions.deliverables.invoiceFlow.releaseClaimPlaceholder,
+      { invoiceId: seed.invoiceId }
+    );
+    expect(releaseResult.released).toBe(true);
+
+    // Placeholder should be deleted
+    const after = await t.run(async (ctx) => ctx.db.query("deliverables").collect());
+    expect(after.length).toBe(0);
+  });
+
+  it("releaseClaimPlaceholder does NOT delete a filled deliverable", async () => {
+    const t = setupTest();
+    const seed = await seedPaidInvoice(t, ORG_A);
+
+    // Insert a deliverable with real content
+    await t.run(async (ctx) => {
+      await ctx.db.insert("deliverables", {
+        orgId: ORG_A,
+        assignmentId: seed.monthlyAssignmentId,
+        projServiceId: seed.projServiceId,
+        clientId: seed.clientId,
+        serviceName: "SEO",
+        subserviceId: seed.subserviceId,
+        month: 5,
+        year: 2026,
+        shortContent: "real content",
+        longContent: "real long content",
+        auditStatus: "pending" as const,
+        retryCount: 0,
+        triggerSource: "invoice_paid" as const,
+        triggerInvoiceId: seed.invoiceId,
+        createdAt: Date.now(),
+      });
+    });
+
+    // Attempt release
+    const releaseResult = await t.mutation(
+      internal.functions.deliverables.invoiceFlow.releaseClaimPlaceholder,
+      { invoiceId: seed.invoiceId }
+    );
+    expect(releaseResult.released).toBe(false);
+
+    // Deliverable should still exist
+    const after = await t.run(async (ctx) => ctx.db.query("deliverables").collect());
+    expect(after.length).toBe(1);
+    expect(after[0].shortContent).toBe("real content");
+  });
+});
+
 describe("deliverables.invoiceFlow.claimInvoiceForGeneration", () => {
   it("first call returns true and inserts a placeholder deliverable", async () => {
     const t = setupTest();
