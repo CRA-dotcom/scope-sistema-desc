@@ -28,6 +28,26 @@ import { ConvexError } from "convex/values";
 
 export type Transition<S extends string> = readonly [from: S, to: S];
 
+/**
+ * Cross-machine coherence guard for monthlyAssignments.
+ *
+ * Spec §7.1 invariant: status === "delivered" implies invoiceStatus !== "not_invoiced".
+ * Llamado por:
+ * - `deliverables.deliver` (bypass intencional de assertTransition pero debe respetar este invariant)
+ * - `monthlyAssignments.updateStatus` cuando args.status === "delivered" (transición real, no idempotente)
+ */
+export function assertDeliveredRequiresInvoice(
+  currentInvoiceStatus: "not_invoiced" | "invoiced" | "paid"
+): void {
+  if (currentInvoiceStatus === "not_invoiced") {
+    throw new ConvexError({
+      code: "COHERENCE_VIOLATION",
+      message:
+        "monthlyAssignments: no se puede marcar status=\"delivered\" mientras invoiceStatus=\"not_invoiced\". Emite la factura primero.",
+    });
+  }
+}
+
 export function assertTransition<S extends string>(
   table: string,
   field: string,

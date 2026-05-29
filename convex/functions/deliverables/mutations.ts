@@ -1,7 +1,9 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
+import { ConvexError } from "convex/values";
 import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
+import { assertDeliveredRequiresInvoice } from "../../lib/stateMachines";
 
 // ─── Public mutations ────────────────────────────────────────────────
 
@@ -140,6 +142,13 @@ export const deliver = mutation({
     // client is guaranteed non-null here: trimmedEmail being truthy implies
     // client?.contactEmail was non-empty, which implies client was non-null.
     const clientName = client!.name;
+
+    // Cross-machine coherence: spec §7.1 — delivered requires emitted invoice.
+    const assignment = await ctx.db.get(deliverable.assignmentId);
+    if (!assignment) {
+      throw new ConvexError({ code: "ASSIGNMENT_NOT_FOUND", message: "Asignación huérfana" });
+    }
+    assertDeliveredRequiresInvoice(assignment.invoiceStatus as "not_invoiced" | "invoiced" | "paid");
 
     await ctx.db.patch(args.deliverableId, {
       deliveredAt: Date.now(),

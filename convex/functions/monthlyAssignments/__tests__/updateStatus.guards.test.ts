@@ -7,7 +7,8 @@ const ORG_A = "org_test_A";
 
 async function seedAssignment(
   t: ReturnType<typeof convexTest>,
-  status: "pending" | "info_received" | "in_progress" | "delivered"
+  status: "pending" | "info_received" | "in_progress" | "delivered",
+  invoiceStatus: "not_invoiced" | "invoiced" | "paid" = "not_invoiced"
 ) {
   return await t.run(async (ctx) => {
     const clientId = await ctx.db.insert("clients", {
@@ -63,7 +64,7 @@ async function seedAssignment(
       amount: 100,
       feFactor: 1,
       status,
-      invoiceStatus: "not_invoiced",
+      invoiceStatus,
     });
   });
 }
@@ -103,9 +104,9 @@ describe("monthlyAssignments.updateStatus guards", () => {
     expect(after?.status).toBe("in_progress");
   });
 
-  it("allows in_progress → delivered", async () => {
+  it("allows in_progress → delivered (invoiceStatus=invoiced)", async () => {
     const t = convexTest(schema);
-    const id = await seedAssignment(t, "in_progress");
+    const id = await seedAssignment(t, "in_progress", "invoiced");
     await t
       .withIdentity({
         subject: "u",
@@ -118,6 +119,24 @@ describe("monthlyAssignments.updateStatus guards", () => {
       });
     const after = await t.run((ctx) => ctx.db.get(id));
     expect(after?.status).toBe("delivered");
+  });
+
+  it("throws COHERENCE_VIOLATION when delivering with invoiceStatus=not_invoiced", async () => {
+    const t = convexTest(schema);
+    // invoiceStatus defaults to "not_invoiced"
+    const id = await seedAssignment(t, "in_progress");
+    await expect(
+      t
+        .withIdentity({
+          subject: "u",
+          tokenIdentifier: "u",
+          org_id: ORG_A,
+        } as any)
+        .mutation(api.functions.monthlyAssignments.mutations.updateStatus, {
+          id,
+          status: "delivered",
+        })
+    ).rejects.toThrow(/COHERENCE_VIOLATION|factura/i);
   });
 
   it("allows reversal info_received → pending (corrección)", async () => {

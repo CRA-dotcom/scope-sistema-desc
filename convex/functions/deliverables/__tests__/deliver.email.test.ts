@@ -171,3 +171,91 @@ describe("deliverables.mutations.deliver — contactEmail guard", () => {
     expect(assignment!.status).toBe("pending");
   });
 });
+
+describe("deliverables.mutations.deliver — coherence guard (spec §7.1)", () => {
+  it("throws COHERENCE_VIOLATION when delivering an assignment with invoiceStatus=not_invoiced", async () => {
+    const t = setupTest();
+    const seed = await t.run(async (ctx) => {
+      const clientId = await ctx.db.insert("clients", {
+        orgId: ORG_A,
+        name: "Acme SA",
+        rfc: "ACM010101AAA",
+        industry: "S",
+        annualRevenue: 0,
+        billingFrequency: "mensual" as const,
+        isArchived: false,
+        createdAt: Date.now(),
+        contactEmail: "facturas@acme.example",
+      });
+      const projectionId = await ctx.db.insert("projections", {
+        orgId: ORG_A,
+        clientId,
+        year: 2026,
+        annualSales: 0,
+        totalBudget: 0,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const serviceId = await ctx.db.insert("services", {
+        orgId: undefined,
+        name: "S",
+        type: "base" as const,
+        minPct: 0,
+        maxPct: 100,
+        defaultPct: 10,
+        isDefault: true,
+        sortOrder: 0,
+      });
+      const psId = await ctx.db.insert("projectionServices", {
+        orgId: ORG_A,
+        projectionId,
+        serviceId,
+        serviceName: "S",
+        chosenPct: 10,
+        isActive: true,
+        annualAmount: 0,
+        normalizedWeight: 1,
+      });
+      // invoiceStatus="not_invoiced" — should block delivery
+      const maId = await ctx.db.insert("monthlyAssignments", {
+        orgId: ORG_A,
+        projServiceId: psId,
+        projectionId,
+        clientId,
+        serviceName: "S",
+        month: 6,
+        year: 2026,
+        amount: 100,
+        feFactor: 1,
+        status: "in_progress" as const,
+        invoiceStatus: "not_invoiced" as const,
+      });
+      const dId = await ctx.db.insert("deliverables", {
+        orgId: ORG_A,
+        assignmentId: maId,
+        projServiceId: psId,
+        clientId,
+        serviceName: "S",
+        month: 6,
+        year: 2026,
+        shortContent: "x",
+        longContent: "y",
+        auditStatus: "approved" as const,
+        retryCount: 0,
+        createdAt: Date.now(),
+      });
+      return { deliverableId: dId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ orgId: ORG_A, orgRole: "org:member" })
+        .mutation(api.functions.deliverables.mutations.deliver, {
+          deliverableId: seed.deliverableId,
+        })
+    ).rejects.toThrow(/COHERENCE_VIOLATION|factura/i);
+  });
+});

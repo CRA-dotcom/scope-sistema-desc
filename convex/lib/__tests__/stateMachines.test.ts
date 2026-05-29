@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ConvexError } from "convex/values";
-import { assertTransition, type Transition } from "../stateMachines";
+import { assertTransition, assertDeliveredRequiresInvoice, type Transition } from "../stateMachines";
 
 type TestStatus = "draft" | "active" | "archived";
 
@@ -42,5 +42,19 @@ describe("assertTransition", () => {
     expect(() =>
       assertTransition("table", "status", "draft", "archived", ALLOWED)
     ).toThrow(/INVALID_TRANSITION|draft.*archived/i);
+  });
+});
+
+describe("assertDeliveredRequiresInvoice", () => {
+  it("throws COHERENCE_VIOLATION when invoiceStatus is not_invoiced", () => {
+    expect(() => assertDeliveredRequiresInvoice("not_invoiced")).toThrow(/COHERENCE_VIOLATION|factura/i);
+  });
+
+  it("allows when invoiceStatus is invoiced", () => {
+    expect(() => assertDeliveredRequiresInvoice("invoiced")).not.toThrow();
+  });
+
+  it("allows when invoiceStatus is paid", () => {
+    expect(() => assertDeliveredRequiresInvoice("paid")).not.toThrow();
   });
 });

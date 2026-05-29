@@ -1,7 +1,7 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId, getOrgIdMutation, requireAdmin, requireAuth } from "../../lib/authHelpers";
-import { assertTransition, type Transition } from "../../lib/stateMachines";
+import { assertTransition, assertDeliveredRequiresInvoice, type Transition } from "../../lib/stateMachines";
 
 type MAStatus = "pending" | "info_received" | "in_progress" | "delivered";
 
@@ -36,6 +36,12 @@ export const updateStatus = mutation({
       args.status,
       ALLOWED_STATUS_TRANSITIONS
     );
+    // Cross-machine coherence: delivered requires emitted invoice.
+    // Guard only fires on a real transition (ma.status !== "delivered") to avoid
+    // re-validating pre-existing rows during idempotent no-ops.
+    if (args.status === "delivered" && ma.status !== "delivered") {
+      assertDeliveredRequiresInvoice(ma.invoiceStatus as "not_invoiced" | "invoiced" | "paid");
+    }
     await ctx.db.patch(args.id, { status: args.status });
   },
 });
