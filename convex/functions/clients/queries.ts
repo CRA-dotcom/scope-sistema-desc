@@ -16,23 +16,46 @@ export const list = query({
     const identity = await ctx.auth.getUserIdentity();
     const role = (identity?.orgRole as string) ?? "org:member";
 
-    let clients = await ctx.db
-      .query("clients")
-      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
-      .collect();
+    // Pick the most selective index available based on the filter combo.
+    let clients: Doc<"clients">[];
+    if (args.industry) {
+      clients = await ctx.db
+        .query("clients")
+        .withIndex("by_orgId_industry", (q) =>
+          q.eq("orgId", orgId).eq("industry", args.industry!)
+        )
+        .collect();
+    } else if (role === "org:member") {
+      clients = await ctx.db
+        .query("clients")
+        .withIndex("by_orgId_assignedTo", (q) =>
+          q.eq("orgId", orgId).eq("assignedTo", identity?.subject)
+        )
+        .collect();
+    } else if (!args.includeArchived) {
+      clients = await ctx.db
+        .query("clients")
+        .withIndex("by_orgId_archived", (q) =>
+          q.eq("orgId", orgId).eq("isArchived", false)
+        )
+        .collect();
+    } else {
+      clients = await ctx.db
+        .query("clients")
+        .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
+        .collect();
+    }
 
+    // Apply remaining filters that weren't covered by the chosen index.
     if (!args.includeArchived) {
       clients = clients.filter((c) => !c.isArchived);
     }
-
     if (role === "org:member") {
       clients = clients.filter((c) => c.assignedTo === identity?.subject);
     }
-
     if (args.industry) {
       clients = clients.filter((c) => c.industry === args.industry);
     }
-
     if (args.search) {
       const term = args.search.toLowerCase();
       clients = clients.filter(
