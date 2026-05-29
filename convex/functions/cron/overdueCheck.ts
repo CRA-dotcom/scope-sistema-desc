@@ -1,24 +1,41 @@
 import { internalAction, internalQuery } from "../../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
 
 /**
- * Internal query: fetch all pending assignments (no auth required, system-level).
+ * Internal query: list active org IDs for cron pagination.
  */
-export const listAllPendingAssignments = internalQuery({
+export const listOrgIds = internalQuery({
   args: {},
   handler: async (ctx) => {
-    // Scan by status across all orgs — cron runs as system, no auth context
-    const pending = await ctx.db.query("monthlyAssignments").collect();
-    return pending
-      .filter((a) => a.status === "pending")
-      .map((a) => ({
-        orgId: a.orgId,
-        serviceName: a.serviceName,
-        clientId: a.clientId,
-        month: a.month,
-        year: a.year,
-      }));
+    const orgs = await ctx.db
+      .query("organizations")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+    return orgs.map((o) => o.clerkOrgId);
+  },
+});
+
+/**
+ * Internal query: pending assignments for a single org.
+ */
+export const listPendingAssignmentsByOrg = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("monthlyAssignments")
+      .withIndex("by_orgId_status", (q) =>
+        q.eq("orgId", args.orgId).eq("status", "pending")
+      )
+      .collect();
+    return rows.map((a) => ({
+      orgId: a.orgId,
+      serviceName: a.serviceName,
+      clientId: a.clientId,
+      month: a.month,
+      year: a.year,
+    }));
   },
 });
 
@@ -49,9 +66,17 @@ export const run: ReturnType<typeof internalAction> = internalAction({
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
-    const allPending = await ctx.runQuery(
-      internal.functions.cron.overdueCheck.listAllPendingAssignments
+    const orgIds = await ctx.runQuery(
+      internal.functions.cron.overdueCheck.listOrgIds
     );
+    const allPending: Array<{ orgId: string; serviceName: string; clientId: Id<"clients">; month: number; year: number }> = [];
+    for (const orgId of orgIds) {
+      const orgPending = await ctx.runQuery(
+        internal.functions.cron.overdueCheck.listPendingAssignmentsByOrg,
+        { orgId }
+      );
+      allPending.push(...orgPending);
+    }
 
     // Filter to overdue (past months only)
     const overdue = allPending.filter(

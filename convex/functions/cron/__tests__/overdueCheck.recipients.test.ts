@@ -20,6 +20,13 @@ describe("overdueCheck recipient resolution", () => {
     notificationEmail?: string
   ) {
     await t.run(async (ctx) => {
+      await ctx.db.insert("organizations", {
+        clerkOrgId: orgId,
+        name: orgId,
+        status: "active" as const,
+        plan: "basic",
+        createdAt: Date.now(),
+      });
       const clientId = await ctx.db.insert("clients", {
         orgId,
         name: "ACME",
