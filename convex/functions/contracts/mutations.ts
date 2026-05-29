@@ -328,6 +328,9 @@ export const cancelContract = mutation({
     if (contract.status === "signed") {
       throw new Error("Cannot cancel a signed contract");
     }
+    if (contract.status === "cancelled") {
+      return; // already cancelled — idempotent no-op
+    }
 
     await ctx.db.patch(args.contractId, {
       status: "cancelled",

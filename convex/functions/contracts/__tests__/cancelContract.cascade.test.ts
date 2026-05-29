@@ -121,4 +121,203 @@ describe("cancelContract cascade", () => {
       expect(mas).toHaveLength(0);
     });
   });
+
+  it("is idempotent — double cancel does not duplicate documentEvents", async () => {
+    const t = convexTest(schema);
+    const orgId = "org_test";
+    const futureYear = new Date().getFullYear() + 1;
+
+    let contractId: Id<"contracts">;
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+
+      const serviceId = await ctx.db.insert("services", {
+        orgId: undefined,
+        name: "S",
+        type: "base" as const,
+        minPct: 0,
+        maxPct: 100,
+        defaultPct: 10,
+        isDefault: true,
+        sortOrder: 0,
+      });
+
+      const clientId = await ctx.db.insert("clients", {
+        orgId,
+        name: "C",
+        rfc: "X",
+        industry: "S",
+        annualRevenue: 0,
+        billingFrequency: "mensual" as const,
+        isArchived: false,
+        createdAt: now,
+      });
+
+      const projectionId = await ctx.db.insert("projections", {
+        orgId,
+        clientId,
+        year: futureYear,
+        annualSales: 0,
+        totalBudget: 0,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const psId = await ctx.db.insert("projectionServices", {
+        orgId,
+        projectionId,
+        serviceId,
+        serviceName: "S",
+        chosenPct: 10,
+        isActive: true,
+        annualAmount: 0,
+        normalizedWeight: 1,
+      });
+
+      const quotationId = await ctx.db.insert("quotations", {
+        orgId,
+        projServiceId: psId,
+        clientId,
+        serviceName: "S",
+        content: "<p/>",
+        status: "approved" as const,
+        createdAt: now,
+      });
+
+      contractId = await ctx.db.insert("contracts", {
+        orgId,
+        quotationId,
+        projServiceId: psId,
+        clientId,
+        serviceName: "S",
+        content: "<p/>",
+        status: "sent" as const,
+        createdAt: now,
+      });
+    });
+
+    const auth = t.withIdentity({ orgId, orgRole: "org:admin" });
+
+    // 1st cancel
+    await auth.mutation(api.functions.contracts.mutations.cancelContract, {
+      contractId: contractId!,
+      reason: "Primera cancelación",
+    });
+
+    // 2nd cancel — must be a no-op, NOT insert a 2nd documentEvents row
+    await auth.mutation(api.functions.contracts.mutations.cancelContract, {
+      contractId: contractId!,
+      reason: "Segunda cancelación duplicada",
+    });
+
+    await t.run(async (ctx) => {
+      const events = await ctx.db
+        .query("documentEvents")
+        .collect();
+      expect(events).toHaveLength(1);
+    });
+  });
+
+  it("deactivates supplementary add-on projectionService on contract cancel (§3.2-bis)", async () => {
+    const t = convexTest(schema);
+    const orgId = "org_test";
+    const futureYear = new Date().getFullYear() + 1;
+
+    let contractId: Id<"contracts">;
+    let projServiceId: Id<"projectionServices">;
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+
+      const serviceId = await ctx.db.insert("services", {
+        orgId: undefined,
+        name: "S",
+        type: "base" as const,
+        minPct: 0,
+        maxPct: 100,
+        defaultPct: 10,
+        isDefault: true,
+        sortOrder: 0,
+      });
+
+      const clientId = await ctx.db.insert("clients", {
+        orgId,
+        name: "C",
+        rfc: "X",
+        industry: "S",
+        annualRevenue: 0,
+        billingFrequency: "mensual" as const,
+        isArchived: false,
+        createdAt: now,
+      });
+
+      const projectionId = await ctx.db.insert("projections", {
+        orgId,
+        clientId,
+        year: futureYear,
+        annualSales: 0,
+        totalBudget: 0,
+        commissionRate: 0,
+        seasonalityData: [],
+        status: "active" as const,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // add-on marker: chosenPct: 0, normalizedWeight: 0, startMonth: 7
+      const psId = await ctx.db.insert("projectionServices", {
+        orgId,
+        projectionId,
+        serviceId,
+        serviceName: "S",
+        chosenPct: 0,
+        isActive: true,
+        annualAmount: 0,
+        normalizedWeight: 0,
+        startMonth: 7,
+      });
+      projServiceId = psId;
+
+      const quotationId = await ctx.db.insert("quotations", {
+        orgId,
+        projServiceId: psId,
+        clientId,
+        serviceName: "S",
+        content: "<p/>",
+        status: "approved" as const,
+        isSupplementary: true,
+        createdAt: now,
+      });
+
+      contractId = await ctx.db.insert("contracts", {
+        orgId,
+        quotationId,
+        projServiceId: psId,
+        clientId,
+        serviceName: "S",
+        content: "<p/>",
+        status: "sent" as const,
+        createdAt: now,
+      });
+    });
+
+    const auth = t.withIdentity({ orgId, orgRole: "org:admin" });
+    await auth.mutation(api.functions.contracts.mutations.cancelContract, {
+      contractId: contractId!,
+      reason: "Add-on cancelado",
+    });
+
+    await t.run(async (ctx) => {
+      const c = await ctx.db.get(contractId!);
+      expect(c?.status).toBe("cancelled");
+
+      const ps = await ctx.db.get(projServiceId!);
+      // Add-on cancelled → also deactivated (spec §3.2-bis)
+      expect(ps?.isActive).toBe(false);
+    });
+  });
 });
