@@ -216,9 +216,8 @@ export const alerts = query({
     // Get assignments
     const assignments = await ctx.db
       .query("monthlyAssignments")
-      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
-      .collect()
-      .then((all) => all.filter((a) => a.year === year));
+      .withIndex("by_orgId_year", (q) => q.eq("orgId", orgId).eq("year", year))
+      .collect();
 
     // Role filter: get accessible client IDs
     let accessibleClientIds: Set<string> | null = null;
