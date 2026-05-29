@@ -22,7 +22,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { OrganizationSwitcher, UserButton, useUser } from "@clerk/nextjs";
 import { DraftNavbarChip } from "./DraftNavbarChip";
 
@@ -150,9 +150,13 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* Draft chip */}
+      {/* Draft chip — Next 15 requiere Suspense porque DraftNavbarChip
+          internamente usa useSearchParams. Wrappeado aquí cierra
+          el prerender error para todas las páginas del dashboard. */}
       <div className="px-3 pb-2">
-        <DraftNavbarChip />
+        <Suspense fallback={null}>
+          <DraftNavbarChip />
+        </Suspense>
       </div>
 
       {/* User */}

@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useState, useCallback } from "react";
+import { Suspense, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -179,7 +179,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Draft Pending Banner */}
-      <DraftPendingBanner />
+      <Suspense fallback={null}>
+        <DraftPendingBanner />
+      </Suspense>
 
       {/* Header */}
       <div className="flex items-center justify-between">
