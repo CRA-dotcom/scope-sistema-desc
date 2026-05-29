@@ -89,10 +89,9 @@ export const generate = mutation({
       };
     });
 
-    const accessToken =
-      Math.random().toString(36).slice(2) +
-      Date.now().toString(36) +
-      Math.random().toString(36).slice(2);
+    // Phase 5 §10: cryptographically strong token (was Math.random based).
+    // crypto.randomUUID() is available in Convex V8 isolate.
+    const accessToken = crypto.randomUUID();
 
     const id = await ctx.db.insert("questionnaireResponses", {
       orgId,
