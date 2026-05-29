@@ -69,13 +69,6 @@ export default defineSchema({
         })
       )
     ),
-    seasonalityMode: v.optional(
-      v.union(
-        v.literal("legacy"),
-        v.literal("delta_percent"),
-        v.literal("outliers")
-      )
-    ),
     seasonalityOutliers: v.optional(
       v.array(
         v.object({

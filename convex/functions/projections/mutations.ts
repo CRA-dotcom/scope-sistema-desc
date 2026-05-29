@@ -51,7 +51,6 @@ async function replaceProjection(
     }>;
     seasonalityData: Array<{ month: number; monthlySales: number; feFactor: number }>;
     seasonalityDeltas?: Array<{ month: number; deltaPercent: number }>;
-    seasonalityMode?: "legacy" | "delta_percent" | "outliers";
     seasonalityOutliers?: Array<{ month: number; value: number; unit: "percent" | "amount" }>;
     startMonth?: number;
     projectionMode?: "rolling" | "fiscal";
@@ -146,13 +145,6 @@ async function replaceProjection(
     commissionRate: newArgs.commissionRate,
     seasonalityData: newArgs.seasonalityData,
     seasonalityDeltas: newArgs.seasonalityDeltas,
-    seasonalityMode:
-      newArgs.seasonalityMode ??
-      (newArgs.seasonalityOutliers
-        ? "outliers"
-        : newArgs.seasonalityDeltas
-          ? "delta_percent"
-          : "legacy"),
     seasonalityOutliers: newArgs.seasonalityOutliers,
     startMonth: newArgs.startMonth,
     projectionMode: newArgs.projectionMode,
@@ -244,13 +236,6 @@ export const create = mutation({
           month: v.number(),
           deltaPercent: v.number(),
         })
-      )
-    ),
-    seasonalityMode: v.optional(
-      v.union(
-        v.literal("legacy"),
-        v.literal("delta_percent"),
-        v.literal("outliers")
       )
     ),
     seasonalityOutliers: v.optional(
@@ -403,13 +388,6 @@ export const create = mutation({
       commissionRate: args.commissionRate,
       seasonalityData: seasonality,
       seasonalityDeltas: args.seasonalityDeltas,
-      seasonalityMode:
-        args.seasonalityMode ??
-        (args.seasonalityOutliers
-          ? "outliers"
-          : args.seasonalityDeltas
-            ? "delta_percent"
-            : "legacy"),
       seasonalityOutliers: args.seasonalityOutliers,
       // C2: projection period fields
       startMonth: args.startMonth,

@@ -409,7 +409,6 @@ function NuevaProyeccionContent() {
               deltaPercent: (m.feFactor - 1) * 100,
             }))
           : undefined,
-        seasonalityMode: useSeasonality ? "outliers" : "legacy",
         serviceConfigs: serviceStates.map((s) => ({
           serviceId: s.serviceId as Id<"services">,
           chosenPct: s.chosenPct,
