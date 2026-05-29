@@ -1,6 +1,18 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgId, getOrgIdMutation, requireAdmin, requireAuth } from "../../lib/authHelpers";
+import { assertTransition, type Transition } from "../../lib/stateMachines";
+
+type MAStatus = "pending" | "info_received" | "in_progress" | "delivered";
+
+const ALLOWED_STATUS_TRANSITIONS: readonly Transition<MAStatus>[] = [
+  ["pending", "info_received"],
+  ["pending", "in_progress"],
+  ["info_received", "in_progress"],
+  ["in_progress", "delivered"],
+  // Reversa permitida solo para corrección manual:
+  ["info_received", "pending"],
+] as const;
 
 export const updateStatus = mutation({
   args: {
@@ -17,6 +29,13 @@ export const updateStatus = mutation({
     const orgId = await getOrgIdMutation(ctx);
     const ma = await ctx.db.get(args.id);
     if (!ma || ma.orgId !== orgId) throw new Error("No encontrado.");
+    assertTransition(
+      "monthlyAssignments",
+      "status",
+      ma.status as MAStatus,
+      args.status,
+      ALLOWED_STATUS_TRANSITIONS
+    );
     await ctx.db.patch(args.id, { status: args.status });
   },
 });
