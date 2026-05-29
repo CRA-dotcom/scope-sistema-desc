@@ -103,7 +103,8 @@ export default defineSchema({
     .index("by_orgId", ["orgId"])
     .index("by_clientId", ["clientId"])
     .index("by_orgId_year", ["orgId", "year"])
-    .index("by_clientId_year", ["clientId", "year"]),
+    .index("by_clientId_year", ["clientId", "year"])
+    .index("by_orgId_status", ["orgId", "status"]),
 
   projectionDrafts: defineTable({
     orgId: v.string(),
@@ -286,7 +287,9 @@ export default defineSchema({
     .index("by_clientId_month", ["clientId", "month"])
     .index("by_orgId_year_month", ["orgId", "year", "month"])
     .index("by_orgId_status", ["orgId", "status"])
-    .index("by_orgId_invoiceStatus", ["orgId", "invoiceStatus"]),
+    .index("by_orgId_invoiceStatus", ["orgId", "invoiceStatus"])
+    .index("by_orgId_year", ["orgId", "year"])
+    .index("by_clientId_year_month", ["clientId", "year", "month"]),
 
   questionnaireResponses: defineTable({
     orgId: v.string(),
@@ -512,7 +515,8 @@ export default defineSchema({
     // A2: "qué deliverables usan esta plantilla" para banner y restoreToGlobal
     .index("by_templateId", ["templateId"])
     // A3: idempotencia en generateFromInvoice
-    .index("by_triggerInvoiceId", ["triggerInvoiceId"]),
+    .index("by_triggerInvoiceId", ["triggerInvoiceId"])
+    .index("by_orgId_clientId_year", ["orgId", "clientId", "year"]),
 
   orgConfigs: defineTable({
     orgId: v.string(),
