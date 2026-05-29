@@ -88,9 +88,8 @@ export const deliverableStats = query({
 
     const assignments = await ctx.db
       .query("monthlyAssignments")
-      .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
-      .collect()
-      .then((all) => all.filter((a) => a.year === year));
+      .withIndex("by_orgId_year", (q) => q.eq("orgId", orgId).eq("year", year))
+      .collect();
 
     const pending = assignments.filter((a) => a.status === "pending").length;
     const info_received = assignments.filter(
