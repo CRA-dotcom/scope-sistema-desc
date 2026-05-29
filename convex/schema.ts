@@ -763,7 +763,6 @@ export default defineSchema({
     .index("by_orgId_status", ["orgId", "status"])
     .index("by_orgId_type", ["orgId", "type"])
     .index("by_clientId", ["clientId"])
-    .index("by_relatedId", ["relatedId"])
     .index("by_providerMessageId", ["providerMessageId"]),
 
   emailEvents: defineTable({
@@ -796,8 +795,7 @@ export default defineSchema({
   })
     .index("by_orgId", ["orgId"])
     .index("by_emailLogId", ["emailLogId"])
-    .index("by_providerMessageId", ["providerMessageId"])
-    .index("by_orgId_eventType", ["orgId", "eventType"]),
+    .index("by_providerMessageId", ["providerMessageId"]),
 
   orgIntegrations: defineTable({
     orgId: v.string(),
@@ -879,8 +877,7 @@ export default defineSchema({
     .index("by_orgId_clientId_year_month", ["orgId", "clientId", "year", "month"])
     .index("by_orgId_status", ["orgId", "status"])
     .index("by_projectionId", ["projectionId"])
-    .index("by_projServiceId", ["projServiceId"])
-    .index("by_monthlyAssignmentId", ["monthlyAssignmentId"]),
+    .index("by_projServiceId", ["projServiceId"]),
 
   // SS4: estados financieros del cliente para inyectar contexto al
   // generateDeliverable. Excel-only V1; PDF/OCR diferido a V2.
@@ -938,7 +935,6 @@ export default defineSchema({
     validatedAt: v.optional(v.number()),
   })
     .index("by_orgId_clientId", ["orgId", "clientId"])
-    .index("by_orgId_clientId_period", ["orgId", "clientId", "period"])
     .index("by_orgId_status", ["orgId", "status"]),
 
   // A3: append-only audit log of document lifecycle events.
