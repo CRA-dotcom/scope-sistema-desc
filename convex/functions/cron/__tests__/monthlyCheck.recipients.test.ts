@@ -58,6 +58,15 @@ async function seedPendingWithCurrentMonthAssignment(
   const currentYear = now.getFullYear();
 
   return await t.run(async (ctx) => {
+    // Required so listOrgIds (overdueCheck) returns "org_a" for the run handler.
+    await ctx.db.insert("organizations", {
+      clerkOrgId: "org_a",
+      name: "Org A",
+      status: "active" as const,
+      plan: "basic",
+      createdAt: Date.now(),
+    });
+
     const clientId = await ctx.db.insert("clients", {
       orgId: "org_a",
       name: "ACME",

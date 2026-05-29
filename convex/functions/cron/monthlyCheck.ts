@@ -3,39 +3,45 @@ import { v } from "convex/values";
 import { internal } from "../../_generated/api";
 
 /**
- * Internal query: fetch all active projections (system-level, no auth).
+ * Internal query: active projections for a single org.
  */
-export const listActiveProjections = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const projections = await ctx.db.query("projections").collect();
-    return projections
-      .filter((p) => p.status === "active")
-      .map((p) => ({
-        _id: p._id,
-        orgId: p.orgId,
-        clientId: p.clientId,
-        year: p.year,
-      }));
+export const listActiveProjectionsByOrg = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, args) => {
+    const projections = await ctx.db
+      .query("projections")
+      .withIndex("by_orgId_status", (q) =>
+        q.eq("orgId", args.orgId).eq("status", "active")
+      )
+      .collect();
+    return projections.map((p) => ({
+      _id: p._id,
+      orgId: p.orgId,
+      clientId: p.clientId,
+      year: p.year,
+    }));
   },
 });
 
 /**
- * Internal query: fetch assignments for a specific month/year (system-level).
+ * Internal query: assignments for a specific (org, month, year).
  */
-export const listAssignmentsForMonth = internalQuery({
-  args: { month: v.number(), year: v.number() },
+export const listAssignmentsForMonthByOrg = internalQuery({
+  args: { orgId: v.string(), month: v.number(), year: v.number() },
   handler: async (ctx, args) => {
-    const assignments = await ctx.db.query("monthlyAssignments").collect();
-    return assignments
-      .filter((a) => a.month === args.month && a.year === args.year)
-      .map((a) => ({
-        orgId: a.orgId,
-        projectionId: a.projectionId,
-        serviceName: a.serviceName,
-        status: a.status,
-        clientId: a.clientId,
-      }));
+    const assignments = await ctx.db
+      .query("monthlyAssignments")
+      .withIndex("by_orgId_year_month", (q) =>
+        q.eq("orgId", args.orgId).eq("year", args.year).eq("month", args.month)
+      )
+      .collect();
+    return assignments.map((a) => ({
+      orgId: a.orgId,
+      projectionId: a.projectionId,
+      serviceName: a.serviceName,
+      status: a.status,
+      clientId: a.clientId,
+    }));
   },
 });
 
@@ -101,18 +107,27 @@ export const run: ReturnType<typeof internalAction> = internalAction({
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
-    const activeProjections = await ctx.runQuery(
-      internal.functions.cron.monthlyCheck.listActiveProjections
+    const orgIds = await ctx.runQuery(
+      internal.functions.cron.overdueCheck.listOrgIds
     );
+    const activeProjections: Array<{ _id: any; orgId: string; clientId: any; year: number }> = [];
+    const dueThisMonth: Array<{ orgId: string; projectionId: any; serviceName: string; status: string; clientId: any }> = [];
+    for (const orgId of orgIds) {
+      const orgProjs = await ctx.runQuery(
+        internal.functions.cron.monthlyCheck.listActiveProjectionsByOrg,
+        { orgId }
+      );
+      activeProjections.push(...orgProjs);
+      const orgAssigns = await ctx.runQuery(
+        internal.functions.cron.monthlyCheck.listAssignmentsForMonthByOrg,
+        { orgId, month: currentMonth, year: currentYear }
+      );
+      dueThisMonth.push(...orgAssigns);
+    }
 
     // Filter to projections for the current year
     const relevantProjections = activeProjections.filter(
       (p: { year: number }) => p.year === currentYear
-    );
-
-    const dueThisMonth = await ctx.runQuery(
-      internal.functions.cron.monthlyCheck.listAssignmentsForMonth,
-      { month: currentMonth, year: currentYear }
     );
 
     // Group by orgId
