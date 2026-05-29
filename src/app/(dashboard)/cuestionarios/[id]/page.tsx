@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { extractGuardMessage } from "@/lib/convexErrors";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Borrador",
@@ -73,6 +74,8 @@ export default function QuestionnaireDetailPage() {
   const [reopenError, setReopenError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Guard error banner for guarded mutations (INVALID_TRANSITION, COHERENCE_VIOLATION, etc.)
+  const [guardError, setGuardError] = useState<string | null>(null);
   const [localResponses, setLocalResponses] = useState<
     Array<{
       questionId: string;
@@ -123,10 +126,13 @@ export default function QuestionnaireDetailPage() {
 
   const handleSendToClient = async () => {
     if (!questionnaire) return;
+    setGuardError(null);
     setSaving(true);
     try {
       await updateStatus({ id: questionnaire._id, status: "sent" });
     } catch (err) {
+      const msg = extractGuardMessage(err);
+      setGuardError(msg ?? "Error al actualizar estado");
       console.error("Error updating status:", err);
     } finally {
       setSaving(false);
@@ -135,10 +141,13 @@ export default function QuestionnaireDetailPage() {
 
   const handleMarkComplete = async () => {
     if (!questionnaire) return;
+    setGuardError(null);
     setSaving(true);
     try {
       await submitQuestionnaire({ id: questionnaire._id });
     } catch (err) {
+      const msg = extractGuardMessage(err);
+      setGuardError(msg ?? "Error al completar cuestionario");
       console.error("Error submitting:", err);
     } finally {
       setSaving(false);
@@ -269,6 +278,13 @@ export default function QuestionnaireDetailPage() {
             <b>Opción B:</b> lo llenas tú mientras hablas con el cliente por teléfono — click en
             {" "}<b>Llenar por teléfono</b>.
           </p>
+        </div>
+      )}
+
+      {/* Guard error banner — surfaces INVALID_TRANSITION / COHERENCE_VIOLATION messages */}
+      {guardError && (
+        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          {guardError}
         </div>
       )}
 
