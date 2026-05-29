@@ -26,10 +26,12 @@ export const list = query({
         )
         .collect();
     } else if (role === "org:member") {
+      const subject = identity?.subject;
+      if (!subject) return [];
       clients = await ctx.db
         .query("clients")
         .withIndex("by_orgId_assignedTo", (q) =>
-          q.eq("orgId", orgId).eq("assignedTo", identity?.subject)
+          q.eq("orgId", orgId).eq("assignedTo", subject)
         )
         .collect();
     } else if (!args.includeArchived) {
@@ -47,14 +49,13 @@ export const list = query({
     }
 
     // Apply remaining filters that weren't covered by the chosen index.
+    // Needed: industry branch does not filter archived; full branch when includeArchived is unset.
     if (!args.includeArchived) {
       clients = clients.filter((c) => !c.isArchived);
     }
+    // Needed: industry branch does not filter assignedTo (member may pass industry).
     if (role === "org:member") {
       clients = clients.filter((c) => c.assignedTo === identity?.subject);
-    }
-    if (args.industry) {
-      clients = clients.filter((c) => c.industry === args.industry);
     }
     if (args.search) {
       const term = args.search.toLowerCase();

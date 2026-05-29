@@ -96,4 +96,39 @@ describe("clients.list", () => {
 
     expect(result.map((c: any) => c.name)).toEqual(["Beta"]);
   });
+
+  it("filters by industry AND assignedTo for org:member role (cross-filter)", async () => {
+    const t = convexTest(schema);
+    await seedClients(t);
+
+    const result = await t
+      .withIdentity({
+        subject: "user_X", tokenIdentifier: "u", orgId: ORG_A,
+        orgRole: "org:member",
+      } as any)
+      .query(api.functions.clients.queries.list, { industry: "Tech" });
+
+    // Acme is Tech + assignedTo=user_X + non-archived → include
+    // Gamma is Tech + assignedTo=user_X but archived → exclude
+    // Beta is non-archived + assignedTo=user_Y → exclude (wrong industry)
+    expect(result.map((c: any) => c.name).sort()).toEqual(["Acme"]);
+  });
+
+  it("returns archived when industry filter + includeArchived=true (admin)", async () => {
+    const t = convexTest(schema);
+    await seedClients(t);
+
+    const result = await t
+      .withIdentity({
+        subject: "user_X", tokenIdentifier: "u", orgId: ORG_A,
+        orgRole: "org:admin",
+      } as any)
+      .query(api.functions.clients.queries.list, {
+        industry: "Tech",
+        includeArchived: true,
+      });
+
+    // Acme (Tech, non-archived) + Gamma (Tech, archived) both included.
+    expect(result.map((c: any) => c.name).sort()).toEqual(["Acme", "Gamma"]);
+  });
 });
