@@ -13,14 +13,6 @@ const stateValidator = v.object({
     v.union(v.literal("rolling"), v.literal("fiscal"))
   ),
   useSeasonality: v.optional(v.boolean()),
-  seasonalityDeltas: v.optional(
-    v.array(
-      v.object({
-        month: v.number(),
-        deltaPercent: v.number(),
-      })
-    )
-  ),
   seasonalityOutliers: v.optional(
     v.array(
       v.object({

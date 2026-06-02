@@ -61,14 +61,6 @@ export default defineSchema({
         feFactor: v.number(),
       })
     ),
-    seasonalityDeltas: v.optional(
-      v.array(
-        v.object({
-          month: v.number(),
-          deltaPercent: v.number(),
-        })
-      )
-    ),
     seasonalityOutliers: v.optional(
       v.array(
         v.object({
@@ -78,6 +70,8 @@ export default defineSchema({
         })
       )
     ),
+    // Legacy field present in dev DB — kept optional so schema validation passes.
+    seasonalityMode: v.optional(v.string()),
     startMonth: v.optional(v.number()),
     projectionMode: v.optional(
       v.union(v.literal("rolling"), v.literal("fiscal"))
@@ -114,14 +108,6 @@ export default defineSchema({
         v.union(v.literal("rolling"), v.literal("fiscal"))
       ),
       useSeasonality: v.optional(v.boolean()),
-      seasonalityDeltas: v.optional(
-        v.array(
-          v.object({
-            month: v.number(),
-            deltaPercent: v.number(),
-          })
-        )
-      ),
       seasonalityOutliers: v.optional(
         v.array(
           v.object({

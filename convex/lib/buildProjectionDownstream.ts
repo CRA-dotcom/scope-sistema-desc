@@ -7,7 +7,6 @@ import {
   type EngineConfig,
   type MonthlyData,
 } from "./projectionEngine";
-import { seasonalityDataFromDeltas } from "./seasonality";
 import type { PricingModel } from "./pricingModel";
 
 /**
@@ -39,7 +38,6 @@ export async function buildProjectionDownstream(
       monthlySales: number;
       feFactor: number;
     }>;
-    seasonalityDeltas?: Array<{ month: number; deltaPercent: number }>;
     startMonth?: number;
     projectionMode?: "rolling" | "fiscal";
     monthCount?: number;
@@ -72,13 +70,11 @@ export async function buildProjectionDownstream(
     })
   );
 
-  // Resolve seasonality: prefer deltas, then raw data, then even spread.
+  // Resolve seasonality: prefer raw data array, then even spread.
   const seasonality: MonthlyData[] =
-    args.seasonalityDeltas && args.seasonalityDeltas.length === 12
-      ? seasonalityDataFromDeltas(args.annualSales, args.seasonalityDeltas)
-      : args.seasonalityData.length === 12
-        ? args.seasonalityData
-        : generateEvenSeasonality(args.annualSales);
+    args.seasonalityData.length === 12
+      ? args.seasonalityData
+      : generateEvenSeasonality(args.annualSales);
 
   // Fetch org config for engine settings.
   const orgConfig = await ctx.db

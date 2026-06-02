@@ -47,7 +47,6 @@ async function replaceProjection(
       pricingModel?: PricingModel;
     }>;
     seasonalityData: Array<{ month: number; monthlySales: number; feFactor: number }>;
-    seasonalityDeltas?: Array<{ month: number; deltaPercent: number }>;
     seasonalityOutliers?: Array<{ month: number; value: number; unit: "percent" | "amount" }>;
     startMonth?: number;
     projectionMode?: "rolling" | "fiscal";
@@ -144,7 +143,6 @@ async function replaceProjection(
     totalBudget: newArgs.totalBudget,
     commissionRate: newArgs.commissionRate,
     seasonalityData: newArgs.seasonalityData,
-    seasonalityDeltas: newArgs.seasonalityDeltas,
     seasonalityOutliers: newArgs.seasonalityOutliers,
     startMonth: newArgs.startMonth,
     projectionMode: newArgs.projectionMode,
@@ -162,7 +160,6 @@ async function replaceProjection(
     totalBudget: newArgs.totalBudget,
     commissionRate: newArgs.commissionRate,
     seasonalityData: newArgs.seasonalityData,
-    seasonalityDeltas: newArgs.seasonalityDeltas,
     startMonth: newArgs.startMonth,
     projectionMode: newArgs.projectionMode,
     monthCount: newArgs.monthCount,
@@ -225,14 +222,6 @@ export const create = mutation({
           )
         ),
       })
-    ),
-    seasonalityDeltas: v.optional(
-      v.array(
-        v.object({
-          month: v.number(),
-          deltaPercent: v.number(),
-        })
-      )
     ),
     seasonalityOutliers: v.optional(
       v.array(
@@ -343,7 +332,6 @@ export const create = mutation({
       totalBudget: args.totalBudget,
       commissionRate: args.commissionRate,
       seasonalityData: args.seasonalityData,
-      seasonalityDeltas: args.seasonalityDeltas,
       seasonalityOutliers: args.seasonalityOutliers,
       // C2: projection period fields
       startMonth: args.startMonth,
@@ -377,7 +365,6 @@ export const create = mutation({
       totalBudget: args.totalBudget,
       commissionRate: args.commissionRate,
       seasonalityData: args.seasonalityData,
-      seasonalityDeltas: args.seasonalityDeltas,
       startMonth: args.startMonth,
       projectionMode: args.projectionMode,
       monthCount: args.monthCount,

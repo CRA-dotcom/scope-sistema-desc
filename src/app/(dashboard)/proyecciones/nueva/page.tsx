@@ -316,20 +316,8 @@ function NuevaProyeccionContent() {
       if (s.startMonth !== undefined) setStartMonth(s.startMonth);
       if (s.projectionMode !== undefined) setProjectionMode(s.projectionMode);
       if (s.useSeasonality !== undefined) setUseSeasonality(s.useSeasonality);
-      // Sub-proyecto C: prefer the new outliers field if present.
-      // For legacy drafts (only seasonalityDeltas present), derive outliers from
-      // months with |deltaPercent| > 0.5 (the same threshold used in the chip UI).
       if (s.seasonalityOutliers !== undefined) {
         setSeasonalityOutliers(s.seasonalityOutliers);
-      } else if (s.seasonalityDeltas !== undefined) {
-        const derived: SeasonalityOutlier[] = s.seasonalityDeltas
-          .filter((d) => Math.abs(d.deltaPercent) > 0.5)
-          .map((d) => ({
-            month: d.month,
-            value: d.deltaPercent,
-            unit: "percent" as const,
-          }));
-        setSeasonalityOutliers(derived);
       }
       if (s.serviceStates !== undefined) {
         // Merge draft serviceStates onto the freshly-loaded service catalogue
@@ -401,14 +389,6 @@ function NuevaProyeccionContent() {
         commissionRate,
         seasonalityData,
         seasonalityOutliers: useSeasonality ? seasonalityOutliers : undefined,
-        // Derive the legacy 12-entry deltas from the computed seasonalityData so
-        // the engine and any non-outlier consumers see the same shape they always have.
-        seasonalityDeltas: useSeasonality
-          ? seasonalityData.map((m) => ({
-              month: m.month,
-              deltaPercent: (m.feFactor - 1) * 100,
-            }))
-          : undefined,
         serviceConfigs: serviceStates.map((s) => ({
           serviceId: s.serviceId as Id<"services">,
           chosenPct: s.chosenPct,
