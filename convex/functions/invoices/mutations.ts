@@ -3,7 +3,6 @@ import { v } from "convex/values";
 import {
   getOrgId,
   getOrgIdMutation,
-  requireAdmin,
   requireAuth,
 } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
@@ -129,7 +128,7 @@ export const markVoid = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
 
@@ -182,7 +181,7 @@ export const updateIssueDate = mutation({
     issueDate: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const inv = await ctx.db.get(args.invoiceId);
     if (!inv || inv.orgId !== orgId) {

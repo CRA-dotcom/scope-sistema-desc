@@ -109,14 +109,15 @@ describe("questionnaires.reopen", () => {
     ).rejects.toThrow(/no encontrado/i);
   });
 
-  it("throws when caller is not an admin (org:member)", async () => {
+  it("org:member can reopen a questionnaire (operator workflow)", async () => {
     const t = setupTest();
     const qId = await seedCompletedQuestionnaire(t);
-    await expect(
-      t
-        .withIdentity(asUserOfOrg("org_a", "user_member_1", "org:member"))
-        .mutation(api.functions.questionnaires.mutations.reopen, { id: qId })
-    ).rejects.toThrow("Acceso denegado. Se requiere rol de Administrador.");
+    await t
+      .withIdentity(asUserOfOrg("org_a", "user_member_1", "org:member"))
+      .mutation(api.functions.questionnaires.mutations.reopen, { id: qId });
+    const q = await t.run(async (ctx) => ctx.db.get(qId));
+    expect(q?.status).toBe("in_progress");
+    expect(q?.reopenedAt).toBeTypeOf("number");
   });
 
   it("audit log message does not contain raw userId", async () => {

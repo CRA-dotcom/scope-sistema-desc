@@ -118,16 +118,16 @@ describe("clientFinancialData.mutations.markValidated", () => {
     ).rejects.toThrow(/extracción/);
   });
 
-  it("rejects non-admin caller", async () => {
+  it("org:member can mark validated (operator workflow)", async () => {
     const t = setupTest();
     const { rowId } = await seedRow(t, ORG_A);
-    await expect(
-      t
-        .withIdentity(member(ORG_A))
-        .mutation(api.functions.clientFinancialData.mutations.markValidated, {
-          id: rowId,
-        })
-    ).rejects.toThrow(/Administrador/);
+    await t
+      .withIdentity(member(ORG_A))
+      .mutation(api.functions.clientFinancialData.mutations.markValidated, {
+        id: rowId,
+      });
+    const row = await t.run(async (ctx) => ctx.db.get(rowId));
+    expect(row!.status).toBe("validated");
   });
 
   it("rejects cross-org access", async () => {

@@ -1,6 +1,6 @@
 import { query, internalQuery } from "../../_generated/server";
 import { v } from "convex/values";
-import { requireAdmin, getOrgIdSafe, getOrgId } from "../../lib/authHelpers";
+import { getOrgIdSafe, getOrgId } from "../../lib/authHelpers";
 
 /**
  * SS4 — Public + internal queries for clientFinancialData.
@@ -20,7 +20,6 @@ export const listByClient = query({
     periodType: v.optional(PERIOD_TYPE_VALIDATOR),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
     const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return [];
 

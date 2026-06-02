@@ -1,6 +1,6 @@
 import { mutation, internalMutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, getOrgIdMutation, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 import { cancelFuturePendingAssignments } from "../../lib/projectionDownstream";
 
 export const generate = mutation({
@@ -317,7 +317,7 @@ export const cancelContract = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
 
     const contract = await ctx.db.get(args.contractId);
@@ -350,7 +350,7 @@ export const cancelContract = mutation({
       eventType: "voided",
       severity: "info",
       actorType: "user",
-      message: `Contrato cancelado por admin: ${args.reason}`,
+      message: `Contrato cancelado: ${args.reason}`,
       createdAt: Date.now(),
     });
 

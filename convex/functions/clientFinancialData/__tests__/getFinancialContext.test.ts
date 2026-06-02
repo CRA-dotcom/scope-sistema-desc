@@ -152,16 +152,22 @@ describe("clientFinancialData.queries.listByClient", () => {
     expect(rows).toEqual([]);
   });
 
-  it("rejects non-admin caller", async () => {
+  it("org:member can list (operator workflow)", async () => {
     const t = setupTest();
     const clientId = await seedClient(t, ORG_A);
-    await expect(
-      t
-        .withIdentity(member(ORG_A))
-        .query(api.functions.clientFinancialData.queries.listByClient, {
-          clientId,
-        })
-    ).rejects.toThrow(/Administrador/);
+    await insertRow(t, {
+      orgId: ORG_A,
+      clientId,
+      period: "2026-01",
+      periodType: "monthly",
+      status: "validated",
+    });
+    const rows = await t
+      .withIdentity(member(ORG_A))
+      .query(api.functions.clientFinancialData.queries.listByClient, {
+        clientId,
+      });
+    expect(rows).toHaveLength(1);
   });
 });
 

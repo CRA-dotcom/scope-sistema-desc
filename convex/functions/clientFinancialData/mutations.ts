@@ -1,6 +1,6 @@
 import { mutation } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgId, getOrgIdMutation, requireAdmin } from "../../lib/authHelpers";
+import { getOrgId, getOrgIdMutation, requireAuth } from "../../lib/authHelpers";
 import { internal } from "../../_generated/api";
 
 /**
@@ -24,7 +24,7 @@ const LINE_ITEM_VALIDATOR = v.object({
 export const markValidated = mutation({
   args: { id: v.id("clientFinancialData") },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const row = await ctx.db.get(args.id);
     if (!row || row.orgId !== orgId) {
@@ -66,7 +66,7 @@ export const markRejected = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const row = await ctx.db.get(args.id);
     if (!row || row.orgId !== orgId) {
@@ -109,7 +109,7 @@ export const manuallySetLineItems = mutation({
     lineItems: v.array(LINE_ITEM_VALIDATOR),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const row = await ctx.db.get(args.id);
     if (!row || row.orgId !== orgId) {

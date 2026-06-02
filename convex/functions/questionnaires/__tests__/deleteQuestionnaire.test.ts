@@ -121,15 +121,16 @@ describe("questionnaires.deleteQuestionnaire", () => {
     });
   });
 
-  it("non-admin (org:member) throws 'Acceso denegado'", async () => {
+  it("org:member can delete questionnaire (operator workflow)", async () => {
     const t = setupTest();
     const qId = await seedQuestionnaire(t);
 
-    await expect(
-      t
-        .withIdentity(asUserOfOrg("org_a", "user_member_1", "org:member"))
-        .mutation(api.functions.questionnaires.mutations.deleteQuestionnaire, { id: qId })
-    ).rejects.toThrow("Acceso denegado. Se requiere rol de Administrador.");
+    await t
+      .withIdentity(asUserOfOrg("org_a", "user_member_1", "org:member"))
+      .mutation(api.functions.questionnaires.mutations.deleteQuestionnaire, { id: qId });
+
+    const q = await t.run(async (ctx) => ctx.db.get(qId));
+    expect(q).toBeNull();
   });
 
   it("cross-org throws 'no encontrado'", async () => {

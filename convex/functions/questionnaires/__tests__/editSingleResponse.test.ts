@@ -88,19 +88,20 @@ describe("questionnaires.editSingleResponse", () => {
     });
   });
 
-  it("non-admin throws", async () => {
+  it("org:member can edit a response (operator workflow)", async () => {
     const t = setupTest();
     const qId = await seedCompletedQuestionnaire(t);
 
-    await expect(
-      t
-        .withIdentity(asUserOfOrg("org_a", "user_member_1", "org:member"))
-        .mutation(api.functions.questionnaires.mutations.editSingleResponse, {
-          id: qId,
-          questionId: "q1",
-          answer: "hack",
-        })
-    ).rejects.toThrow("Acceso denegado. Se requiere rol de Administrador.");
+    await t
+      .withIdentity(asUserOfOrg("org_a", "user_member_1", "org:member"))
+      .mutation(api.functions.questionnaires.mutations.editSingleResponse, {
+        id: qId,
+        questionId: "q1",
+        answer: "corrección del operador",
+      });
+
+    const q = await t.run(async (ctx) => ctx.db.get(qId));
+    expect(q?.responses.find((r) => r.questionId === "q1")?.answer).toBe("corrección del operador");
   });
 
   it("editSingleResponse on draft questionnaire throws", async () => {

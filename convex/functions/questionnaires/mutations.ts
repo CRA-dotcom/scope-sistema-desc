@@ -2,7 +2,7 @@ import { mutation } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { v } from "convex/values";
 import { Id } from "../../_generated/dataModel";
-import { requireAdmin, getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
+import { requireAuth, getOrgId, getOrgIdMutation } from "../../lib/authHelpers";
 import { MASTER_QUESTIONS } from "./masterQuestionnaire";
 import { getOrgNotificationEmail } from "../email/resolveRecipients";
 import { assertTransition, type Transition } from "../../lib/stateMachines";
@@ -262,7 +262,7 @@ export const submit = mutation({
 export const deleteQuestionnaire = mutation({
   args: { id: v.id("questionnaireResponses") },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
@@ -320,7 +320,7 @@ export const editSingleResponse = mutation({
     answer: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const q = await ctx.db.get(args.id);
     if (!q || q.orgId !== orgId) throw new Error("Cuestionario no encontrado.");
@@ -353,7 +353,7 @@ export const editSingleResponse = mutation({
 export const reopen = mutation({
   args: { id: v.id("questionnaireResponses") },
   handler: async (ctx, args) => {
-    const identity = await requireAdmin(ctx);
+    const identity = await requireAuth(ctx);
     const orgId = await getOrgIdMutation(ctx);
     const userId = identity.subject;
     const q = await ctx.db.get(args.id);
