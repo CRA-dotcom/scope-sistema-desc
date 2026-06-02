@@ -61,16 +61,6 @@ export default defineSchema({
         feFactor: v.number(),
       })
     ),
-    // Legacy fields present in dev DB — kept optional so schema validation passes.
-    // Can be dropped once dev DB rows have been cleaned up.
-    seasonalityDeltas: v.optional(
-      v.array(
-        v.object({
-          month: v.number(),
-          deltaPercent: v.number(),
-        })
-      )
-    ),
     seasonalityOutliers: v.optional(
       v.array(
         v.object({
@@ -80,7 +70,6 @@ export default defineSchema({
         })
       )
     ),
-    seasonalityMode: v.optional(v.string()),
     startMonth: v.optional(v.number()),
     projectionMode: v.optional(
       v.union(v.literal("rolling"), v.literal("fiscal"))
