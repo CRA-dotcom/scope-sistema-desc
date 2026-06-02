@@ -1,6 +1,6 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
-import { getOrgIdSafe, requireAdmin } from "../../lib/authHelpers";
+import { getOrgIdSafe } from "../../lib/authHelpers";
 
 export const getById = query({
   args: { id: v.id("contracts") },
@@ -99,7 +99,9 @@ export const getContractsForPipeline = query({
     clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    // Operator-accessible: el pipeline de contratos es la vista de trabajo
+    // diaria del operador. Mantener consistencia con las otras contract
+    // queries (lines 8, 19, 37, 63) que solo gatean por org.
     const orgId = await getOrgIdSafe(ctx);
     if (!orgId) return [];
 

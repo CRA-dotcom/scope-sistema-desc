@@ -189,14 +189,14 @@ describe("getContractsForPipeline", () => {
     expect(result[0].serviceName).toBe("A");
   });
 
-  it("returns empty array for non-admin role (org:member)", async () => {
+  it("allows non-admin role (org:member) — pipeline es vista de trabajo del operador", async () => {
     const t = setupTest();
-    await expect(
-      t
-        .withIdentity(member(ORG_A))
-        .query(api.functions.contracts.queries.getContractsForPipeline, {
-          statusFilter: "all",
-        })
-    ).rejects.toThrow(/admin/i);
+    const result = await t
+      .withIdentity(member(ORG_A))
+      .query(api.functions.contracts.queries.getContractsForPipeline, {
+        statusFilter: "all",
+      });
+    // Member sees pipeline; org isolation still enforced via orgId filter
+    expect(Array.isArray(result)).toBe(true);
   });
 });
