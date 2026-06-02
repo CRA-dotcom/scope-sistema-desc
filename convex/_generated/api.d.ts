@@ -60,6 +60,7 @@ import type * as functions_issuingCompanies_helpers from "../functions/issuingCo
 import type * as functions_issuingCompanies_mutations from "../functions/issuingCompanies/mutations.js";
 import type * as functions_issuingCompanies_queries from "../functions/issuingCompanies/queries.js";
 import type * as functions_issuingCompanies_resolve from "../functions/issuingCompanies/resolve.js";
+import type * as functions_migrations_dropProjectionServicesSubserviceIdScalar from "../functions/migrations/dropProjectionServicesSubserviceIdScalar.js";
 import type * as functions_migrations_dropSeasonalityDeltas from "../functions/migrations/dropSeasonalityDeltas.js";
 import type * as functions_migrations_firmameProvider from "../functions/migrations/firmameProvider.js";
 import type * as functions_migrations_invoiceIssueDate from "../functions/migrations/invoiceIssueDate.js";
@@ -211,6 +212,7 @@ declare const fullApi: ApiFromModules<{
   "functions/issuingCompanies/mutations": typeof functions_issuingCompanies_mutations;
   "functions/issuingCompanies/queries": typeof functions_issuingCompanies_queries;
   "functions/issuingCompanies/resolve": typeof functions_issuingCompanies_resolve;
+  "functions/migrations/dropProjectionServicesSubserviceIdScalar": typeof functions_migrations_dropProjectionServicesSubserviceIdScalar;
   "functions/migrations/dropSeasonalityDeltas": typeof functions_migrations_dropSeasonalityDeltas;
   "functions/migrations/firmameProvider": typeof functions_migrations_firmameProvider;
   "functions/migrations/invoiceIssueDate": typeof functions_migrations_invoiceIssueDate;

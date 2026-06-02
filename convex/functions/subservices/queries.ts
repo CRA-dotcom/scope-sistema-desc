@@ -6,6 +6,7 @@ import {
   requireAuth,
   requireSuperAdmin,
 } from "../../lib/authHelpers";
+import { effectiveSubserviceIds } from "../../lib/subserviceIds";
 
 /**
  * listByParent — used by the projection wizard Step 2 and the operator config
@@ -157,7 +158,7 @@ export const getYearOverYearHint = query({
         .collect();
 
       const hasMatch = projServices.some(
-        (ps) => ps.subserviceId === args.subserviceId
+        (ps) => effectiveSubserviceIds(ps).includes(args.subserviceId)
       );
       if (hasMatch) {
         return {

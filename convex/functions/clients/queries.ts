@@ -2,6 +2,7 @@ import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { getOrgIdSafe } from "../../lib/authHelpers";
 import { Doc, Id } from "../../_generated/dataModel";
+import { effectiveSubserviceIds } from "../../lib/subserviceIds";
 
 export const list = query({
   args: {
@@ -132,7 +133,7 @@ export const getServicesOverview = query({
 
     // 4. Resolver subservices (batch).
     const subserviceIds = projServices
-      .map((ps) => ps.subserviceId)
+      .flatMap((ps) => effectiveSubserviceIds(ps))
       .filter((id): id is Id<"subservices"> => Boolean(id));
     const subservices = await Promise.all(
       subserviceIds.map((id) => ctx.db.get(id))
@@ -168,8 +169,9 @@ export const getServicesOverview = query({
     for (const ps of projServices) {
       const parent = svcById.get(ps.serviceId as string);
       if (!parent) continue;
-      const sub = ps.subserviceId
-        ? subById.get(ps.subserviceId as string) ?? null
+      const primarySubId = effectiveSubserviceIds(ps)[0];
+      const sub = primarySubId
+        ? subById.get(primarySubId as string) ?? null
         : null;
       const row = buildRow(ps, sub, active.year, currentYear, currentMonth);
       if (!row) continue;

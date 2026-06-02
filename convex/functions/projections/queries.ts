@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { getOrgId, getOrgIdSafe } from "../../lib/authHelpers";
 import { Id } from "../../_generated/dataModel";
 import { getProjectionDownstreamCounts } from "../../lib/projectionDownstream";
+import { effectiveSubserviceIds } from "../../lib/subserviceIds";
 
 export const getByClient = query({
   args: { clientId: v.id("clients") },
@@ -136,10 +137,8 @@ export const subservicesMissingContent = query({
       )
       .collect();
 
-    // Collect unique subserviceIds from active rows
-    const subIdsArr = activeRows
-      .map((ps) => ps.subserviceId)
-      .filter((id): id is Id<"subservices"> => !!id);
+    // Collect unique subserviceIds from active rows (multi-subservicio aware)
+    const subIdsArr = activeRows.flatMap((ps) => effectiveSubserviceIds(ps));
     const uniqueSubIds = Array.from(new Set(subIdsArr));
     if (uniqueSubIds.length === 0) return [];
 
@@ -179,7 +178,9 @@ export const subservicesMissingContent = query({
       const sub = subDocs[i];
       if (!sub) continue;
       // Find serviceName from any active row that has this subservice
-      const ps = activeRows.find((p) => p.subserviceId === subId);
+      const ps = activeRows.find((p) =>
+        effectiveSubserviceIds(p).includes(subId)
+      );
       missing.push({
         subserviceId: subId,
         subserviceName: sub.name,

@@ -118,7 +118,7 @@ async function seed(
       projectionId,
       serviceId,
       serviceName: "Contable",
-      subserviceId,
+      subserviceIds: [subserviceId],
       chosenPct: 0.18,
       isActive: true,
       annualAmount: 360_000,

@@ -46,7 +46,6 @@ export async function buildProjectionDownstream(
       serviceId: Id<"services">;
       chosenPct: number;
       isActive: boolean;
-      subserviceId?: Id<"subservices">;
       subserviceIds?: Array<Id<"subservices">>;
       pricingModel?: PricingModel;
     }>;
@@ -113,23 +112,18 @@ export async function buildProjectionDownstream(
     );
     if (!serviceConfig) continue;
 
-    // Resolve effectiveSubserviceIds: prefer subserviceIds array, fall back
-    // to scalar subserviceId, fall back to empty.
+    // Resolve effectiveSubserviceIds: use subserviceIds array (canonical).
     const effectiveSubserviceIds: Array<Id<"subservices">> =
-      serviceConfig.subserviceIds && serviceConfig.subserviceIds.length > 0
-        ? serviceConfig.subserviceIds
-        : serviceConfig.subserviceId
-          ? [serviceConfig.subserviceId]
-          : [];
-    // Legacy scalar: first element of the resolved list (or undefined).
-    const legacySubserviceId: Id<"subservices"> | undefined =
+      serviceConfig.subserviceIds ?? [];
+    // Primary subservice: first element of the resolved list (or undefined).
+    const primarySubserviceId: Id<"subservices"> | undefined =
       effectiveSubserviceIds[0];
 
     // Resolve pricingModel: explicit override > subservice.defaultPricingModel
     //                      > derive from service.isCommission.
     let resolvedPricingModel: PricingModel | undefined = serviceConfig.pricingModel;
-    if (!resolvedPricingModel && legacySubserviceId) {
-      const sub = await ctx.db.get(legacySubserviceId);
+    if (!resolvedPricingModel && primarySubserviceId) {
+      const sub = await ctx.db.get(primarySubserviceId);
       resolvedPricingModel = sub?.defaultPricingModel;
     }
     if (!resolvedPricingModel) {
@@ -142,7 +136,6 @@ export async function buildProjectionDownstream(
       projectionId,
       serviceId: serviceConfig.serviceId,
       serviceName: svc.serviceName,
-      subserviceId: legacySubserviceId,
       subserviceIds:
         effectiveSubserviceIds.length > 0 ? effectiveSubserviceIds : undefined,
       chosenPct: svc.chosenPct,

@@ -61,6 +61,16 @@ export default defineSchema({
         feFactor: v.number(),
       })
     ),
+    // Legacy fields present in dev DB — kept optional so schema validation passes.
+    // Can be dropped once dev DB rows have been cleaned up.
+    seasonalityDeltas: v.optional(
+      v.array(
+        v.object({
+          month: v.number(),
+          deltaPercent: v.number(),
+        })
+      )
+    ),
     seasonalityOutliers: v.optional(
       v.array(
         v.object({
@@ -70,7 +80,6 @@ export default defineSchema({
         })
       )
     ),
-    // Legacy field present in dev DB — kept optional so schema validation passes.
     seasonalityMode: v.optional(v.string()),
     startMonth: v.optional(v.number()),
     projectionMode: v.optional(
@@ -207,8 +216,7 @@ export default defineSchema({
     projectionId: v.id("projections"),
     serviceId: v.id("services"),
     serviceName: v.string(),
-    subserviceId: v.optional(v.id("subservices")),  // legacy — kept for backward compat
-    subserviceIds: v.optional(v.array(v.id("subservices"))),  // new: multi-subservice support
+    subserviceIds: v.optional(v.array(v.id("subservices"))),
     pricingModel: v.optional(
       v.union(
         v.literal("fixed_retainer"),

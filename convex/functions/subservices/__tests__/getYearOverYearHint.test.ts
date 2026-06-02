@@ -42,7 +42,7 @@ describe("getYearOverYearHint", () => {
         createdAt: 0, updatedAt: 0,
       });
       await ctx.db.insert("projectionServices", {
-        orgId, projectionId, serviceId: parentServiceId, subserviceId,
+        orgId, projectionId, serviceId: parentServiceId, subserviceIds: [subserviceId],
         serviceName: "S",
         annualAmount: 30000, chosenPct: 0.02, normalizedWeight: 1, isActive: true,
       });
@@ -90,7 +90,7 @@ describe("getYearOverYearHint", () => {
         createdAt: 0, updatedAt: 0,
       });
       await ctx.db.insert("projectionServices", {
-        orgId, projectionId, serviceId: parentServiceId, subserviceId: noDiscountSub,
+        orgId, projectionId, serviceId: parentServiceId, subserviceIds: [noDiscountSub],
         serviceName: "S",
         annualAmount: 10000, chosenPct: 0.02, normalizedWeight: 1, isActive: true,
       });
@@ -116,7 +116,7 @@ describe("getYearOverYearHint", () => {
         createdAt: 0, updatedAt: 0,
       });
       await ctx.db.insert("projectionServices", {
-        orgId, projectionId, serviceId: parentServiceId, subserviceId,
+        orgId, projectionId, serviceId: parentServiceId, subserviceIds: [subserviceId],
         serviceName: "S",
         annualAmount: 30000, chosenPct: 0.02, normalizedWeight: 1, isActive: true,
       });

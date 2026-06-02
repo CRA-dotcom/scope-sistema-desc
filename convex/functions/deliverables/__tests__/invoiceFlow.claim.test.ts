@@ -74,7 +74,7 @@ async function seedPaidInvoice(
       projectionId,
       serviceId,
       serviceName: "SEO",
-      subserviceId,
+      subserviceIds: [subserviceId],
       chosenPct: 0.15,
       isActive: true,
       annualAmount: 75_000,

@@ -42,7 +42,6 @@ async function replaceProjection(
       serviceId: Id<"services">;
       chosenPct: number;
       isActive: boolean;
-      subserviceId?: Id<"subservices">;
       subserviceIds?: Array<Id<"subservices">>;
       pricingModel?: PricingModel;
     }>;
@@ -205,13 +204,9 @@ export const create = mutation({
         serviceId: v.id("services"),
         chosenPct: v.number(),
         isActive: v.boolean(),
-        // A1: optional subservice selection — required at the UI layer when
-        // the parent service has subservices available, but kept optional in
-        // the validator so legacy callers + transitional cases (no
-        // subservices configured yet) keep working.
-        subserviceId: v.optional(v.id("subservices")),
-        // #9: multi-subservice support. Prefer subserviceIds when provided;
-        // fall back to [subserviceId] for backward compat.
+        // A1: multi-subservice selection. Required at the UI layer when the
+        // parent service has subservices available. Optional so legacy callers
+        // and services without subservices keep working.
         subserviceIds: v.optional(v.array(v.id("subservices"))),
         pricingModel: v.optional(
           v.union(
@@ -275,15 +270,12 @@ export const create = mutation({
       })
     );
 
-    // A1 Phase 2 review / #9: server-side validation that mirrors the wizard UI
-    // contract — if the parent service has any active subservices available
-    // (org-scoped or global), the caller MUST pick at least one. Accepts EITHER
-    // the legacy `subserviceId` scalar OR the new `subserviceIds` array.
+    // A1: server-side validation that mirrors the wizard UI contract — if the
+    // parent service has any active subservices available (org-scoped or global),
+    // the caller MUST pick at least one via subserviceIds.
     for (const sc of args.serviceConfigs) {
       if (!sc.isActive) continue;
-      // Pass if legacy single ID is provided
-      if (sc.subserviceId !== undefined) continue;
-      // Pass if new multi-select array is non-empty
+      // Pass if subserviceIds array is non-empty
       if (sc.subserviceIds && sc.subserviceIds.length > 0) continue;
 
       // Inline the listByParent logic instead of ctx.runQuery to keep the
@@ -798,7 +790,7 @@ export const addSubserviceMidYear = mutation({
     const dupe = existing.find(
       (ps) =>
         (ps.serviceId as string) === (subservice.parentServiceId as string) &&
-        ps.subserviceId === args.subserviceId &&
+        (ps.subserviceIds ?? []).includes(args.subserviceId) &&
         (ps.startMonth ?? 1) === args.startMonth
     );
     if (dupe && dupe.supplementaryQuotationId) {
@@ -822,7 +814,7 @@ export const addSubserviceMidYear = mutation({
       projectionId: args.projectionId,
       serviceId: subservice.parentServiceId,
       serviceName: parentService.name,
-      subserviceId: args.subserviceId,
+      subserviceIds: [args.subserviceId],
       chosenPct: 0,
       isActive: true,
       annualAmount,

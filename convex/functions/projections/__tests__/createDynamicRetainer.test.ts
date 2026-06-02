@@ -64,7 +64,7 @@ describe("projections.create with dynamic_retainer subservice", () => {
       serviceConfigs: [
         {
           serviceId,
-          subserviceId,
+          subserviceIds: [subserviceId],
           chosenPct: 100,
           isActive: true,
         },
@@ -142,7 +142,7 @@ describe("projections.create with dynamic_retainer subservice", () => {
       serviceConfigs: [
         {
           serviceId,
-          subserviceId,
+          subserviceIds: [subserviceId],
           chosenPct: 100,
           isActive: true,
         },

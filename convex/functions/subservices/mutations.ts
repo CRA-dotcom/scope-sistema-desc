@@ -435,12 +435,15 @@ async function findActiveRefs(
 ): Promise<string[]> {
   const blockers: string[] = [];
 
-  const projServices = await ctx.db
+  // projectionServices uses subserviceIds[] (scalar dropped). Scan and filter in-memory.
+  const allProjServices = await ctx.db
     .query("projectionServices")
     .withIndex("by_orgId", (q) => q.eq("orgId", orgId))
-    .filter((q) => q.eq(q.field("subserviceId"), subId))
-    .first();
-  if (projServices) blockers.push("una o más proyecciones activas");
+    .collect();
+  const projServiceRef = allProjServices.find(
+    (ps) => ps.subserviceIds && ps.subserviceIds.includes(subId)
+  );
+  if (projServiceRef) blockers.push("una o más proyecciones activas");
 
   const monthly = await ctx.db
     .query("monthlyAssignments")

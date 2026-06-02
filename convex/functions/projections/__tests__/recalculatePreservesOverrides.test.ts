@@ -151,7 +151,7 @@ describe("projections.recalculate preserves overridden cells", () => {
         monthlySales: 100_000,
         feFactor: 1,
       })),
-      serviceConfigs: [{ serviceId, subserviceId, chosenPct: 100, isActive: true }],
+      serviceConfigs: [{ serviceId, subserviceIds: [subserviceId], chosenPct: 100, isActive: true }],
     });
 
     // Verify initial state: cells sum = annualAmount = 120k

@@ -6,9 +6,9 @@ import { setupTest, ORG_A } from "../../../../tests/harness";
 /**
  * #9 — Multi-subservice selection per service.
  *
- * projectionServices.subserviceIds (new array field) is written when the
- * caller passes serviceConfigs[].subserviceIds. Legacy subserviceId scalar
- * is preserved for backward compat.
+ * projectionServices.subserviceIds (array field) is written when the
+ * caller passes serviceConfigs[].subserviceIds. The legacy scalar
+ * subserviceId has been dropped from projectionServices schema.
  */
 
 function admin(orgId: string) {
@@ -124,11 +124,9 @@ describe("projections.create — multi-subservice (#9)", () => {
 
     expect(ps).not.toBeNull();
     expect(ps!.subserviceIds).toEqual([sub1, sub2]);
-    // Legacy field should be set to first element for backcompat.
-    expect(ps!.subserviceId).toBe(sub1);
   });
 
-  it("backward compat: subserviceId scalar still works and writes subserviceId (no subserviceIds)", async () => {
+  it("single subservice: subserviceIds: [sub1] writes correctly", async () => {
     const t = setupTest();
     const clientId = await seedClient(t, ORG_A);
     const serviceId = await seedService(t);
@@ -148,7 +146,7 @@ describe("projections.create — multi-subservice (#9)", () => {
             serviceId,
             chosenPct: 0.1,
             isActive: true,
-            subserviceId: sub1,
+            subserviceIds: [sub1],
           },
         ],
       });
@@ -163,13 +161,10 @@ describe("projections.create — multi-subservice (#9)", () => {
     });
 
     expect(ps).not.toBeNull();
-    // Legacy field must be preserved.
-    expect(ps!.subserviceId).toBe(sub1);
-    // subserviceIds is also populated (backfill from scalar)
     expect(ps!.subserviceIds).toEqual([sub1]);
   });
 
-  it("validation: missing both subserviceId and subserviceIds throws when subservices exist", async () => {
+  it("validation: missing subserviceIds throws when subservices exist", async () => {
     const t = setupTest();
     const clientId = await seedClient(t, ORG_A);
     const serviceId = await seedService(t);

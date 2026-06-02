@@ -56,7 +56,7 @@ export const listProjServicesForClient = internalQuery({
       projectionId: string;
       serviceId: string;
       serviceName: string;
-      subserviceId?: string;
+      subserviceIds?: string[];
     }> = [];
     for (const p of active) {
       const services = await ctx.db
@@ -71,7 +71,7 @@ export const listProjServicesForClient = internalQuery({
           projectionId: p._id,
           serviceId: s.serviceId,
           serviceName: s.serviceName,
-          subserviceId: s.subserviceId,
+          subserviceIds: s.subserviceIds,
         });
       }
     }

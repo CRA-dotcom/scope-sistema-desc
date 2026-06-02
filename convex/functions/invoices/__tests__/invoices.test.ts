@@ -109,7 +109,7 @@ async function seedFixture(
       projectionId,
       serviceId,
       serviceName: "Marketing",
-      subserviceId,
+      subserviceIds: [subserviceId],
       chosenPct: 0.18,
       isActive: true,
       annualAmount: 180_000,

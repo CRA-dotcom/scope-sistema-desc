@@ -27,8 +27,9 @@ export const migrate = internalMutation({
     for await (const ps of ctx.db.query("projectionServices")) {
       if (ps.pricingModel) continue;
       let model: PricingModel;
-      if (ps.subserviceId) {
-        const sub = await ctx.db.get(ps.subserviceId);
+      const primarySubId = ps.subserviceIds?.[0];
+      if (primarySubId) {
+        const sub = await ctx.db.get(primarySubId);
         model = sub?.defaultPricingModel ?? "fixed_retainer";
       } else {
         const svc = await ctx.db.get(ps.serviceId);

@@ -52,9 +52,7 @@ export default function ConfigurarSubserviciosPage() {
       if (!svc.isActive) continue;
       const saved: string[] = svc.subserviceIds
         ? (svc.subserviceIds as string[])
-        : svc.subserviceId
-          ? [svc.subserviceId as string]
-          : [];
+        : [];
       map.set(svc._id as string, saved);
     }
     return map;

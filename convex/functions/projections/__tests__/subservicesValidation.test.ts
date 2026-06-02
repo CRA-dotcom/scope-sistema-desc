@@ -137,7 +137,7 @@ describe("projections.create — subservice validation (A1 Phase 2)", () => {
             serviceId: marketingId,
             chosenPct: 0.1,
             isActive: true,
-            subserviceId: subId,
+            subserviceIds: [subId],
           },
         ],
       });

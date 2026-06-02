@@ -6,8 +6,9 @@ import schema from "../../../schema";
 /**
  * #1 — Post-creation subservices picker.
  *
- * setSubserviceIds patches both subserviceIds (array) and the legacy
- * subserviceId scalar on a projectionServices row. Cross-org access throws.
+ * setSubserviceIds patches subserviceIds (array) on a projectionServices row.
+ * The legacy subserviceId scalar has been dropped from the schema.
+ * Cross-org access throws.
  */
 
 async function setupFixture(t: ReturnType<typeof convexTest>) {
@@ -104,7 +105,7 @@ const asOtherOrg = {
 };
 
 describe("projectionServices.setSubserviceIds (#1)", () => {
-  it("patches subserviceIds and backcompat subserviceId (first element)", async () => {
+  it("patches subserviceIds array", async () => {
     const t = convexTest(schema);
     const { projServiceId, sub1, sub2 } = await setupFixture(t);
 
@@ -118,11 +119,9 @@ describe("projectionServices.setSubserviceIds (#1)", () => {
 
     const ps = await t.run((ctx) => ctx.db.get(projServiceId));
     expect(ps!.subserviceIds).toEqual([sub1, sub2]);
-    // Legacy backcompat: first element
-    expect(ps!.subserviceId).toBe(sub1);
   });
 
-  it("empty array clears both subserviceIds and legacy subserviceId", async () => {
+  it("empty array clears subserviceIds", async () => {
     const t = convexTest(schema);
     const { projServiceId, sub1 } = await setupFixture(t);
 
@@ -132,7 +131,7 @@ describe("projectionServices.setSubserviceIds (#1)", () => {
       { projServiceId, subserviceIds: [sub1] }
     );
     let ps = await t.run((ctx) => ctx.db.get(projServiceId));
-    expect(ps!.subserviceId).toBe(sub1);
+    expect(ps!.subserviceIds).toEqual([sub1]);
 
     // Now clear
     await t.withIdentity(asAdmin).mutation(
@@ -141,7 +140,6 @@ describe("projectionServices.setSubserviceIds (#1)", () => {
     );
     ps = await t.run((ctx) => ctx.db.get(projServiceId));
     expect(ps!.subserviceIds).toBeUndefined();
-    expect(ps!.subserviceId).toBeUndefined();
   });
 
   it("non-admin member is rejected", async () => {

@@ -497,16 +497,16 @@ export default function ProjectionDetailPage() {
                   <td className="sticky left-0 bg-card px-4 py-2.5 font-medium">
                     <div className="space-y-1.5">
                       <div>{svc.serviceName}</div>
-                      {svc.subserviceId && subservicesById.get(svc.subserviceId) && (
+                      {svc.subserviceIds?.[0] && subservicesById.get(svc.subserviceIds[0]) && (
                         <div className="text-[10px] text-muted-foreground font-normal">
-                          {subservicesById.get(svc.subserviceId)!.name}
+                          {subservicesById.get(svc.subserviceIds[0])!.name}
                         </div>
                       )}
                       {/* SS6: year-over-year discount chip */}
-                      {svc.subserviceId && projection && (
+                      {svc.subserviceIds?.[0] && projection && (
                         <YearOverYearChip
                           clientId={projection.clientId}
-                          subserviceId={svc.subserviceId}
+                          subserviceId={svc.subserviceIds[0]}
                           annualAmount={svc.annualAmount}
                           onApply={(newAmount) =>
                             setAnnualAmount({
@@ -700,7 +700,7 @@ export default function ProjectionDetailPage() {
                           onClick={() =>
                             handleQuotarServicio(
                               svc._id,
-                              svc.subserviceId ?? undefined
+                              svc.subserviceIds?.[0] ?? undefined
                             )
                           }
                           className="text-[10px] text-muted-foreground hover:text-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"

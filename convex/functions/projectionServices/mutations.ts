@@ -25,16 +25,12 @@ export const setSubserviceIds = mutation({
       throw new Error("Servicio no encontrado.");
     }
     if (args.subserviceIds.length === 0) {
-      // Clear both fields atomically (empty array → no selection).
       await ctx.db.patch(args.projServiceId, {
         subserviceIds: undefined,
-        subserviceId: undefined,
       });
     } else {
-      // Persist array + keep legacy scalar in sync (backcompat).
       await ctx.db.patch(args.projServiceId, {
         subserviceIds: args.subserviceIds,
-        subserviceId: args.subserviceIds[0], // backcompat: primary subservice
       });
     }
   },

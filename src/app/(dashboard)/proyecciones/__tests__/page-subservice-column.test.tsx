@@ -20,8 +20,9 @@ describe("/proyecciones/[id] — subservice in matrix left column", () => {
   });
 
   it("renders the subservice name under serviceName conditionally", () => {
-    expect(SOURCE).toMatch(/svc\.subserviceId\s*&&/);
-    expect(SOURCE).toMatch(/subservicesById\.get\(svc\.subserviceId\)/);
+    // After scalar drop: uses primary element from subserviceIds array.
+    expect(SOURCE).toMatch(/svc\.subserviceIds\?\.\[0\]\s*&&/);
+    expect(SOURCE).toMatch(/subservicesById\.get\(svc\.subserviceIds/);
   });
 
   it("passes subserviceName to MatrixCellDetail when an assignment is selected", () => {

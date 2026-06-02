@@ -94,7 +94,7 @@ describe("migrations.pricingModel.migrate", () => {
         projectionId,
         serviceId: svcCommission,
         serviceName: "Comisiones",
-        subserviceId: subCom,
+        subserviceIds: [subCom],
         chosenPct: 5,
         isActive: true,
         annualAmount: 60000,

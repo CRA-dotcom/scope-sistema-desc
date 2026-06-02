@@ -94,22 +94,23 @@ describe("wizard Step 2 — Continuar button validation", () => {
 });
 
 describe("projections.create mutation — subserviceIds propagation (#9)", () => {
-  it("validator accepts optional subserviceId (legacy) per service config", () => {
-    expect(PROJECTIONS_MUT_SOURCE).toMatch(
-      /subserviceId:\s*v\.optional\(\s*v\.id\(\s*"subservices"\s*\)\s*\)/
-    );
-  });
-
-  it("validator accepts optional subserviceIds array per service config", () => {
+  it("validator accepts optional subserviceIds array per service config (scalar dropped)", () => {
+    // Only the array form is now accepted — scalar subserviceId removed from create args.
     expect(PROJECTIONS_MUT_SOURCE).toMatch(
       /subserviceIds:\s*v\.optional\(\s*v\.array\(\s*v\.id\(\s*"subservices"\s*\)\s*\)\s*\)/
     );
+    expect(PROJECTIONS_MUT_SOURCE).not.toMatch(
+      /serviceId.*\n.*subserviceId:\s*v\.optional\(\s*v\.id\(\s*"subservices"\s*\)\s*\)/
+    );
   });
 
-  it("persists legacySubserviceId on the projectionServices insert (backcompat)", () => {
-    // The downstream build was extracted to buildProjectionDownstream.ts.
-    expect(BUILD_DOWNSTREAM_SOURCE).toMatch(
+  it("does NOT write scalar subserviceId on the projectionServices insert (field dropped)", () => {
+    // The scalar was removed from buildProjectionDownstream — only subserviceIds[] is written.
+    expect(BUILD_DOWNSTREAM_SOURCE).not.toMatch(
       /insert\(\s*"projectionServices"[\s\S]+?subserviceId:\s*legacySubserviceId/
+    );
+    expect(BUILD_DOWNSTREAM_SOURCE).toMatch(
+      /insert\(\s*"projectionServices"[\s\S]+?subserviceIds:/
     );
   });
 

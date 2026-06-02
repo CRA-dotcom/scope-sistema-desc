@@ -117,7 +117,6 @@ export const run = internalAction({
           // accepts any shape with those optional fields.
           const primarySubserviceId = effectiveSubserviceIds(
             ps as {
-              subserviceId?: Id<"subservices">;
               subserviceIds?: Id<"subservices">[];
             }
           )[0] as Id<"subservices"> | undefined;
